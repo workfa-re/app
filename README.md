@@ -206,7 +206,7 @@ To boot the JobBridge Web Platform locally (authorized contributors only):
 ### 2. Initialization
 
 ```bash
-git clone https://github.com/JobBridge-app/app.git
+git clone https://github.com/workfa-re/app.git
 cd app
 npm install
 ```

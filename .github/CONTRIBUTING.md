@@ -28,12 +28,12 @@ Found a glitch or have an idea? Please open a clean Issue with:
 *   Expected vs. Actual behavior
 *   Screenshots/Videos if possible
 
-👉 [Open a Bug Report or Feature Request](https://github.com/JobBridge-app/app/issues/new)
+👉 [Open a Bug Report or Feature Request](https://github.com/workfa-re/app/issues/new)
 
 ### 2. Sharing Ideas
 Have a feature request or feedback? Use our Discussions tab to brainstorm with the community.
 
-👉 [Join the Discussions](https://github.com/JobBridge-app/app/discussions)
+👉 [Join the Discussions](https://github.com/workfa-re/app/discussions)
 
 ### 3. Security
 If you find a security vulnerability, please **do not** post it publicly. See our [Security Policy](.github/SECURITY.md).

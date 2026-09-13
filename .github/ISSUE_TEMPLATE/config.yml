@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Discussions
-    url: https://github.com/JobBridge-app/app/discussions
+    url: https://github.com/workfa-re/app/discussions
     about: Für Fragen, Feedback und allgemeine Diskussionen.
 
   - name: Dokumentation
-    url: https://www.jobbridge.app
+    url: https://workfa.re
     about: Offizielle Website und weiterführende Informationen.
 
   - name: Support & Kontakt
