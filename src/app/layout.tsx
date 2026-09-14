@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { requireDemoEnvironment } from "@/lib/demo/environment";
+import { DemoEmbedBridge, type DemoEmbedRole } from "@/components/demo/DemoEmbedBridge";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
+import { cookies } from "next/headers";
+import { DEMO_THEME_COOKIE, resolveDemoTheme } from "@/lib/demo/theme";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { getCurrentSessionAndProfile } from "@/lib/auth";
 import { normalizeThemePreference, type ThemePreference } from "@/lib/theme-preference";
@@ -87,11 +91,23 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isDemo = process.env.WORKFARE_DEMO_ENABLED === "true" || process.env.NEXT_PUBLIC_WORKFARE_DEMO_ENABLED === "true";
+  if (isDemo) requireDemoEnvironment(process.env);
+
   const { profile } = await getCurrentSessionAndProfile();
-  const themePreference = normalizeThemePreference(profile?.theme_preference);
+  const themePreference = isDemo
+    ? resolveDemoTheme((await cookies()).get(DEMO_THEME_COOKIE)?.value)
+    : normalizeThemePreference(profile?.theme_preference);
+  const demoRole: DemoEmbedRole | null = profile?.account_type === "job_seeker"
+    ? "seeker"
+    : profile?.account_type === "job_provider" && profile.provider_kind === "company"
+      ? "company"
+      : profile?.account_type === "job_provider" && profile.provider_kind === "private"
+        ? "private-provider"
+        : null;
 
   return (
-    <html lang="de" className="dark bg-background" suppressHydrationWarning>
+    <html lang="de" className={`${isDemo ? themePreference : "dark"} bg-background`} suppressHydrationWarning>
       <head>
         <Script
           id="theme-bootstrap"
@@ -100,8 +116,9 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${fontSans.variable} min-h-screen bg-background text-foreground antialiased selection:bg-blue-500/30`}>
-        <ThemeProvider defaultTheme={themePreference} enableSystem={true}>
+        <ThemeProvider defaultTheme={themePreference} enableSystem={!isDemo}>
           {children}
+          {isDemo && <DemoEmbedBridge role={demoRole} allowDevelopmentOrigins={process.env.NODE_ENV !== "production"} />}
         </ThemeProvider>
       </body>
     </html>

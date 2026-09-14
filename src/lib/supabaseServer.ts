@@ -1,8 +1,11 @@
+import { requireDemoEnvironment } from "@/lib/demo/environment";
+import { demoAuthCookieOptions } from "@/lib/demo/auth-cookie";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { Database } from "@/lib/types/supabase";
 
 export async function supabaseServer() {
+  if (process.env.WORKFARE_DEMO_ENABLED === "true") requireDemoEnvironment();
   const cookieStore: Awaited<ReturnType<typeof cookies>> = await cookies();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,6 +19,7 @@ export async function supabaseServer() {
     url,
     anonKey,
     {
+      cookieOptions: demoAuthCookieOptions,
       db: {
         schema: "public",
       },

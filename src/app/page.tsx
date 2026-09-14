@@ -28,6 +28,9 @@ export default async function LandingPage({
     redirect(redirectTo ? `/onboarding?redirectTo=${encodeURIComponent(redirectTo)}` : "/onboarding");
   }
 
+  // A demo visitor returns to the controlled demo entry after signing out.
+  if (process.env.WORKFARE_DEMO_ENABLED === "true") redirect("/demo");
+
   // Ohne Session zeigt der Client-Wizard ggf. einen lokal gespeicherten Pending-Onboarding-Stand.
   return (
     <div className="landing-auth-shell min-h-dvh bg-[#07090f]">

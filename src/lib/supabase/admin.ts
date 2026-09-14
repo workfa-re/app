@@ -1,11 +1,13 @@
 import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireDemoEnvironment } from "@/lib/demo/environment";
 import { Database } from "@/lib/types/supabase";
 
 let adminClient: SupabaseClient<Database> | null = null;
 
 export function getSupabaseAdminClient(): SupabaseClient<Database> {
+  if (process.env.WORKFARE_DEMO_ENABLED === "true") requireDemoEnvironment();
   if (adminClient) {
     return adminClient;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
+import { demoAuthCookieOptions } from "@/lib/demo/auth-cookie";
 import { Database } from "@/lib/types/supabase";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -40,6 +41,7 @@ if (anonPayload && typeof anonPayload === "object" && "role" in anonPayload && (
 }
 
 export const supabaseBrowser = createBrowserClient<Database>(url, anonKey, {
+  cookieOptions: demoAuthCookieOptions,
   db: {
     schema: "public",
   },
