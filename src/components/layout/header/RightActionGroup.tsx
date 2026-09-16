@@ -1,6 +1,6 @@
 import { ProfileChip } from "../ProfileChip";
 import { NotificationsPopover } from "@/components/notifications/NotificationsPopover";
-import type { AppHeaderProfile, HeaderNotificationItem } from "@/lib/types/jobbridge";
+import type { AppHeaderProfile, HeaderNotificationItem } from "@/lib/types/platform";
 
 export function RightActionGroup({
     profile,

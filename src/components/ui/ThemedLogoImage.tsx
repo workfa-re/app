@@ -14,8 +14,8 @@ type ThemedLogoImageProps = {
   sizes?: string;
 };
 
-const darkLogoSrc = "/logo2-jobbridge.png";
-const lightLogoSrc = "/logo-light-jobbridge.png";
+const darkLogoSrc = "/brand/workfare-mark-dark.png";
+const lightLogoSrc = "/brand/workfare-mark-light.png";
 
 export function ThemedLogoImage({
   alt = BRAND_NAME,

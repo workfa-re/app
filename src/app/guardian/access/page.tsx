@@ -114,7 +114,7 @@ function GuardianAccessContent() {
 
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight mb-2">
-                            {isAuthenticated ? "Elternbestätigung" : "Willkommen bei JobBridge"}
+                            {isAuthenticated ? "Elternbestätigung" : "Willkommen bei Workfare"}
                         </h1>
                         <p className="text-slate-400 text-base leading-relaxed">
                             {isAuthenticated ? (
@@ -123,7 +123,7 @@ function GuardianAccessContent() {
                                 </>
                             ) : (
                                 <>
-                                    Dein Kind <span className="text-white font-medium">{childName || ""}</span> benötigt deine Zustimmung für JobBridge.
+                                    Dein Kind <span className="text-white font-medium">{childName || ""}</span> benötigt deine Zustimmung für Workfare.
                                 </>
                             )}
                         </p>
@@ -137,7 +137,7 @@ function GuardianAccessContent() {
                             <div className="space-y-2">
                                 <p className="text-white font-medium text-lg">Einloggen zum Fortfahren</p>
                                 <p className="text-sm text-slate-400 leading-relaxed">
-                                    Um die Sicherheit deines Kindes zu gewährleisten, benötigen wir deine Bestätigung über ein JobBridge-Konto.
+                                    Um die Sicherheit deines Kindes zu gewährleisten, benötigen wir deine Bestätigung über ein Workfare-Konto.
                                 </p>
                             </div>
 
@@ -173,7 +173,7 @@ function GuardianAccessContent() {
                             </div>
 
                             <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-                                Hiermit bestätige ich, dass ich erziehungsberechtigt bin und der Nutzung von JobBridge durch mein Kind zustimme.
+                                Hiermit bestätige ich, dass ich erziehungsberechtigt bin und der Nutzung von Workfare durch mein Kind zustimme.
                             </p>
 
                             {state === "success" ? (

@@ -2,7 +2,7 @@
  * Pure domain module for job list sorting and filtering.
  * No UI imports — fully unit-testable.
  */
-import type { JobsListItem } from "@/lib/types/jobbridge";
+import type { JobsListItem } from "@/lib/types/platform";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

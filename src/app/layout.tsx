@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { BRAND_NAME, BRAND_DESCRIPTION } from "@/lib/constants";
 import { requireDemoEnvironment } from "@/lib/demo/environment";
 import { DemoEmbedBridge, type DemoEmbedRole } from "@/components/demo/DemoEmbedBridge";
 import { Plus_Jakarta_Sans } from "next/font/google";
@@ -19,27 +20,27 @@ const fontSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "JobBridge",
-  description:
-    "JobBridge – Plattform für sichere Taschengeldjobs und Alltagshilfe.",
+  title: BRAND_NAME,
+  description: BRAND_DESCRIPTION,
+  applicationName: BRAND_NAME,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       {
-        url: "/jobbridge-favicon-32.png?v=20260713",
+        url: "/workfare-favicon-32.png?v=20260916",
         sizes: "32x32",
         type: "image/png",
       },
       {
-        url: "/jobbridge-icon-192.png?v=20260713",
+        url: "/workfare-icon-192.png?v=20260916",
         sizes: "192x192",
         type: "image/png",
       },
     ],
-    shortcut: "/jobbridge-favicon-32.png?v=20260713",
+    shortcut: "/workfare-favicon-32.png?v=20260916",
     apple: [
       {
-        url: "/jobbridge-apple-touch-icon.png?v=20260713",
+        url: "/workfare-apple-touch-icon.png?v=20260916",
         sizes: "180x180",
         type: "image/png",
       },
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "JobBridge",
+    title: BRAND_NAME,
   },
   formatDetection: {
     telephone: false,

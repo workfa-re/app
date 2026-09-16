@@ -3,7 +3,7 @@ import {
     mergeWaitlistJobSummaries,
     type JobsListItem,
     type WaitlistJobSummary,
-} from "@/lib/types/jobbridge";
+} from "@/lib/types/platform";
 
 function makeJob(id: string, status: JobsListItem["status"] = "reserved"): JobsListItem {
     return {

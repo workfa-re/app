@@ -1,3 +1,4 @@
+import { currentBrandLabel } from "@/lib/brand-compat";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { AccountType } from "@/lib/types";
 import type { Database } from "@/lib/types/supabase";
@@ -9,7 +10,7 @@ import {
   type ApplicationRow,
   type ApplicationStatus,
   type WaitlistJobSummary,
-} from "@/lib/types/jobbridge";
+} from "@/lib/types/platform";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchActivityPartnerProfiles,
@@ -210,6 +211,11 @@ async function enrichWithMarketNames(
   supabase: SupabaseClient<Database>,
   items: JobsListItem[],
 ): Promise<JobsListItem[]> {
+  items = items.map((item) => ({
+    ...item,
+    ...(item.market_name ? { market_name: currentBrandLabel(item.market_name) } : {}),
+    ...(item.brand_prefix ? { brand_prefix: currentBrandLabel(item.brand_prefix) } : {}),
+  }));
   const ids = [...new Set(items.filter((j) => j.market_id && !j.market_name).map((j) => j.market_id!))];
   if (ids.length === 0) return items;
 
@@ -220,7 +226,7 @@ async function enrichWithMarketNames(
   return items.map((j) => {
     if (!j.market_id || j.market_name) return j;
     const m = map.get(j.market_id);
-    return m ? { ...j, market_name: m.displayName || m.city, brand_prefix: m.brandPrefix } : j;
+    return m ? { ...j, market_name: currentBrandLabel(m.displayName || m.city), brand_prefix: currentBrandLabel(m.brandPrefix) } : j;
   });
 }
 

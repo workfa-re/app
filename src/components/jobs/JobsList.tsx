@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { JobsListSection } from "@/components/jobs/JobsListSection";
 import { Briefcase, CheckCircle2, Clock, ListFilter } from "lucide-react";
-import type { JobsListItem } from "@/lib/types/jobbridge";
+import type { JobsListItem } from "@/lib/types/platform";
 import { cn } from "@/lib/utils";
 import {
     deriveVisibleJobs,

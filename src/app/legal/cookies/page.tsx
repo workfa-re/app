@@ -3,7 +3,7 @@ import { LegalHero, LegalPanel, LegalRow, LegalSection, LegalStamp } from "@/com
 export const dynamic = "force-static";
 
 export const metadata = {
-  title: "Cookie-Richtlinien | JobBridge",
+  title: "Cookie-Richtlinien | Workfare",
 };
 
 export default function CookiesPage() {
@@ -17,7 +17,7 @@ export default function CookiesPage() {
         <p>
           Ganz einfach: Weil wir dich <strong>nicht tracken</strong>. Wir verkaufen keine Daten an Dritte,
           schalten keine personalisierte Werbung und setzen keine einwilligungspflichtigen
-          Marketing-Cookies ein. Bei JobBridge ist Datenschutz kein Kompromiss – sondern Standard.
+          Marketing-Cookies ein. Bei Workfare ist Datenschutz kein Kompromiss – sondern Standard.
           Deshalb benötigen wir keinen Cookie-Banner.
         </p>
       </LegalPanel>
@@ -34,7 +34,7 @@ export default function CookiesPage() {
           </LegalRow>
           <LegalRow label="Design-Einstellungen">
             Angemeldete Nutzer speichern ihr bevorzugtes Erscheinungsbild in ihrem Profil. Ohne Login
-            richtet sich JobBridge standardmäßig nach dem Systemdesign deines Geräts.
+            richtet sich Workfare standardmäßig nach dem Systemdesign deines Geräts.
           </LegalRow>
         </div>
       </LegalSection>

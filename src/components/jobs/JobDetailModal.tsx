@@ -10,7 +10,7 @@ import { VerificationRequiredModal } from "@/components/auth/VerificationRequire
 import { Lock } from "lucide-react";
 import { WithdrawButton } from "@/components/jobs/WithdrawButton";
 import dynamic from "next/dynamic";
-import { JobsListItem } from "@/lib/types/jobbridge";
+import { JobsListItem } from "@/lib/types/platform";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
 import { UserProfileModal, type VisibleProfile } from "@/components/profile/UserProfileModal";
 import { JobApplicationModal } from "@/components/jobs/JobApplicationModal";
@@ -22,7 +22,7 @@ import { endPerfMark, startPerfMark } from "@/lib/perf";
 const LeafletMap = dynamic(() => import("@/components/ui/LeafletMap"), {
     ssr: false,
     loading: () => (
-        <div className="jobbridge-map-loading flex h-full w-full animate-pulse items-center justify-center">
+        <div className="workfare-map-loading flex h-full w-full animate-pulse items-center justify-center">
             <MapPin size={24} />
         </div>
     ),
@@ -326,11 +326,11 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, guard
                                                         <div className="flex flex-col items-start gap-4">
                                                             <div>
                                                                 <div className="flex items-center gap-3">
-                                                                    <h5 className="font-semibold text-white text-lg">JobBridge Mitarbeiter</h5>
+                                                                    <h5 className="font-semibold text-white text-lg">Workfare Mitarbeiter</h5>
                                                                     <StaffBadge />
                                                                 </div>
                                                                 <p className="text-slate-400 mt-1 leading-relaxed text-sm">
-                                                                    Dieser Job wurde direkt von einem offiziellen JobBridge Team-Mitglied veröffentlicht.
+                                                                    Dieser Job wurde direkt von einem offiziellen Workfare Team-Mitglied veröffentlicht.
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -340,7 +340,7 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, guard
                                                                 <ShieldCheck size={20} />
                                                             </div>
                                                             <div>
-                                                                <h5 className="text-lg font-semibold text-white">Sicher über JobBridge</h5>
+                                                                <h5 className="text-lg font-semibold text-white">Sicher über Workfare</h5>
                                                                 <p className="text-slate-400 mt-1 leading-relaxed text-sm">
                                                                     Bewerbung, Nachrichten und Vereinbarungen bleiben in der Plattform nachvollziehbar. Teile sensible Angaben erst, wenn sie für den Auftrag erforderlich sind.
                                                                 </p>

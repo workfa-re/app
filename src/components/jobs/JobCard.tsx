@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { MapPin, Euro, Clock, Lock, CheckCircle2, Repeat2 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
-import type { JobsListItem } from "@/lib/types/jobbridge";
+import type { JobsListItem } from "@/lib/types/platform";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
 import Link from "next/link";
 import { warmJobsUI } from "@/lib/ui-warmup";

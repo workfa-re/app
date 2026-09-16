@@ -61,7 +61,7 @@ export function CinematicDateInput({ value, onChange, error, role, onErrorChange
             }
 
             if (role === "youth") {
-              if (age < 14) validationError = "Du musst für JobBridge mindestens 14 Jahre alt sein.";
+              if (age < 14) validationError = "Du musst für Workfare mindestens 14 Jahre alt sein.";
               else if (age >= 21) validationError = "Als Jugendliche/r oder junge/r Erwachsene/r musst du unter 21 Jahre alt sein.";
             } else {
               if (age < 18) validationError = "Für diese Rolle musst du mindestens 18 Jahre alt sein.";

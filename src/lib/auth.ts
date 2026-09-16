@@ -3,7 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "./supabaseServer";
 import { Profile, isProfileComplete, SystemRoleType, AccountType } from "./types";
-import type { EffectiveViewSnapshot } from "./types/jobbridge";
+import type { EffectiveViewSnapshot } from "./types/platform";
 
 const emptySessionContext = {
   session: null,

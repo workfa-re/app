@@ -5,7 +5,7 @@ import { AlertTriangle, CalendarDays, CheckCircle2, FileEdit, Loader2, MapPin, R
 import { useFormStatus } from "react-dom";
 import { useActionState, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import type { ErrorInfo } from "@/lib/types/jobbridge";
+import type { ErrorInfo } from "@/lib/types/platform";
 import { LocationAutocomplete, LocationDetails } from "@/components/ui/LocationAutocomplete";
 import { useJobFormPersistence } from "@/hooks/use-job-persistence";
 import { motion, AnimatePresence } from "framer-motion";

@@ -9,7 +9,7 @@ import { getNotificationRoute } from "@/components/notifications/notificationRou
 import { markAllNotificationsRead, markNotificationRead } from "@/components/notifications/notificationRpc";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
-import type { HeaderNotificationItem } from "@/lib/types/jobbridge";
+import type { HeaderNotificationItem } from "@/lib/types/platform";
 import { endPerfMark, startPerfMark } from "@/lib/perf";
 
 type NotificationItem = HeaderNotificationItem & { data?: unknown };
@@ -230,8 +230,8 @@ export function NotificationsPopover({
             if ((event as CustomEvent<string>).detail !== "notifications") setOpen(false);
         };
 
-        window.addEventListener("jobbridge:header-popover-open", handleOtherPopover);
-        return () => window.removeEventListener("jobbridge:header-popover-open", handleOtherPopover);
+        window.addEventListener("workfare:header-popover-open", handleOtherPopover);
+        return () => window.removeEventListener("workfare:header-popover-open", handleOtherPopover);
     }, []);
 
     useEffect(() => {
@@ -306,7 +306,7 @@ export function NotificationsPopover({
     const toggleOpen = () => {
         if (!open) {
             startPerfMark("notifications-open");
-            window.dispatchEvent(new CustomEvent("jobbridge:header-popover-open", { detail: "notifications" }));
+            window.dispatchEvent(new CustomEvent("workfare:header-popover-open", { detail: "notifications" }));
         }
         setOpen((current) => !current);
     };

@@ -1,6 +1,6 @@
 import { requireCompleteProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getEffectiveView } from "@/lib/dal/jobbridge";
+import { getEffectiveView } from "@/lib/dal/platform";
 
 export default async function ApplicationsPage() {
     const { profile } = await requireCompleteProfile();

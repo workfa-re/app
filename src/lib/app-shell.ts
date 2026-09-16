@@ -1,10 +1,11 @@
+import { currentBrandLabel } from "@/lib/brand-compat";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { Market } from "@/lib/types";
 import type { AccountType, Profile } from "@/lib/types";
-import type { AppHeaderProfile, AppHomeSnapshot, EffectiveViewSnapshot } from "@/lib/types/jobbridge";
+import type { AppHeaderProfile, AppHomeSnapshot, EffectiveViewSnapshot } from "@/lib/types/platform";
 
 export function getDefaultAppHomePath(viewRole: AccountType | null | undefined) {
   return viewRole === "job_provider" ? "/app-home/offers" : "/app-home/jobs";
@@ -31,8 +32,8 @@ export const getMarketSummary = cache(async (marketId: string | null | undefined
 
   return {
     id: data.id,
-    display_name: data.display_name || data.city,
-    brand_prefix: data.brand_prefix || "JobBridge",
+    display_name: currentBrandLabel(data.display_name || data.city),
+    brand_prefix: currentBrandLabel(data.brand_prefix),
     is_live: data.is_live,
   };
 });

@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { JobCard } from "@/components/jobs/JobCard";
 import { cn } from "@/lib/utils";
-import type { JobsListItem } from "@/lib/types/jobbridge";
+import type { JobsListItem } from "@/lib/types/platform";
 
 interface SectionProps {
     title: string;

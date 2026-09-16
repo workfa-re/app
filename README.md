@@ -1,5 +1,7 @@
 <div align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0ea5e9,100:020617&height=300&section=header&text=JobBridge&fontSize=80&fontAlignY=30&desc=Sicher%20%E2%80%A2%20Lokal%20%E2%80%A2%20Fair%20%7C%20Die%20sichere%20Taschengeldb%C3%B6rse%20der%20Zukunft&descAlignY=55&descSize=18&animation=twinkling&fontColor=ffffff&descColor=ffffff" width="100%" alt="JobBridge Header" />
+  <img src="public/brand/workfare-mark-dark.png" width="96" alt="Workfare" />
+  <h1>Workfare</h1>
+  <p>Plattform für sichere Taschengeldjobs und Alltagshilfe.</p>
 </div>
 
 > [!CAUTION]
@@ -10,9 +12,9 @@
 
 ## ✦ System Overview
 
-Welcome to the **JobBridge Web Platform**. 
+Welcome to the **Workfare Web Platform**.
 
-JobBridge is a high-end platform connecting job seekers (14-18 years old) with private individuals and companies for everyday tasks and pocket-money jobs. This repository specifically houses our **Web Application**—a highly optimized, PWA-ready Next.js 15 environment that delivers a native, app-like experience directly in the browser. *(Note: Our native iOS and Android applications are maintained in separate, dedicated repositories).*
+Workfare is a high-end platform connecting job seekers (14-18 years old) with private individuals and companies for everyday tasks and pocket-money jobs. This repository specifically houses our **Web Application**—a highly optimized, PWA-ready Next.js 16 environment that delivers a native, app-like experience directly in the browser. *(Note: Our native iOS and Android applications are maintained in separate, dedicated repositories).*
 
 Our engineering philosophy prioritizes three pillars: **Uncompromising Security**, **Cinematic UX/UI**, and **Scalable Architecture**.
 
@@ -20,7 +22,7 @@ Our engineering philosophy prioritizes three pillars: **Uncompromising Security*
 
 ## ⚡️ TrustScore: Predictive Security Algorithm
 
-Beyond classic reporting systems, JobBridge utilizes a sophisticated, proprietary **TrustScore Algorithm (0-10)** functioning dynamically in the background. 
+Beyond classic reporting systems, Workfare utilizes a sophisticated, proprietary **TrustScore Algorithm (0-10)** functioning dynamically in the background.
 
 This is **not a public rating system**. It is an internal, multi-signal risk evaluation matrix designed to detect suspicious patterns early and protect our community proactively.
 
@@ -70,9 +72,9 @@ flowchart TD
 We ensure absolute legal compliance and safety for minors on the platform. Youth accounts operate under a strict "Gate" and cannot apply to jobs until a legal guardian has cryptographically verified the connection.
 
 **The Workflow:**
-1. **Initiation:** The minor registers and generates a secure, one-time invitation link within the JobBridge app.
+1. **Initiation:** The minor registers and generates a secure, one-time invitation link within the Workfare app.
 2. **Transmission:** The minor shares this unique link directly with their legal guardian.
-3. **Guardian Registration:** The parent clicks the link and is prompted to create their *own* JobBridge account, passing our standard basic verification.
+3. **Guardian Registration:** The parent clicks the link and is prompted to create their *own* Workfare account, passing our standard basic verification.
 4. **Official Approval:** Using their verified account, the parent officially grants consent for the minor.
 5. **Cryptographic Linking:** The system redeems the SHA-256 hashed token, linking the two accounts (`guardian_status = linked`). The parent retains administrative oversight, and the minor is granted full platform access.
 
@@ -80,7 +82,7 @@ We ensure absolute legal compliance and safety for minors on the platform. Youth
 
 ## 🔄 Application Lifecycle & Waitlist Mechanics
 
-JobBridge utilizes a highly efficient **Single Hiring Mode** designed to eliminate application frustration.
+Workfare utilizes a highly efficient **Single Hiring Mode** designed to eliminate application frustration.
 
 Instead of allowing 50 people to apply for a job that is already promised to someone else, we use an automated reservation and waitlist system:
 
@@ -108,7 +110,7 @@ flowchart TB
         Provider(["Job Provider\\n(Private / Company)"]):::account
     end
 
-    subgraph Client ["Web Platform (Next.js 15 / React 19)"]
+    subgraph Client ["Web Platform (Next.js 16 / React 19)"]
         direction TB
         UI["React UI\\n(Tailwind v4, Framer Motion)"]:::frontend
         Edge{"Edge Middleware\\n(Route Protection)"}:::security
@@ -173,11 +175,11 @@ Our PostgreSQL Database (managed via Supabase) operates under strict Row Level S
 
 ## 💻 Elite Technology Stack
 
-JobBridge leverages the absolute pinnacle of modern web development frameworks to ensure enterprise-level scalability and a flawless user experience.
+Workfare leverages the absolute pinnacle of modern web development frameworks to ensure enterprise-level scalability and a flawless user experience.
 
 <div align="center">
   <br />
-  
+
   [![Next.js](https://img.shields.io/badge/Next.js-15.0-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
   [![React](https://img.shields.io/badge/React-19.2-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
   [![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
@@ -195,13 +197,13 @@ JobBridge leverages the absolute pinnacle of modern web development frameworks t
 
 > [!IMPORTANT]
 > **Authorized Access Only**
-> While this repository is public for transparency and portfolio purposes, the source code remains strictly proprietary. Attempting to run this platform locally without authorized access to the JobBridge staging database and environment will fail.
+> While this repository is public for transparency and portfolio purposes, the source code remains strictly proprietary. Attempting to run this platform locally without authorized access to the Workfare staging database and environment will fail.
 
-To boot the JobBridge Web Platform locally (authorized contributors only):
+To boot the Workfare Web Platform locally (authorized contributors only):
 
 ### 1. Prerequisites
 - **Node.js**: `v20.x` LTS minimum.
-- **Backend**: You require authorized access to the JobBridge Supabase staging environment.
+- **Backend**: You require authorized access to the Workfare Supabase staging environment.
 
 ### 2. Initialization
 
@@ -235,16 +237,16 @@ The platform compiles and boots at **[http://localhost:3000](http://localhost:30
 
 > [!CAUTION]
 > **STRICTLY PROPRIETARY AND CONFIDENTIAL**
-> 
+>
 > **Copyright (c) 2026 Rezan Aaron Yalçin. All rights reserved.**
-> 
-> This software is governed by the **JOBBRIDGE PROPRIETARY LICENSE**. No license is granted under any copyright, patent, trademark, trade secret, or other intellectual property right.
-> 
+>
+> This software is governed by the **WORKFARE PROPRIETARY LICENSE**. No license is granted under any copyright, patent, trademark, trade secret, or other intellectual property right.
+>
 > You are explicitly forbidden to:
 > - Copy, clone, mirror, or archive the Software.
 > - Modify, adapt, or create derivative works.
 > - Distribute, publish, sell, or use the Software in any commercial product or AI training dataset.
-> 
+>
 > **ENFORCEMENT**: The Licensor reserves the right to pursue all available legal remedies under the laws of the Federal Republic of Germany for any breach of these terms.
 
 <br/>
@@ -254,5 +256,5 @@ The platform compiles and boots at **[http://localhost:3000](http://localhost:30
 </div>
 
 <div align="center">
-  <sub>JobBridge Web Platform &copy; 2026 Rezan Aaron Yalçin — All Rights Reserved.</sub>
+  <sub>Workfare Web Platform &copy; 2026 Rezan Aaron Yalçin — All Rights Reserved.</sub>
 </div>

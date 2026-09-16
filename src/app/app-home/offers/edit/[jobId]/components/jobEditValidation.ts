@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
-import type { JobStatus } from "@/lib/types/jobbridge";
+import type { JobStatus } from "@/lib/types/platform";
 import {
     isProtectedJobStatus,
     type ProtectedJobStatus,

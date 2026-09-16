@@ -39,7 +39,7 @@ export default function LeafletMap({ center, zoom = 13, className }: LeafletMapP
 
     if (!isMounted) {
         return (
-            <div className={`jobbridge-map-loading flex items-center justify-center ${className ?? ""}`}>
+            <div className={`workfare-map-loading flex items-center justify-center ${className ?? ""}`}>
                 <div className="flex flex-col items-center animate-pulse">
                     <MapPin size={24} className="mb-2 opacity-50" />
                     <span className="text-xs uppercase tracking-widest">Karte wird geladen...</span>
@@ -55,7 +55,7 @@ export default function LeafletMap({ center, zoom = 13, className }: LeafletMapP
             minZoom={zoom - 3}
             maxZoom={18}
             scrollWheelZoom={true}
-            className={`jobbridge-leaflet-map ${mapThemeClass} z-0 ${className ?? ""}`}
+            className={`workfare-leaflet-map ${mapThemeClass} z-0 ${className ?? ""}`}
             style={{ height: "100%", width: "100%" }}
             dragging={true}
             zoomControl={false}

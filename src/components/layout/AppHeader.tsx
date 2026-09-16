@@ -6,7 +6,7 @@ import { LeftBrandChip } from "./header/LeftBrandChip";
 import { CenterNavPill } from "./header/CenterNavPill";
 import { RightActionGroup } from "./header/RightActionGroup";
 import { MobileBottomDock } from "./header/MobileBottomDock";
-import type { AppHomeSnapshot } from "@/lib/types/jobbridge";
+import type { AppHomeSnapshot } from "@/lib/types/platform";
 import { usePhoneDevice } from "@/hooks/use-phone-device";
 import {
     normalizeMobileNavPreference,
@@ -36,8 +36,8 @@ export function AppHeader({ snapshot }: { snapshot: AppHomeSnapshot }) {
             setMobileNavPreference(normalizeMobileNavPreference(nextPreference));
         };
 
-        window.addEventListener("jobbridge:mobile-nav-preference", handlePreferenceChange);
-        return () => window.removeEventListener("jobbridge:mobile-nav-preference", handlePreferenceChange);
+        window.addEventListener("workfare:mobile-nav-preference", handlePreferenceChange);
+        return () => window.removeEventListener("workfare:mobile-nav-preference", handlePreferenceChange);
     }, []);
 
     return (

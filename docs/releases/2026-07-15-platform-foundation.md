@@ -86,7 +86,7 @@ aus der Verbraucherplattform entfernt.
   als angenommen und beendet konkurrierende aktive Bewerbungen atomar.
 - Abschluss und Stornierung aktualisieren Job, Bewerbung, Zusammenarbeit,
   Termine, Ereignisse und Benachrichtigungen konsistent.
-- JobBridge Pay ist ausschließlich als klar gekennzeichneter Zukunftsausblick
+- Workfare Pay ist ausschließlich als klar gekennzeichneter Zukunftsausblick
   berücksichtigt. Es existiert noch kein Zahlungsledger und keine produktive
   Zahlungsabwicklung.
 

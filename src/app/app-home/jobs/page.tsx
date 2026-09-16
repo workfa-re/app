@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { fetchJobs, fetchCandidateApplications } from "@/lib/dal/jobbridge";
+import { fetchJobs, fetchCandidateApplications } from "@/lib/dal/platform";
 import { JobsList } from "@/components/jobs/JobsList";
-import type { ApplicationStatus, JobsListItem } from "@/lib/types/jobbridge";
+import type { ApplicationStatus, JobsListItem } from "@/lib/types/platform";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import { CumulativeLoadMoreLink } from "@/components/ui/CumulativeLoadMoreLink";

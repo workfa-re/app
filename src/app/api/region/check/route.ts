@@ -1,3 +1,4 @@
+import { currentBrandLabel } from "@/lib/brand-compat";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getRegionAvailabilityStatus } from "@/lib/regionCheck";
@@ -40,7 +41,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ status });
         }
 
-        return NextResponse.json({ status, region });
+        return NextResponse.json({ status, region: {
+            ...region,
+            display_name: currentBrandLabel(region.display_name || region.city),
+            brand_prefix: currentBrandLabel(region.brand_prefix),
+        } });
     } catch (err) {
         console.error("API error:", err);
         return NextResponse.json(

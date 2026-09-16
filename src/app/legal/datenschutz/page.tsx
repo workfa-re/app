@@ -1,9 +1,11 @@
 import { LegalHero, LegalPanel, LegalSection, LegalStamp } from "@/components/legal/LegalContent";
 
+import { BRAND_PRIVACY_EMAIL } from "@/lib/constants";
+
 export const dynamic = "force-static";
 
 export const metadata = {
-  title: "Datenschutzerklärung | JobBridge",
+  title: "Datenschutzerklärung | Workfare",
 };
 
 export default function DatenschutzPage() {
@@ -15,7 +17,7 @@ export default function DatenschutzPage() {
 
       <LegalSection title="Datenschutz auf einen Blick">
         <p>
-          JobBridge ist eine Plattform, die Jugendliche und Auftraggeber für sichere Taschengeldjobs
+          Workfare ist eine Plattform, die Jugendliche und Auftraggeber für sichere Taschengeldjobs
           zusammenführt. Dabei behandeln wir personenbezogene Daten vertraulich und entsprechend der
           gesetzlichen Datenschutzvorschriften (DSGVO) sowie dieser Datenschutzerklärung.
         </p>
@@ -91,8 +93,8 @@ export default function DatenschutzPage() {
 
       <LegalSection title="Kontakt">
         <p>
-          Für Datenschutzanfragen wende dich bitte an unsere im <a href="/legal/impressum">Impressum</a>{" "}
-          angegebene E-Mail-Adresse. Wir antworten zeitnah und transparent.
+          Für Datenschutzanfragen wende dich bitte an{" "}
+          <a href={`mailto:${BRAND_PRIVACY_EMAIL}`}>{BRAND_PRIVACY_EMAIL}</a>. Wir antworten zeitnah und transparent.
         </p>
       </LegalSection>
 

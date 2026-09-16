@@ -203,7 +203,7 @@ export function NotificationSettingsForm({
             <ChannelSection
                 icon={<BellRing aria-hidden="true" size={19} />}
                 title="In der Plattform"
-                description="Persönliche Hinweise im Benachrichtigungsbereich von JobBridge."
+                description="Persönliche Hinweise im Benachrichtigungsbereich von Workfare."
                 enabled={prefs.in_app_enabled}
                 enabledKey="in_app_enabled"
                 options={IN_APP_OPTIONS}

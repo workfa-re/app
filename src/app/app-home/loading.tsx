@@ -12,7 +12,7 @@ export default function AppHomeLoading() {
     <div
       className="container mx-auto px-4 py-6 md:px-6"
       role="status"
-      aria-label="JobBridge wird geladen"
+      aria-label="Workfare wird geladen"
       aria-busy="true"
     >
       <div className="mx-auto max-w-6xl space-y-8">

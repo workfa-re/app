@@ -5218,7 +5218,7 @@ html[data-mobile-nav-preference="bottom"] .app-shell-main:has(.activities-page) 
 }
 
 .dark .guardian-banner-noise {
-  background-image: url("/assets/jobbridge-noise.svg");
+  background-image: url("/assets/workfare-noise.svg");
   opacity: 0.16;
   mix-blend-mode: overlay;
 }
@@ -5581,7 +5581,7 @@ textarea.profile-field-control {
   background: var(--brand-soft);
 }
 
-.jobbridge-map-frame,
+.workfare-map-frame,
 .job-detail-map-frame {
   border-color: var(--map-border) !important;
   background: var(--map-background) !important;
@@ -5589,12 +5589,12 @@ textarea.profile-field-control {
   isolation: isolate;
 }
 
-.dark .jobbridge-map-frame,
+.dark .workfare-map-frame,
 .dark .job-detail-map-frame {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
 }
 
-.jobbridge-map-frame::before,
+.workfare-map-frame::before,
 .job-detail-map-frame::before {
   content: "";
   position: absolute;
@@ -5606,36 +5606,36 @@ textarea.profile-field-control {
     radial-gradient(circle at 50% 50%, transparent 42%, rgba(247, 249, 253, 0.22) 100%);
 }
 
-.dark .jobbridge-map-frame::before,
+.dark .workfare-map-frame::before,
 .dark .job-detail-map-frame::before {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%),
     radial-gradient(circle at 50% 50%, transparent 48%, rgba(2, 6, 23, 0.42) 100%);
 }
 
-.jobbridge-map-empty {
+.workfare-map-empty {
   color: var(--map-muted);
 }
 
-.jobbridge-map-loading,
-.jobbridge-leaflet-map {
+.workfare-map-loading,
+.workfare-leaflet-map {
   background: var(--map-background) !important;
   color: var(--map-muted);
 }
 
-.jobbridge-leaflet-map .leaflet-tile-pane {
+.workfare-leaflet-map .leaflet-tile-pane {
   filter: var(--map-tile-filter);
 }
 
-.jobbridge-leaflet-map.is-light .leaflet-tile-pane {
+.workfare-leaflet-map.is-light .leaflet-tile-pane {
   opacity: 0.56;
 }
 
-.jobbridge-leaflet-map .leaflet-container {
+.workfare-leaflet-map .leaflet-container {
   background: var(--map-background) !important;
 }
 
-.jobbridge-leaflet-map .leaflet-control-attribution {
+.workfare-leaflet-map .leaflet-control-attribution {
   border: 1px solid var(--map-control-border);
   border-radius: 999px;
   background: var(--map-attribution-bg) !important;
@@ -5647,12 +5647,12 @@ textarea.profile-field-control {
   backdrop-filter: blur(12px);
 }
 
-.jobbridge-leaflet-map .leaflet-control-attribution a {
+.workfare-leaflet-map .leaflet-control-attribution a {
   color: var(--map-attribution-link) !important;
   text-decoration: none;
 }
 
-.jobbridge-map-vignette {
+.workfare-map-vignette {
   background: var(--map-vignette);
 }
 

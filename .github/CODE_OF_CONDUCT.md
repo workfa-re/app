@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../public/logo-jobbridge.png" width="96" alt="JobBridge Logo" />
+  <img src="../public/brand/workfare-mark-dark.png" width="96" alt="Workfare Logo" />
 </div>
 
 # 🤝 Code of Conduct
@@ -30,7 +30,7 @@ Community leaders are responsible for clarifying and enforcing our standards of 
 ---
 
 ## 4. Enforcement
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders at **[rezan@jobbridge.app](mailto:rezan@jobbridge.app)**. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders at **[rezan@workfare.team](mailto:rezan@workfare.team)**. All complaints will be reviewed and investigated promptly and fairly.
 
 ---
 
@@ -38,5 +38,5 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.
 
 <div align="center">
-  <sub>© 2026 JobBridge | Die digitale Taschengeldbörse</sub>
+  <sub>© 2026 Workfare | Die digitale Taschengeldbörse</sub>
 </div>

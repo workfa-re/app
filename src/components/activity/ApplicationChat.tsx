@@ -1454,7 +1454,7 @@ export function ApplicationChat({
 
                             <div className="activity-pay-placeholder">
                                 <span><ShieldCheck size={18} /></span>
-                                <div><strong>JobBridge Pay</strong><small>Sichere Bezahlung direkt über JobBridge</small></div>
+                                <div><strong>Workfare Pay</strong><small>Sichere Bezahlung direkt über Workfare</small></div>
                                 <em>In Entwicklung</em>
                             </div>
 

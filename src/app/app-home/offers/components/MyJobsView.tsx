@@ -16,7 +16,7 @@ import {
     Repeat2,
     ShieldCheck,
 } from "lucide-react";
-import type { JobsListItem } from "@/lib/types/jobbridge";
+import type { JobsListItem } from "@/lib/types/platform";
 import { cn, timeAgo } from "@/lib/utils";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
 import {

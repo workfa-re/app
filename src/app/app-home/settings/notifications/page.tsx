@@ -31,7 +31,7 @@ export default async function NotificationSettingsPage() {
                     Benachrichtigungen einstellen
                 </h1>
                 <p className="mt-2 max-w-2xl text-pretty text-sm leading-6 text-[var(--text-muted)]">
-                    Lege übersichtlich fest, welche persönlichen Updates du in JobBridge und per E-Mail erhalten möchtest.
+                    Lege übersichtlich fest, welche persönlichen Updates du in Workfare und per E-Mail erhalten möchtest.
                 </p>
             </header>
 

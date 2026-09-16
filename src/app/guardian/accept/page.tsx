@@ -53,7 +53,7 @@ function GuardianAcceptContent() {
 
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
                     <p className="text-sm text-slate-300 mb-6">
-                        Durch die Bestätigung stimmst du zu, dass dein Kind über JobBridge Tätigkeiten annimmt und du als gesetzlicher Vertreter fungierst.
+                        Durch die Bestätigung stimmst du zu, dass dein Kind über Workfare Tätigkeiten annimmt und du als gesetzlicher Vertreter fungierst.
                     </p>
                     {state === "success" ? (
                         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">

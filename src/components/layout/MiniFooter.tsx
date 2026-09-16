@@ -51,7 +51,7 @@ export function MiniFooter() {
             </div>
           ))}
         </div>
-        <div className="mini-footer-copy mt-2 text-center text-[10px] text-slate-600/40">&copy; {new Date().getFullYear()} JobBridge</div>
+        <div className="mini-footer-copy mt-2 text-center text-[10px] text-slate-600/40">&copy; {new Date().getFullYear()} Workfare</div>
       </div>
     </div>
   );

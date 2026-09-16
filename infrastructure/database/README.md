@@ -80,6 +80,6 @@ database rollback.
 
 Email preference fields do not constitute an email delivery system; a worker,
 provider integration, retries and digest scheduling are still required.
-JobBridge Pay is also not live and has no payment ledger or provider/compliance
+Workfare Pay is also not live and has no payment ledger or provider/compliance
 integration. Neither capability may infer delivery or financial state from
 notifications, chats or engagements.

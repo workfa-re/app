@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="../public/logo-jobbridge.png" width="96" alt="JobBridge Logo" />
+  <img src="../public/brand/workfare-mark-dark.png" width="96" alt="Workfare Logo" />
 </div>
 
 # 🤝 Support Center
 
-Welcome to the JobBridge Support Center. Whether you are a seeker, a provider, or a developer, we are here to help you get the most out of the platform.
+Welcome to the Workfare Support Center. Whether you are a seeker, a provider, or a developer, we are here to help you get the most out of the platform.
 
 ---
 
@@ -25,7 +25,7 @@ If you encounter a technical issue or crash, please check if it's already known.
 ## 🛡️ Security Support
 **Critical Security Note:** If you find a vulnerability regarding user data or system integrity, please **do not** use public channels.
 
-Refer to our [Security Policy](.github/SECURITY.md) or email us directly at **[rezan@jobbridge.app](mailto:rezan@jobbridge.app)**.
+Refer to our [Security Policy](.github/SECURITY.md) or email us directly at **[rezan@workfare.team](mailto:rezan@workfare.team)**.
 
 ---
 
@@ -33,8 +33,8 @@ Refer to our [Security Policy](.github/SECURITY.md) or email us directly at **[r
 For official partnership inquiries, media requests, or authorized developer access, please visit our website or contact the maintainer.
 
 *   **Website:** [workfa.re](https://workfa.re)
-*   **Direct Email:** [rezan@jobbridge.app](mailto:rezan@jobbridge.app)
+*   **Direct Email:** [support@workfare.team](mailto:support@workfare.team)
 
 <div align="center">
-  <sub>© 2026 JobBridge | Die digitale Taschengeldbörse</sub>
+  <sub>© 2026 Workfare | Die digitale Taschengeldbörse</sub>
 </div>

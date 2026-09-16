@@ -1,4 +1,4 @@
-const INTERNAL_REDIRECT_ORIGIN = "https://jobbridge.internal";
+const INTERNAL_REDIRECT_ORIGIN = "https://workfare.internal";
 
 /** Accept only same-origin, root-relative navigation targets from URL input. */
 export function getSafeInternalRedirect(value: unknown): string | null {

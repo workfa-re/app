@@ -1,4 +1,4 @@
-const NOTIFICATION_ROUTE_ORIGIN = "https://jobbridge.internal";
+const NOTIFICATION_ROUTE_ORIGIN = "https://workfare.internal";
 
 const ALLOWED_ROUTE_ROOTS = [
     "/app-home/activities",

@@ -166,7 +166,7 @@
     0 12px 30px rgba(0, 0, 0, 0.18) !important;
 }
 
-/* Filter panel: neutral material, exact JobBridge blue, and no decorative glow. */
+/* Filter panel: neutral material, exact Workfare blue, and no decorative glow. */
 .job-filter-panel {
   --job-filter-accent: var(--chrome-nav-active);
   --job-filter-accent-hover: var(--chrome-nav-active-strong);

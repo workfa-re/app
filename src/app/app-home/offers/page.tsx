@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { MyJobsView } from "./components/MyJobsView";
-import { fetchJobs } from "@/lib/dal/jobbridge";
-import type { ApplicationStatus, JobsListItem } from "@/lib/types/jobbridge";
+import { fetchJobs } from "@/lib/dal/platform";
+import type { ApplicationStatus, JobsListItem } from "@/lib/types/platform";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
 import type { ProviderJobApplicationSummary } from "./components/MyJobsView";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";

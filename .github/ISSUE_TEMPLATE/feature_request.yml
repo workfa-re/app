@@ -1,5 +1,5 @@
 name: Feature Request
-description: Schlage ein neues Feature oder eine Verbesserung für JobBridge vor
+description: Schlage ein neues Feature oder eine Verbesserung für Workfare vor
 title: "[Feature]: "
 type: feature
 body:
@@ -71,7 +71,7 @@ body:
     id: area
     attributes:
       label: Bereich (Area)
-      description: Welcher Teil von JobBridge ist betroffen?
+      description: Welcher Teil von Workfare ist betroffen?
       options:
         - "Onboarding / Registrierung"
         - "Login / Session / Rechte"

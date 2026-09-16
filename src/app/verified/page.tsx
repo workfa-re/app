@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
 import { CheckCircle2 } from "lucide-react";
-import { BRAND_EMAIL } from "@/lib/constants";
+import { currentContactEmail } from "@/lib/brand-compat";
 
 export default function VerifiedPage() {
     const router = useRouter();
@@ -61,7 +61,7 @@ export default function VerifiedPage() {
 
                             <div>
                                 <a
-                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || BRAND_EMAIL}`}
+                                    href={`mailto:${currentContactEmail(process.env.NEXT_PUBLIC_CONTACT_EMAIL)}`}
                                     className="text-sm text-slate-400 hover:text-white transition-colors underline-offset-4 hover:underline"
                                 >
                                     Probleme? Support kontaktieren

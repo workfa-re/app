@@ -60,7 +60,7 @@ export async function GET(request: Request) {
                 next: { revalidate: 3600 },
                 headers: {
                     "Accept": "application/json",
-                    "User-Agent": "JobBridgeAppServer/1.0 (contact: kontakt@jobbridge.team)"
+                    "User-Agent": "WorkfareAppServer/1.0 (contact: kontakt@workfare.team)"
                 }
             });
 
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
             cache: "no-store",
             headers: {
                 "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
-                "User-Agent": "JobBridgeAppServer/1.0 (contact: kontakt@jobbridge.team)"
+                "User-Agent": "WorkfareAppServer/1.0 (contact: kontakt@workfare.team)"
             }
         });
 

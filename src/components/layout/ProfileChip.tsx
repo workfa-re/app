@@ -1,5 +1,7 @@
 "use client";
 
+import { ADMIN_PORTAL_URL } from "@/lib/brand-compat";
+
 import { cn } from "@/lib/utils";
 import {
     Building2,
@@ -14,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import type { AppHeaderProfile } from "@/lib/types/jobbridge";
+import type { AppHeaderProfile } from "@/lib/types/platform";
 import { endPerfMark, startPerfMark } from "@/lib/perf";
 import { StaffBadge } from "@/components/ui/StaffBadge";
 
@@ -61,8 +63,8 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
             if ((event as CustomEvent<string>).detail !== "profile") setIsOpen(false);
         };
 
-        window.addEventListener("jobbridge:header-popover-open", handleOtherPopover);
-        return () => window.removeEventListener("jobbridge:header-popover-open", handleOtherPopover);
+        window.addEventListener("workfare:header-popover-open", handleOtherPopover);
+        return () => window.removeEventListener("workfare:header-popover-open", handleOtherPopover);
     }, []);
 
     useEffect(() => {
@@ -105,7 +107,7 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
     const handleOpenChange = () => {
         if (!isOpen) {
             startPerfMark("profile-menu-open");
-            window.dispatchEvent(new CustomEvent("jobbridge:header-popover-open", { detail: "profile" }));
+            window.dispatchEvent(new CustomEvent("workfare:header-popover-open", { detail: "profile" }));
         }
         setIsOpen((current) => !current);
     };
@@ -232,7 +234,7 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
 
                             {isStaff ? (
                                 <a
-                                    href="https://admin.jobbridge.team"
+                                    href={ADMIN_PORTAL_URL}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={() => setIsOpen(false)}

@@ -3,7 +3,7 @@ import { LegalHero, LegalSection, LegalStamp } from "@/components/legal/LegalCon
 export const dynamic = "force-static";
 
 export const metadata = {
-  title: "AGB | JobBridge",
+  title: "AGB | Workfare",
 };
 
 export default function AGBPage() {
@@ -15,7 +15,7 @@ export default function AGBPage() {
 
       <LegalSection title="Geltungsbereich">
         <p>
-          Diese Vertragsbedingungen gelten für die Nutzung der Plattform JobBridge, auf der Jugendliche
+          Diese Vertragsbedingungen gelten für die Nutzung der Plattform Workfare, auf der Jugendliche
           und private oder gewerbliche Auftraggeber für kleine, legale Handreichungen und Taschengeldjobs
           zusammengeführt werden.
         </p>
@@ -29,11 +29,11 @@ export default function AGBPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="Leistungen von JobBridge">
+      <LegalSection title="Leistungen von Workfare">
         <p>
-          JobBridge fungiert als technischer Vermittler und stellt die Plattform zur Verfügung.
+          Workfare fungiert als technischer Vermittler und stellt die Plattform zur Verfügung.
           Vertragliche Beziehungen bei der Annahme eines Jobs entstehen ausschließlich zwischen den
-          registrierten Nutzern. JobBridge ist an diesen Verträgen nicht beteiligt.
+          registrierten Nutzern. Workfare ist an diesen Verträgen nicht beteiligt.
         </p>
       </LegalSection>
 
@@ -53,7 +53,7 @@ export default function AGBPage() {
 
       <LegalSection title="Haftungsbeschränkung">
         <p>
-          JobBridge haftet nicht für Schäden, die aus der Vermittlung resultieren. Wir übernehmen keine
+          Workfare haftet nicht für Schäden, die aus der Vermittlung resultieren. Wir übernehmen keine
           Garantie für die Qualität der Arbeit oder die Zahlungsfähigkeit der Auftraggeber, wenngleich
           wir Identitäten prüfen.
         </p>

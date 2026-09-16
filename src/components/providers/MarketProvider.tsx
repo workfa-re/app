@@ -1,5 +1,7 @@
 "use client";
 
+import { currentBrandLabel } from "@/lib/brand-compat";
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { Market } from "@/lib/types";
@@ -52,8 +54,8 @@ export function MarketProvider({ children, defaultMarket }: MarketProviderProps)
                     if (marketData) {
                         setMarket({
                             id: marketData.id,
-                            display_name: marketData.display_name || marketData.city,
-                            brand_prefix: marketData.brand_prefix || "JobBridge",
+                            display_name: currentBrandLabel(marketData.display_name || marketData.city),
+                            brand_prefix: currentBrandLabel(marketData.brand_prefix),
                             is_live: marketData.is_live,
                         });
                     }

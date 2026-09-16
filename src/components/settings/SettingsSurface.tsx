@@ -29,7 +29,7 @@ export function SettingsSurface({ mobileNavPreference, themePreference }: Settin
                         Einstellungen
                     </h1>
                     <p className="mt-3 max-w-2xl text-sm leading-6 md:text-base">
-                        Lege fest, wie JobBridge auf deinen Geräten navigiert und welche Kontobereiche du verwalten möchtest.
+                        Lege fest, wie Workfare auf deinen Geräten navigiert und welche Kontobereiche du verwalten möchtest.
                     </p>
                 </div>
             </header>
@@ -38,7 +38,7 @@ export function SettingsSurface({ mobileNavPreference, themePreference }: Settin
                 <SettingsGroup
                     id="appearance"
                     title="Darstellung"
-                    description="Standardmäßig folgt JobBridge deinem Gerät."
+                    description="Standardmäßig folgt Workfare deinem Gerät."
                 >
                     <SettingsRow
                         title="Farbmodus"

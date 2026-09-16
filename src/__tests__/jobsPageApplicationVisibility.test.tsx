@@ -10,7 +10,7 @@ const testState = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("@/lib/dal/jobbridge", () => ({
+vi.mock("@/lib/dal/platform", () => ({
     fetchJobs: testState.fetchJobs,
     fetchCandidateApplications: testState.fetchCandidateApplications,
 }));

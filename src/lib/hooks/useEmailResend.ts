@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
+import { readBrandStorage, writeBrandStorage } from "@/lib/brand-storage";
+
 const COOLDOWN_SECONDS = 60;
-const STORAGE_PREFIX = "jobbridge-confirmation-email-last-sent:";
+const STORAGE_PREFIX = "workfare-confirmation-email-last-sent:";
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -15,7 +17,7 @@ function getStorageKey(email: string) {
 function getRemainingCooldown(email: string): number {
     if (typeof window === "undefined" || !email) return 0;
 
-    const raw = window.localStorage.getItem(getStorageKey(email));
+    const raw = readBrandStorage(window.localStorage, getStorageKey(email));
     const lastSentAt = raw ? Number.parseInt(raw, 10) : 0;
     if (!lastSentAt) return 0;
 
@@ -25,7 +27,7 @@ function getRemainingCooldown(email: string): number {
 
 function persistLastSent(email: string) {
     if (typeof window === "undefined" || !email) return;
-    window.localStorage.setItem(getStorageKey(email), String(Date.now()));
+    writeBrandStorage(window.localStorage, getStorageKey(email), String(Date.now()));
 }
 
 interface UseEmailResendReturn {

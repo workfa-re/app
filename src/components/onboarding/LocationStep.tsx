@@ -1,5 +1,7 @@
 "use client";
 
+import { BRAND_SUPPORT_EMAIL } from "@/lib/constants";
+
 import { useState } from "react";
 import { LocationAutocomplete, type LocationDetails } from "@/components/ui/LocationAutocomplete";
 import { LogoBadge } from "@/components/ui/LogoBadge";
@@ -12,8 +14,8 @@ interface LocationStepProps {
     onBack: () => void;
 }
 
-const SUPPORT_EMAIL = "kontakt@jobbridge.team";
-const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Hilfe bei der Stadtangabe")}&body=${encodeURIComponent("Hallo JobBridge Support,\n\nich bin mir nicht sicher, welche Stadt ich bei meiner Anmeldung angeben soll.\n\nBitte helft mir weiter.")}`;
+const SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL;
+const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Hilfe bei der Stadtangabe")}&body=${encodeURIComponent("Hallo Workfare Support,\n\nich bin mir nicht sicher, welche Stadt ich bei meiner Anmeldung angeben soll.\n\nBitte helft mir weiter.")}`;
 
 export function LocationStep({ onComplete, onBack }: LocationStepProps) {
     const [selectedLocality, setSelectedLocality] = useState<LocationDetails | null>(null);
@@ -81,7 +83,7 @@ export function LocationStep({ onComplete, onBack }: LocationStepProps) {
             <div className="onboarding-location-header flex items-center gap-4">
                 <LogoBadge size="md" className="onboarding-location-header-badge shrink-0" />
                 <div className="min-w-0 flex-1 space-y-2">
-                    <h2 className="onboarding-location-heading text-2xl font-bold leading-tight text-white md:text-3xl">Wo möchtest du JobBridge nutzen?</h2>
+                    <h2 className="onboarding-location-heading text-2xl font-bold leading-tight text-white md:text-3xl">Wo möchtest du Workfare nutzen?</h2>
                     <p className="onboarding-location-copy text-base leading-relaxed text-gray-400">
                         Wir starten Schritt für Schritt in ausgewählten Regionen. Wähle deine Stadt, damit wir dir zeigen können, was in deiner Nähe möglich ist.
                     </p>

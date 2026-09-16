@@ -2,7 +2,7 @@ import { requireCompleteProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { CreateJobForm } from "@/components/jobs/CreateJobForm";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getEffectiveView } from "@/lib/dal/jobbridge";
+import { getEffectiveView } from "@/lib/dal/platform";
 
 type DefaultLocation = {
     id: string;

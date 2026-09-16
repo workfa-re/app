@@ -51,7 +51,7 @@
 
 <!-- Required for UI changes. Include before/after. -->
 
-## Safety & Privacy (JobBridge)
+## Safety & Privacy (Workfare)
 
 - [ ] No secrets/tokens in code, logs, or screenshots
 - [ ] No personal data (names, addresses, phone numbers, private chats)

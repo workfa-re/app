@@ -266,7 +266,7 @@ The following datasets are protected during migrations and restores:
 - **Email delivery:** Preference fields are present, but there is no production
   email worker, provider integration, retry/dead-letter flow or digest scheduler
   in this contract. Email toggles must not be presented as proof of delivery.
-- **JobBridge Pay:** The UI may reserve space for the product, but there is no
+- **Workfare Pay:** The UI may reserve space for the product, but there is no
   payment ledger, checkout, payout, refund, dispute, identity/compliance or
   webhook-reconciliation flow. Conversation and engagement state must never be
   treated as a financial ledger.

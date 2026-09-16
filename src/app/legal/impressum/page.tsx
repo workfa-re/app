@@ -1,9 +1,11 @@
 import { LegalHero, LegalPanel, LegalRow, LegalSection, LegalStamp } from "@/components/legal/LegalContent";
 
+import { BRAND_EMAIL } from "@/lib/constants";
+
 export const dynamic = "force-static";
 
 export const metadata = {
-  title: "Impressum | JobBridge",
+  title: "Impressum | Workfare",
 };
 
 export default function ImpressumPage() {
@@ -16,7 +18,7 @@ export default function ImpressumPage() {
       <div className="legal-stack">
         <LegalPanel title="Rezan Aaron Yalçin">
           <div className="legal-address">
-            <p>Projekt: JobBridge</p>
+            <p>Projekt: Workfare</p>
             <p>Am neuen Wasserwerk 3</p>
             <p>53359 Rheinbach</p>
             <p>Deutschland</p>
@@ -24,7 +26,7 @@ export default function ImpressumPage() {
         </LegalPanel>
 
         <LegalRow label="E-Mail">
-          <a href="mailto:kontakt@jobbridge.team">kontakt@jobbridge.team</a>
+          <a href={`mailto:${BRAND_EMAIL}`}>{BRAND_EMAIL}</a>
         </LegalRow>
 
         <LegalRow label="Telefon">

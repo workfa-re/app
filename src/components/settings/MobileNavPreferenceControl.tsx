@@ -49,7 +49,7 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
         setError(null);
         setPendingPreference(nextPreference);
         setPreference(nextPreference);
-        window.dispatchEvent(new CustomEvent("jobbridge:mobile-nav-preference", {
+        window.dispatchEvent(new CustomEvent("workfare:mobile-nav-preference", {
             detail: { preference: nextPreference },
         }));
 
@@ -58,7 +58,7 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
             setPreference(previousPreference);
             setPendingPreference(null);
             setError("Bitte melde dich erneut an.");
-            window.dispatchEvent(new CustomEvent("jobbridge:mobile-nav-preference", {
+            window.dispatchEvent(new CustomEvent("workfare:mobile-nav-preference", {
                 detail: { preference: previousPreference },
             }));
             return;
@@ -72,7 +72,7 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
         if (updateError) {
             setPreference(previousPreference);
             setError("Die Auswahl konnte nicht gespeichert werden.");
-            window.dispatchEvent(new CustomEvent("jobbridge:mobile-nav-preference", {
+            window.dispatchEvent(new CustomEvent("workfare:mobile-nav-preference", {
                 detail: { preference: previousPreference },
             }));
         } else {

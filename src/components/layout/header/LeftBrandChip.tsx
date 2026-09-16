@@ -1,5 +1,7 @@
 "use client";
 
+import { currentBrandLabel } from "@/lib/brand-compat";
+
 import Link from "next/link";
 import { BRAND_NAME } from "@/lib/constants";
 import type { Market } from "@/lib/types";
@@ -15,7 +17,7 @@ export function LeftBrandChip({ market }: { market: Market | null }) {
             <div className="app-brand-logo-ring relative h-10 w-10 shrink-0 rounded-full border p-[1px]">
                 <div className="app-brand-logo-badge h-full w-full overflow-hidden rounded-full">
                     <ThemedLogoImage
-                        alt="JobBridge Logo"
+                        alt={`${BRAND_NAME} Logo`}
                         width={44}
                         height={44}
                         priority
@@ -26,11 +28,11 @@ export function LeftBrandChip({ market }: { market: Market | null }) {
 
             <div className="app-brand-chip-label hidden min-w-0 flex-col justify-center md:flex">
                 <span className="app-brand-chip-title -my-[3px] max-w-[7.5rem] truncate py-[3px] text-base font-semibold leading-[1.02] tracking-[-0.035em] text-white md:max-w-none md:text-[19px]">
-                    {market?.brand_prefix || BRAND_NAME}
+                    {currentBrandLabel(market?.brand_prefix)}
                 </span>
                 {market?.display_name && (
                     <span className="app-brand-chip-subtitle hidden text-xs font-medium leading-[1.15] tracking-[-0.01em] text-sky-100/70 lg:block">
-                        {market.display_name}
+                        {currentBrandLabel(market.display_name)}
                     </span>
                 )}
             </div>

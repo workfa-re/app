@@ -106,7 +106,7 @@ function WaitlistContent() {
                     </div>
                     <h2 className="waitlist-heading text-2xl font-bold text-white">Vielen Dank!</h2>
                     <p className="waitlist-copy mt-4 text-slate-300">
-                        Wir melden uns per E-Mail bei dir, sobald JobBridge in <strong>{cityLabel}</strong> startet.
+                        Wir melden uns per E-Mail bei dir, sobald Workfare in <strong>{cityLabel}</strong> startet.
                     </p>
                     <Link
                         href="/"
@@ -130,7 +130,7 @@ function WaitlistContent() {
                         <span className="block">nicht gestartet.</span>
                     </h1>
                     <p className="waitlist-copy mt-2.5 leading-relaxed text-slate-300">
-                        Trag dich ein, und wir informieren dich, sobald JobBridge in <strong>{cityLabel}</strong> verfügbar ist.
+                        Trag dich ein, und wir informieren dich, sobald Workfare in <strong>{cityLabel}</strong> verfügbar ist.
                     </p>
                 </div>
             </div>

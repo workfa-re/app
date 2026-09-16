@@ -12,7 +12,9 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 import { useEmailResend } from "@/lib/hooks/useEmailResend";
 import { type OnboardingRole, type Profile } from "@/lib/types";
 import { safeInternalRedirectOr } from "@/lib/safe-redirect";
-import { BRAND_EMAIL } from "@/lib/constants";
+import { BRAND_SUPPORT_EMAIL } from "@/lib/constants";
+import { currentContactEmail } from "@/lib/brand-compat";
+import { readBrandStorage, writeBrandStorage, removeBrandStorage } from "@/lib/brand-storage";
 import { Sparkles, HandHeart, Building2, Mail, UserX, KeyRound } from "lucide-react";
 import { LocationStep } from "./onboarding/LocationStep";
 import { CinematicDateInput } from "@/components/ui/CinematicDateInput";
@@ -63,8 +65,8 @@ const getErrorMessage = (err: unknown, fallback: string) =>
 const normalizeEmail = (value: string | null | undefined) => value?.trim().toLowerCase() || "";
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || BRAND_EMAIL;
-const ONBOARDING_DRAFT_KEY = "jobbridge-onboarding-draft:v1";
+const CONTACT_EMAIL = currentContactEmail(process.env.NEXT_PUBLIC_CONTACT_EMAIL);
+const ONBOARDING_DRAFT_KEY = "workfare-onboarding-draft:v1";
 const DRAFT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 
 const isProfileComplete = (profile: Profile | null | undefined) => {
@@ -77,20 +79,20 @@ function readOnboardingDraft(): OnboardingDraft | null {
   if (typeof window === "undefined") return null;
 
   try {
-    const raw = window.localStorage.getItem(ONBOARDING_DRAFT_KEY);
+    const raw = readBrandStorage(window.localStorage, ONBOARDING_DRAFT_KEY);
     if (!raw) return null;
 
     const draft = JSON.parse(raw) as OnboardingDraft;
     if (draft.version !== 1 || !draft.updatedAt) return null;
 
     if (Date.now() - draft.updatedAt > DRAFT_MAX_AGE_MS) {
-      window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+      removeBrandStorage(window.localStorage, ONBOARDING_DRAFT_KEY);
       return null;
     }
 
     return draft;
   } catch {
-    window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+    removeBrandStorage(window.localStorage, ONBOARDING_DRAFT_KEY);
     return null;
   }
 }
@@ -98,7 +100,8 @@ function readOnboardingDraft(): OnboardingDraft | null {
 function writeOnboardingDraft(draft: Omit<OnboardingDraft, "version" | "updatedAt">) {
   if (typeof window === "undefined") return;
 
-  window.localStorage.setItem(
+  writeBrandStorage(
+    window.localStorage,
     ONBOARDING_DRAFT_KEY,
     JSON.stringify({
       ...draft,
@@ -110,7 +113,7 @@ function writeOnboardingDraft(draft: Omit<OnboardingDraft, "version" | "updatedA
 
 function clearOnboardingDraft() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+  removeBrandStorage(window.localStorage, ONBOARDING_DRAFT_KEY);
 }
 
 type FeedbackTone = "danger" | "warning" | "success";
@@ -631,7 +634,7 @@ export function OnboardingWizard({
         return;
       } else if (profileData.role === "youth" && age < 14) {
         setErrorType("general");
-        setErrorMsg("Du musst für JobBridge mindestens 14 Jahre alt sein.");
+        setErrorMsg("Du musst für Workfare mindestens 14 Jahre alt sein.");
         return;
       } else if (profileData.role !== "youth" && age < 18) {
         setErrorType("general");
@@ -728,7 +731,7 @@ export function OnboardingWizard({
 
                 <div className="flex flex-col items-start gap-4 text-left">
                   <CardHeader
-                    title="JobBridge"
+                    title="Workfare"
                     subtitle="Sichere Taschengeldjobs zwischen Jugendlichen und Auftraggebern."
                     spacing="tight"
                   />
@@ -757,7 +760,7 @@ export function OnboardingWizard({
                 <div className={panelTextureClass} />
 
                 <CardHeader
-                  title="Warst du schon bei JobBridge?"
+                  title="Warst du schon bei Workfare?"
                   subtitle="Damit wir dich richtig weiterleiten können."
                 />
 
@@ -942,7 +945,7 @@ export function OnboardingWizard({
                               Passwort-Link anfordern
                             </ButtonPrimary>
                             <a
-                              href={`mailto:kontakt@jobbridge.team?subject=Hilfe bei Passwort (JobBridge)&body=Hallo Support-Team,%0D%0A%0D%0Amein Passwort für ${email} wird nicht akzeptiert.%0D%0A%0D%0ABitte helft mir weiter.`}
+                              href={`mailto:${BRAND_SUPPORT_EMAIL}?subject=Hilfe bei Passwort (Workfare)&body=Hallo Support-Team,%0D%0A%0D%0Amein Passwort für ${email} wird nicht akzeptiert.%0D%0A%0D%0ABitte helft mir weiter.`}
                               className="onboarding-feedback-action onboarding-feedback-action-secondary flex h-12 w-full items-center justify-center text-sm font-semibold transition-[background-color,color,scale,border-color,box-shadow] duration-200 ease-out active:scale-[0.98]"
                             >
                               Support kontaktieren
@@ -979,7 +982,7 @@ export function OnboardingWizard({
                               Jetzt registrieren
                             </ButtonPrimary>
                             <a
-                              href={`mailto:kontakt@jobbridge.team?subject=Account nicht gefunden (JobBridge)&body=Hallo Support-Team,%0D%0A%0D%0Aich versuche mich mit ${email} anzumelden, aber der Account existiert angeblich nicht.%0D%0A%0D%0ABitte helft mir weiter.`}
+                              href={`mailto:${BRAND_SUPPORT_EMAIL}?subject=Account nicht gefunden (Workfare)&body=Hallo Support-Team,%0D%0A%0D%0Aich versuche mich mit ${email} anzumelden, aber der Account existiert angeblich nicht.%0D%0A%0D%0ABitte helft mir weiter.`}
                               className="onboarding-feedback-action onboarding-feedback-action-secondary flex h-12 w-full items-center justify-center text-sm font-semibold transition-[background-color,color,scale,border-color,box-shadow] duration-200 ease-out active:scale-[0.98]"
                             >
                               Support kontaktieren

@@ -1,4 +1,4 @@
-import type { ApplicationStatus, JobStatus } from "@/lib/types/jobbridge";
+import type { ApplicationStatus, JobStatus } from "@/lib/types/platform";
 
 export type ProviderJobStatusTone = "positive" | "informative" | "caution" | "neutral";
 

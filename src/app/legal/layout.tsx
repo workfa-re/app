@@ -2,7 +2,7 @@ import React from "react";
 import { LegalSidebar } from "@/components/legal/LegalSidebar";
 
 export const metadata = {
-  title: "Trust Center | JobBridge",
+  title: "Trust Center | Workfare",
 };
 
 export default function LegalLayout({

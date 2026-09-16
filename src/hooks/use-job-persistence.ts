@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { readBrandStorage, writeBrandStorage, removeBrandStorage } from "@/lib/brand-storage";
 
-const STORAGE_KEY = "jobbridge_create_job_draft";
+const STORAGE_KEY = "workfare_create_job_draft";
 
 export type JobDraftData = {
     title: string;
@@ -32,7 +33,7 @@ export function useJobFormPersistence() {
     // Load from storage on mount
     useEffect(() => {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = readBrandStorage(localStorage, STORAGE_KEY);
             if (saved) {
                 setDraft(JSON.parse(saved));
             }
@@ -48,7 +49,7 @@ export function useJobFormPersistence() {
         try {
             setDraft((current) => {
                 const updated = { ...(current || {}), ...data } as JobDraftData;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                writeBrandStorage(localStorage, STORAGE_KEY, JSON.stringify(updated));
                 return updated;
             });
         } catch (e) {
@@ -59,7 +60,7 @@ export function useJobFormPersistence() {
     // Clear storage
     const clearDraft = useCallback(() => {
         try {
-            localStorage.removeItem(STORAGE_KEY);
+            removeBrandStorage(localStorage, STORAGE_KEY);
             setDraft(null);
         } catch (e) {
             console.error("Failed to clear job draft", e);

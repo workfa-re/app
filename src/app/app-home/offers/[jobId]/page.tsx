@@ -16,7 +16,7 @@ import {
     Repeat2,
 } from "lucide-react";
 import type { Database } from "@/lib/types/supabase";
-import { fetchJobApplications } from "@/lib/dal/jobbridge";
+import { fetchJobApplications } from "@/lib/dal/platform";
 import { getCategoryById } from "@/lib/constants/jobCategories";
 import {
     formatProviderApplicationSummary,
