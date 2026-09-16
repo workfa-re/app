@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { BRAND_NAME } from "@/lib/constants";
-import { ThemedLogoImage } from "@/components/ui/ThemedLogoImage";
+import { BrandLogoImage } from "@/components/ui/BrandLogoImage";
 
 type LogoAnimatedProps = {
   size?: number;
@@ -39,7 +39,7 @@ export function LogoAnimated({
       {/* Badge container with shadow breathing */}
       <motion.div
         className={clsx(
-          "relative rounded-full overflow-hidden bg-white/10 backdrop-blur-xl border border-white/10 p-3",
+          "relative rounded-2xl overflow-hidden bg-white backdrop-blur-xl border border-white/10 p-3",
           variant === "small" && "p-2"
         )}
         style={{
@@ -65,7 +65,7 @@ export function LogoAnimated({
         
         {/* Logo image */}
         <div className="relative z-10">
-          <ThemedLogoImage
+          <BrandLogoImage
             alt={BRAND_NAME}
             width={logoSize}
             height={logoSize}

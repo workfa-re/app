@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../public/brand/workfare-mark-dark.png" width="96" alt="Workfare Logo" />
+  <img src="../public/workfare-icon-512.png" width="96" alt="Workfare Logo" />
 </div>
 
 # 🤝 Code of Conduct

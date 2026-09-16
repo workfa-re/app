@@ -338,18 +338,6 @@ button,
   color: #ffffff;
 }
 
-.theme-logo-light,
-.light .theme-logo-dark,
-.dark .theme-logo-light {
-  display: none;
-}
-
-.theme-logo-dark,
-.light .theme-logo-light,
-.dark .theme-logo-dark {
-  display: block;
-}
-
 .app-brand-chip,
 .app-profile-chip,
 .app-center-nav-pill {
@@ -377,11 +365,6 @@ button,
   background:
     radial-gradient(circle at 44% 22%, rgba(255, 255, 255, 0.96), transparent 38%),
     linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-}
-
-.light .app-brand-logo-image.theme-logo-light {
-  opacity: 1;
-  transform: none;
 }
 
 .app-brand-chip-title {
@@ -848,7 +831,7 @@ button,
 
 .app-brand-logo-badge,
 .dark .app-brand-logo-badge {
-  background: var(--chrome-inset-surface);
+  background: #ffffff;
 }
 
 .app-brand-logo-image {
@@ -1667,14 +1650,6 @@ button,
   border-radius: 1.125rem !important;
 }
 
-.onboarding-shell .theme-logo-dark {
-  display: block;
-}
-
-.onboarding-shell .theme-logo-light {
-  display: none;
-}
-
 .light .landing-auth-shell {
   background: #ffffff;
 }
@@ -1773,22 +1748,10 @@ button,
   color: var(--onboarding-muted);
 }
 
-.light .onboarding-shell .theme-logo-dark {
-  display: none;
-}
-
-.light .onboarding-shell .theme-logo-light {
-  display: block;
-}
-
 .light .onboarding-shell .logo-badge {
-  background: var(--onboarding-control-strong);
+  background: #ffffff;
   border-color: var(--onboarding-control-border);
   box-shadow: 0 18px 48px rgba(31, 45, 74, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.92);
-}
-
-.light .onboarding-shell .logo-badge > :first-child {
-  opacity: 0.42;
 }
 
 .light .onboarding-shell :where(.text-white, .text-slate-100, .text-slate-200):not(button):not(a):not(.soft-gradient) {
@@ -1839,7 +1802,7 @@ button,
 }
 
 .light .onboarding-shell .logo-badge {
-  background: var(--onboarding-control-strong) !important;
+  background: #ffffff !important;
 }
 
 .light .onboarding-shell button[class*="border-white/30"] {

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { BRAND_NAME } from "@/lib/constants";
-import { ThemedLogoImage } from "@/components/ui/ThemedLogoImage";
+import { BrandLogoImage } from "@/components/ui/BrandLogoImage";
 
 type LogoProps = {
   withGlow?: boolean;
@@ -25,7 +25,7 @@ export function Logo({ withGlow = false, size = 80, className }: LogoProps) {
         animate={withGlow ? { scale: [1, 1.04, 1] } : undefined}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
       >
-        <ThemedLogoImage
+        <BrandLogoImage
           alt={BRAND_NAME}
           width={size}
           height={size}

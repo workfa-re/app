@@ -2,7 +2,7 @@
 
 import { BRAND_NAME } from "@/lib/constants";
 import clsx from "clsx";
-import { ThemedLogoImage } from "@/components/ui/ThemedLogoImage";
+import { BrandLogoImage } from "@/components/ui/BrandLogoImage";
 
 type LogoBadgeProps = {
   size?: "sm" | "md" | "lg";
@@ -10,9 +10,9 @@ type LogoBadgeProps = {
 };
 
 const sizeMap = {
-  sm: { container: "w-16 h-16", image: 48 },
-  md: { container: "w-20 h-20", image: 64 },
-  lg: { container: "w-24 h-24", image: 72 },
+  sm: { container: "w-16 h-16", image: 64 },
+  md: { container: "w-20 h-20", image: 80 },
+  lg: { container: "w-24 h-24", image: 96 },
 };
 
 export function LogoBadge({ size = "md", className }: LogoBadgeProps) {
@@ -22,10 +22,10 @@ export function LogoBadge({ size = "md", className }: LogoBadgeProps) {
     <div
       className={clsx(
         sizes.container,
-        "rounded-full",
+        "rounded-2xl",
         "overflow-hidden",
         "backdrop-blur-2xl",
-        "bg-white/10",
+        "bg-white",
         "border border-white/10",
         "shadow-[0_8px_30px_rgba(0,0,0,0.45)]",
         "flex items-center justify-center",
@@ -34,9 +34,7 @@ export function LogoBadge({ size = "md", className }: LogoBadgeProps) {
         className
       )}
     >
-      {/* Highlight-Layer */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/25 to-transparent opacity-60 pointer-events-none mix-blend-screen" />
-      <ThemedLogoImage
+      <BrandLogoImage
         alt={BRAND_NAME}
         width={sizes.image}
         height={sizes.image}

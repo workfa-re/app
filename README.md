@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/brand/workfare-mark-dark.png" width="96" alt="Workfare" />
+  <img src="public/workfare-icon-512.png" width="96" alt="Workfare" />
   <h1>Workfare</h1>
   <p>Plattform für sichere Taschengeldjobs und Alltagshilfe.</p>
 </div>

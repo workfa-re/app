@@ -11,7 +11,7 @@ listed below were saved directly in its dashboard.
 | Public brand constants used the previous name and contact domain | `src/lib/constants.ts` defines Workfare, its description and separate contact, support and privacy addresses at `workfare.team`. |
 | Root page metadata, installed-app labels and browser icon URLs carried the previous name | Root metadata and `public/manifest.webmanifest` use Workfare; icon URLs use Workfare filenames with a new cache version. |
 | The old wordmark asset contained the previous brand name | `public/brand/workfare-wordmark.png` uses the supplied Workfare logo; the obsolete wordmark file is removed. |
-| Bridge marks and PWA icons had legacy filenames | Assets now have Workfare names. The existing bridge artwork and light/dark variants are preserved. `ThemedLogoImage.tsx` points to the renamed files. |
+| Bridge marks and PWA icons had legacy filenames | Assets now have Workfare names. The initial rename preserved the bridge. The follow-up below replaces every bridge asset with the original Workfare wordmark on white. |
 | Onboarding, age checks, verification, waiting-list and guardian pages named the previous brand | Text, logo descriptions and support links use Workfare. Account and consent behavior stays unchanged. |
 | Header, footer, loading label, account settings and notification descriptions used the old brand | These surfaces now identify Workfare, including accessible image/loading labels. |
 | Job trust labels, staff labels and payment placeholder copy used the old name | Job details, staff badges and the payment placeholder use Workfare. No payment capability is introduced. |
@@ -64,7 +64,7 @@ listed below were saved directly in its dashboard.
 - `npm run lint`: passed.
 - `npm run build`: passed with TypeScript and production route generation.
 - Production preview inspected at 1440×900 and 390×844; visible public branding
-  is Workfare and the established layout/bridge icon are retained.
+  is Workfare and the established layout is retained (the icon is superseded by the follow-up below).
 - Thirteen public entry, legal, onboarding and guardian routes checked for
   response, title and visible legacy branding; manifest/icon references checked.
 - Supabase: signup and invitation templates inspected, sender name saved and
@@ -73,3 +73,35 @@ listed below were saved directly in its dashboard.
   email enable/disable switches were changed. No real emails were sent.
 - An authenticated browser walkthrough was not performed: the local demo
   database was unavailable. This is not claimed as covered by the UI check.
+
+## Follow-up: one white Workfare logo
+
+The supplied `Logo_wf.png` remains byte-identical in
+`public/brand/workfare-wordmark.png`. All exported icons use that artwork,
+proportionally fitted to a white square without changing its lettering or colors.
+No generated alternative logo is used.
+
+| Before | After |
+| --- | --- |
+| Blue bridge images in `public/brand` | Both light and dark bridge files are deleted. |
+| Blue bridge favicon in `src/app/favicon.ico` | White Workfare favicon with 16, 32, 48 and 256 pixel frames. |
+| Blue 32, 180, 192 and 512 pixel icons | White Workfare exports for browser, Apple and installed-app use. |
+| Two theme-dependent logo images | One `BrandLogoImage` and a shared `BRAND_ICON_PATH`; the same original mark appears in both themes. |
+| Circular clipping and enlargement tailored to the bridge | Logo containers use rounded squares, full artwork and no enlargement/cropping. |
+| Theme-specific display/hiding rules and a reflection over the badge | Obsolete logo rules and the badge reflection are removed; the logo background stays white. |
+| Old icon cache version in metadata and manifest | The new `wordmark-1` version points clients to the updated artwork. |
+| Blue logo in README and contributor/support documents | These documents now show the white Workfare app icon. |
+
+Cloudflare loads the platform's `/favicon.ico` for its challenge page; see
+[Cloudflare favicon customization](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/additional-configuration/).
+After deployment, verify that URL and the versioned icons return the new files.
+Google refreshes favicons after recrawling; an immediate replacement in existing
+search results cannot be guaranteed. See
+[Google's favicon documentation](https://developers.google.com/search/docs/appearance/favicon-in-search).
+
+Follow-up verification: lint and production build passed. Desktop (1440×900)
+and mobile (390×844) display the complete white Workfare mark. All five public
+icon URLs return the exact new files; both removed bridge URLs return 404.
+The optimized component image returns 200. Every exported PNG and ICO frame
+was checked for correct dimensions, opaque grayscale pixels and nonempty artwork.
+The original wordmark remains byte-identical to the supplied file.
