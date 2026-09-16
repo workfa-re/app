@@ -6,12 +6,14 @@ import { safeInternalRedirectOr } from "@/lib/safe-redirect";
 
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
+    // Reverse proxies may expose an internal origin in request.url.
+    const publicOrigin = new URL(process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin).origin;
     const code = requestUrl.searchParams.get("code");
     const next = safeInternalRedirectOr(requestUrl.searchParams.get("next"), "/onboarding");
 
     if (code) {
         // Build the final redirect URL upfront so we know where to go.
-        const nextUrl = new URL(next, requestUrl.origin);
+        const nextUrl = new URL(next, publicOrigin);
         nextUrl.searchParams.set("verified", "true");
 
         // Create the redirect response ONCE — all cookie mutations happen on THIS object.
@@ -45,6 +47,6 @@ export async function GET(request: NextRequest) {
 
     // No code or exchange failed → send back to onboarding with error hint
     return NextResponse.redirect(
-        new URL("/onboarding?error=auth_code_error", requestUrl.origin)
+        new URL("/onboarding?error=auth_code_error", publicOrigin)
     );
 }
