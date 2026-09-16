@@ -22,12 +22,9 @@ export function LogoBadge({ size = "md", className }: LogoBadgeProps) {
     <div
       className={clsx(
         sizes.container,
-        "rounded-2xl",
+        "rounded-full",
         "overflow-hidden",
-        "backdrop-blur-2xl",
-        "bg-white",
-        "border border-white/10",
-        "shadow-[0_8px_30px_rgba(0,0,0,0.45)]",
+        "bg-transparent",
         "flex items-center justify-center",
         "relative",
         "logo-badge",

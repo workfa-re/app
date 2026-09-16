@@ -8,15 +8,15 @@
   "theme_color": "#020617",
   "icons": [
     {
-      "src": "/workfare-icon-192.png?v=wordmark-1",
+      "src": "/workfare-icon-192.png?v=bridge-transparent-1",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/workfare-icon-512.png?v=wordmark-1",
+      "src": "/workfare-icon-512.png?v=bridge-transparent-1",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

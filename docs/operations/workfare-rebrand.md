@@ -1,5 +1,8 @@
 # Platform rebranding to Workfare
 
+Current icon choice: the original blue bridge on transparency. The white
+wordmark-icon experiment below has been superseded by the final follow-up.
+
 Status: 2026-09-16. The platform source is rebranded. The application deployment
 is a separate step from the local commit. The production Supabase email changes
 listed below were saved directly in its dashboard.
@@ -105,3 +108,29 @@ icon URLs return the exact new files; both removed bridge URLs return 404.
 The optimized component image returns 200. Every exported PNG and ICO frame
 was checked for correct dimensions, opaque grayscale pixels and nonempty artwork.
 The original wordmark remains byte-identical to the supplied file.
+
+## Final icon choice: the blue bridge without a dark background
+
+The user's final choice restores the blue bridge. The artwork is taken from the
+previous transparent light-variant asset in commit 7bff0c8. Only export padding
+and border artefacts are removed; the bridge geometry and color are preserved.
+The dark circular logo file is not restored. The original Workfare wordmark
+remains available separately.
+
+| Before | After |
+| --- | --- |
+| White wordmark square in platform logo slots | One transparent blue bridge, shared by all logo components through BrandLogoImage. |
+| White blocks, shadows and rounded-square framing | Transparent logo containers and the previous circular outline shape, with no dedicated filled background. |
+| White wordmark favicon and 192/512 app icons | Transparent blue bridge exports and favicon.ico frames at 16, 32, 48 and 256 pixels. |
+| White wordmark Apple touch icon | Blue bridge on a plain white Apple icon; no dark background. |
+| Metadata/manifest cache version wordmark-1 | Version bridge-transparent-1, with transparent app icons declared as purpose any. |
+| README and contributor documents linked the app icon | The same links now resolve to the blue bridge artwork. |
+
+Cloudflare receives the new bridge through the existing /favicon.ico endpoint.
+No challenge rule or security setting is changed.
+
+Final bridge verification: lint and production build passed. Desktop at 1440×900
+and mobile at 390×844 show the bridge without a filled logo plate. All icon URLs,
+including /favicon.ico, return the exact updated files, and the optimized
+component image returns 200. Transparent PNG exports and all four ICO frames
+were checked for transparency and visible blue artwork.

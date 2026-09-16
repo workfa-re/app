@@ -356,17 +356,6 @@ button,
   box-shadow: 0 20px 54px rgba(31, 45, 74, 0.16), inset 0 1px 0 #ffffff;
 }
 
-.app-brand-logo-ring {
-  border-color: color-mix(in srgb, var(--primary) 16%, transparent);
-  background: var(--surface-solid);
-}
-
-.app-brand-logo-badge {
-  background:
-    radial-gradient(circle at 44% 22%, rgba(255, 255, 255, 0.96), transparent 38%),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-}
-
 .app-brand-chip-title {
   color: var(--text-strong);
 }
@@ -602,15 +591,6 @@ button,
   background: rgba(8, 16, 38, 0.82);
 }
 
-.dark .app-brand-logo-ring {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.dark .app-brand-logo-badge {
-  background: rgba(59, 130, 246, 0.16);
-}
-
 .dark .app-profile-avatar {
   background: rgba(59, 130, 246, 0.22);
   color: #93c5fd;
@@ -822,25 +802,19 @@ button,
   box-shadow: var(--chrome-nav-shadow) !important;
 }
 
-.app-brand-logo-ring,
 .app-profile-avatar-frame {
   border-color: transparent !important;
   background: transparent;
   box-shadow: 0 0 0 1px var(--chrome-nav-ring);
 }
 
+.app-brand-logo-ring,
+.dark .app-brand-logo-ring,
 .app-brand-logo-badge,
 .dark .app-brand-logo-badge {
-  background: #ffffff;
-}
-
-.app-brand-logo-image {
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  outline-offset: -1px;
-}
-
-.dark .app-brand-logo-image {
-  outline-color: rgba(255, 255, 255, 0.1);
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
 }
 
 .app-profile-avatar,
@@ -1748,12 +1722,6 @@ button,
   color: var(--onboarding-muted);
 }
 
-.light .onboarding-shell .logo-badge {
-  background: #ffffff;
-  border-color: var(--onboarding-control-border);
-  box-shadow: 0 18px 48px rgba(31, 45, 74, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.92);
-}
-
 .light .onboarding-shell :where(.text-white, .text-slate-100, .text-slate-200):not(button):not(a):not(.soft-gradient) {
   color: var(--onboarding-ink) !important;
 }
@@ -1799,10 +1767,6 @@ button,
 
 .light .onboarding-shell :where([class*="bg-white/5"], [class*="bg-white/10"], [class*="bg-white/[0.025]"], [class*="bg-white/[0.03]"], [class*="bg-white/[0.04]"], [class*="bg-white/[0.045]"], [class*="bg-white/[0.055]"], [class*="bg-black/15"], [class*="bg-[#0F0F12]"], [class*="bg-[#111318]"], [class*="bg-[#151923]"], .glass-card) {
   background: var(--onboarding-control-bg) !important;
-}
-
-.light .onboarding-shell .logo-badge {
-  background: #ffffff !important;
 }
 
 .light .onboarding-shell button[class*="border-white/30"] {

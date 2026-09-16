@@ -27,20 +27,20 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/workfare-favicon-32.png?v=wordmark-1",
+        url: "/workfare-favicon-32.png?v=bridge-transparent-1",
         sizes: "32x32",
         type: "image/png",
       },
       {
-        url: "/workfare-icon-192.png?v=wordmark-1",
+        url: "/workfare-icon-192.png?v=bridge-transparent-1",
         sizes: "192x192",
         type: "image/png",
       },
     ],
-    shortcut: "/workfare-favicon-32.png?v=wordmark-1",
+    shortcut: "/workfare-favicon-32.png?v=bridge-transparent-1",
     apple: [
       {
-        url: "/workfare-apple-touch-icon.png?v=wordmark-1",
+        url: "/workfare-apple-touch-icon.png?v=bridge-transparent-1",
         sizes: "180x180",
         type: "image/png",
       },

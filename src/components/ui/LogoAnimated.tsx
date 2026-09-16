@@ -39,7 +39,7 @@ export function LogoAnimated({
       {/* Badge container with shadow breathing */}
       <motion.div
         className={clsx(
-          "relative rounded-2xl overflow-hidden bg-white backdrop-blur-xl border border-white/10 p-3",
+          "relative rounded-full overflow-hidden bg-transparent backdrop-blur-xl border border-white/10 p-3",
           variant === "small" && "p-2"
         )}
         style={{

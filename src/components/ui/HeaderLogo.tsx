@@ -8,7 +8,7 @@ export function HeaderLogo() {
   return (
     <div className="flex items-center">
       <motion.div
-        className="relative h-14 w-14 overflow-hidden rounded-2xl bg-white backdrop-blur-xl border border-white/10"
+        className="relative h-14 w-14 overflow-hidden rounded-full bg-transparent backdrop-blur-xl border border-white/10"
         style={{
           boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset",
         }}

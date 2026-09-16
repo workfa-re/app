@@ -12,7 +12,7 @@ type BrandLogoImageProps = {
   sizes?: string;
 };
 
-/** One original Workfare mark, identical in light and dark appearance. */
+/** The original blue bridge without a baked-in background, in either theme. */
 export function BrandLogoImage({
   alt = BRAND_NAME,
   width,
