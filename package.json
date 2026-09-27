@@ -8,6 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:offers": "vitest run --config src/app/app-home/offers/vitest.offers.config.ts",
+    "test:demo": "node --test scripts/demo/contracts.test.mjs",
+    "test:dependencies": "node --test scripts/dependency-compatibility.test.mjs",
+    "test:all": "npm test && npm run test:offers && npm run test:demo && npm run test:dependencies",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
+    "security:audit": "npm audit --package-lock-only --audit-level=low",
     "demo:setup": "node scripts/demo/setup.mjs",
     "demo:dev": "node scripts/demo/dev.mjs",
     "demo:cleanup": "node scripts/demo/cleanup.mjs"
@@ -23,7 +29,7 @@
     "framer-motion": "^12.23.26",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.555.0",
-    "next": "^16.2.6",
+    "next": "^16.3.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-leaflet": "^5.0.0",
@@ -39,22 +45,13 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.3.1",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.3.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.3"
+    "vitest": "^4.1.11"
   },
   "overrides": {
-    "@babel/core": "^7.29.7",
-    "brace-expansion": "^5.0.6",
-    "flatted": "^3.4.2",
-    "js-yaml": "^4.2.0",
-    "minimatch": "^10.2.5",
-    "picomatch": "^4.0.4",
-    "postcss": "^8.5.12",
-    "typescript-eslint": "8.46.0",
-    "vite": "^6.4.3",
-    "ws": "^8.21.0"
+    "vite": "^6.4.3"
   }
 }
