@@ -131,7 +131,7 @@ Rollback nicht wieder gestartet. Die Werkzeuge verändern keine fremden Containe
 
 Schema-Dateien werden nur auf eine leere lokale Datenbank angewendet. Eine
 bestehende Datenbank wird auf den aktiven Bereinigungsjob, die verzögerte
-Auth-Bindungsprüfung, alle 23 restriktiven Besuchergrenzen und beide Rollen mit
+Auth-Bindungsprüfung, alle 24 restriktiven Besuchergrenzen und beide Rollen mit
 NOLOGIN/NOBYPASSRLS geprüft;
 sie wird weder zurückgesetzt noch automatisch mit neueren SQL-Dateien überschrieben.
 Bei einer vom Setup angelegten Datenbank wird zusätzlich der SHA-256-Stand der

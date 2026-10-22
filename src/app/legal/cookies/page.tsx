@@ -42,8 +42,8 @@ export default function CookiesPage() {
       <LegalSection title="Was wir bewusst nicht nutzen">
         <div className="legal-stack">
           <LegalRow label="Tracking & Analyse">
-            Wir verzichten vollständig auf Third-Party-Tracking. Keine IP-Adressen, die in fremde Hände
-            gelangen. Keine personalisierte Werbung. Kein Re-Targeting.
+            Wir setzen keine Analyse- oder Werbetracker ein. Beim Laden externer Kartendienste fallen
+            technisch erforderliche Verbindungsdaten an; mehr dazu unter „Kartendienste“.
           </LegalRow>
           <LegalRow label="Marketing-Cookies">
             Wir schalten keine Werbung und teilen keine Nutzerdaten mit Werbetreibenden.
@@ -54,8 +54,9 @@ export default function CookiesPage() {
       <LegalSection title="Kartendienste">
         <p>
           Zur Darstellung von Karten und zur Adresssuche werden externe Kartendienste eingebunden. Dabei
-          wird technisch bedingt deine IP-Adresse an MapTiler bzw. bei Suchanfragen an
-          OpenStreetMap/Nominatim übertragen. Dies dient ausschließlich der Funktionalität.
+          erhält die OpenStreetMap Foundation beim Laden von Kartenkacheln deine IP-Adresse und
+          technische Anfragedaten. Adresssuchanfragen werden serverseitig an OpenStreetMap/Nominatim
+          weitergegeben. Die Karten zeigen vor einer Freigabe ausschließlich eine ungefähre Lage.
         </p>
       </LegalSection>
 

@@ -19,14 +19,6 @@ export type EffectiveViewSnapshot = {
 export type JobStatus = Database["public"]["Enums"]["job_status"];
 export type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
-export type WaitlistJobSummary = {
-  job_id: string;
-  waitlist_count: number;
-  next_position: number;
-  conversation_active: boolean;
-  my_waitlist_position: number | null;
-};
-
 // Normalized shape for list rendering across list and detail views.
 export type JobsListItem = {
   id: string;
@@ -67,36 +59,7 @@ export type JobsListItem = {
   address_reveal_policy?: string | null;
   application_status?: ApplicationStatus | null;
   application_id?: string | null;
-  waitlist_count?: number | null;
-  next_position?: number | null;
-  conversation_active?: boolean | null;
-  my_waitlist_position?: number | null;
 };
-
-/** Merge privacy-preserving waitlist metadata without exposing another applicant. */
-export function mergeWaitlistJobSummaries(
-  jobs: JobsListItem[],
-  summaries: WaitlistJobSummary[],
-): JobsListItem[] {
-  if (jobs.length === 0 || summaries.length === 0) return jobs;
-
-  const summariesByJobId = new Map(summaries.map((summary) => [summary.job_id, summary]));
-
-  return jobs.map((job) => {
-    const summary = summariesByJobId.get(job.id);
-    if (!summary) return job;
-
-    return {
-      ...job,
-      waitlist_count: Number(summary.waitlist_count ?? 0),
-      next_position: Number(summary.next_position ?? 1),
-      conversation_active: Boolean(summary.conversation_active),
-      my_waitlist_position: summary.my_waitlist_position == null
-        ? null
-        : Number(summary.my_waitlist_position),
-    };
-  });
-}
 
 export type ApplicationRow = Database["public"]["Tables"]["applications"]["Row"] & {
   applicant?: {

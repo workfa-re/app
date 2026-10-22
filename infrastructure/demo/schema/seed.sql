@@ -30,7 +30,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_template constant jsonb := $template${
-  "version": "workfare-platform-demo-v1",
+  "version": "workfare-exclusive-reservations-v2",
   "synthetic": true,
   "description": "Gemeinsame Vorlage für die drei öffentlichen Demoansichten und ihre echten Datenbankbeispiele.",
   "public_roles": [
@@ -351,7 +351,7 @@ DECLARE
       "job": "private-conversation",
       "applicant": "seeker",
       "status": "negotiating",
-      "queue_position": 1,
+      "queue_position": 2,
       "is_primary": true,
       "created_days_ago": 2,
       "message": "Hallo Robin, ich kümmere mich gern um Pflanzen und hätte in den Ferien nachmittags Zeit. Können wir die Aufgabe vorher gemeinsam anschauen?",
@@ -362,11 +362,11 @@ DECLARE
       "key": "private-wait-peer",
       "job": "private-conversation",
       "applicant": "peer-seeker",
-      "status": "waitlisted",
-      "queue_position": 2,
+      "status": "rejected",
+      "queue_position": 1,
       "is_primary": false,
-      "created_days_ago": 2,
-      "message": "Hallo Robin, ich könnte ebenfalls beim Gießen helfen und würde gern auf der Warteliste bleiben.",
+      "created_days_ago": 3,
+      "message": "Hallo Robin, ich könnte beim Gießen helfen und hätte am Nachmittag Zeit.",
       "provider_reply": null,
       "seeker_reply": null
     },
@@ -399,7 +399,7 @@ DECLARE
       "job": "company-conversation",
       "applicant": "peer-seeker",
       "status": "negotiating",
-      "queue_position": 1,
+      "queue_position": 2,
       "is_primary": true,
       "created_days_ago": 2,
       "message": "Hallo Alex, ich sortiere gern und hätte am Donnerstag Zeit, bei der Vorbereitung mitzuhelfen.",
@@ -410,10 +410,10 @@ DECLARE
       "key": "company-wait-seeker",
       "job": "company-conversation",
       "applicant": "seeker",
-      "status": "waitlisted",
-      "queue_position": 2,
+      "status": "rejected",
+      "queue_position": 1,
       "is_primary": false,
-      "created_days_ago": 2,
+      "created_days_ago": 3,
       "message": "Hallo Alex, ich würde bei der Werkstattvorbereitung gern einspringen, falls noch Hilfe benötigt wird.",
       "provider_reply": null,
       "seeker_reply": null
@@ -511,6 +511,8 @@ DECLARE
   v_reply_at timestamptz;
   v_starts_at timestamptz;
   v_is_completed boolean;
+  v_is_rejected boolean;
+  v_is_closed boolean;
   v_manifest jsonb;
   v_job_ids jsonb := '{}'::jsonb;
   v_application_ids jsonb := '{}'::jsonb;
@@ -677,6 +679,8 @@ BEGIN
     v_seeker_id := (p_identities->>(v_app->>'applicant'))::uuid;
     v_created_at := p_seed_at - make_interval(days => (v_app->>'created_days_ago')::int);
     v_is_completed := v_app->>'status' = 'completed';
+    v_is_rejected := v_app->>'status' = 'rejected';
+    v_is_closed := v_is_completed OR v_is_rejected;
     v_reply_at := CASE WHEN v_is_completed THEN p_seed_at - interval '3 days 30 minutes' ELSE p_seed_at - interval '70 minutes' END;
     v_application_ids := v_application_ids || jsonb_build_object(v_app->>'key', v_application_id);
     INSERT INTO public.applications (
@@ -686,13 +690,13 @@ BEGIN
     ) VALUES (
       v_application_id, v_job_id, v_seeker_id, v_app->>'message', (v_app->>'status')::public.application_status,
       (v_app->>'queue_position')::int, (v_app->>'is_primary')::boolean,
-      CASE WHEN v_is_completed THEN 'closed' ELSE 'open' END,
+      CASE WHEN v_is_closed THEN 'closed' ELSE 'open' END,
       v_created_at, v_created_at, CASE WHEN v_is_completed THEN p_seed_at - interval '3 days' ELSE v_created_at END,
-      CASE WHEN v_is_completed THEN v_provider_id END, CASE WHEN v_is_completed THEN p_seed_at - interval '3 days' END,
-      CASE WHEN v_is_completed THEN 'Die gemeinsame Aufgabe wurde erfolgreich abgeschlossen.' END,
-      CASE WHEN v_is_completed THEN 'engagement_completed' END,
-      CASE WHEN v_is_completed THEN 'accepted'::public.application_status END,
-      v_is_completed, CASE WHEN v_is_completed THEN 1 ELSE 0 END
+      CASE WHEN v_is_closed THEN v_provider_id END, CASE WHEN v_is_completed THEN p_seed_at - interval '3 days' WHEN v_is_rejected THEN p_seed_at - interval '2 days 5 minutes' END,
+      CASE WHEN v_is_completed THEN 'Die gemeinsame Aufgabe wurde erfolgreich abgeschlossen.' WHEN v_is_rejected THEN 'Die Bewerbung wurde vor einer neuen Reservierung beendet.' END,
+      CASE WHEN v_is_completed THEN 'engagement_completed' WHEN v_is_rejected THEN 'provider_rejected' END,
+      CASE WHEN v_is_completed THEN 'accepted'::public.application_status WHEN v_is_rejected THEN 'negotiating'::public.application_status END,
+      v_is_closed, CASE WHEN v_is_closed THEN 1 ELSE 0 END
     );
     INSERT INTO public.messages (id, application_id, sender_id, content, kind, created_at, read_at)
     VALUES (demo_private.seed_entity_id(p_session_id, 'message:application:' || (v_app->>'key')),
@@ -702,7 +706,7 @@ BEGIN
     VALUES (demo_private.seed_entity_id(p_session_id, 'event:submitted:' || (v_app->>'key')),
       v_application_id, v_seeker_id, 'application_submitted',
       jsonb_build_object('job_id', v_job_id, 'queue_position', (v_app->>'queue_position')::int,
-        'is_primary', (v_app->>'queue_position')::int = 1, 'demo_template', v_template->>'version'), v_created_at);
+        'is_primary', true, 'demo_template', v_template->>'version'), v_created_at);
 
     IF v_app->>'provider_reply' IS NOT NULL THEN
       INSERT INTO public.messages (id, application_id, sender_id, content, kind, created_at, read_at) VALUES
@@ -713,14 +717,14 @@ BEGIN
           v_application_id, v_seeker_id, v_app->>'seeker_reply', 'chat', v_reply_at + interval '2 minutes',
           CASE WHEN v_is_completed THEN v_reply_at + interval '3 minutes' END);
     END IF;
-    IF v_app->>'status' IN ('negotiating', 'waitlisted') THEN
+    IF v_app->>'status' = 'negotiating' THEN
       INSERT INTO public.notifications (id, user_id, type, title, body, data, category, dedupe_key, created_at)
       VALUES (demo_private.seed_entity_id(p_session_id, 'notification:new:' || (v_app->>'key')),
         v_provider_id, 'application_new', 'Neue Bewerbung', 'Es gibt eine neue Rückmeldung zu deinem Angebot.',
         jsonb_build_object('route', '/app-home/activities?conversation=' || v_application_id::text,
           'application_id', v_application_id, 'job_id', v_job_id,
           'queue_position', (v_app->>'queue_position')::int, 'is_primary', (v_app->>'is_primary')::boolean),
-        CASE WHEN v_app->>'status' = 'waitlisted' THEN 'waitlist' ELSE 'applications' END,
+        'applications',
         'demo:new:' || v_application_id::text, v_created_at);
     END IF;
     IF v_app->>'status' = 'negotiating' THEN
@@ -753,7 +757,7 @@ BEGIN
       v_job->>'job_kind', v_engagement->>'status', v_created_at,
       CASE WHEN v_is_completed THEN p_seed_at - interval '3 days' END,
       CASE WHEN v_is_completed THEN v_provider_id END,
-      CASE WHEN v_is_completed THEN 'Die gemeinsame Aufgabe wurde erfolgreich abgeschlossen.' END,
+      CASE WHEN v_is_completed THEN 'Die gemeinsame Aufgabe wurde erfolgreich abgeschlossen.' WHEN v_is_rejected THEN 'Die Bewerbung wurde vor einer neuen Reservierung beendet.' END,
       v_created_at, CASE WHEN v_is_completed THEN p_seed_at - interval '3 days' ELSE v_created_at END
     );
     v_index := 0;

@@ -4,6 +4,7 @@ import {
     formatConversationTime,
     formatClosureReason,
     getActivityStatusMeta,
+    getActivityStage,
     getChatDateKey,
     getConversationActivityTimestamp,
     getConversationPreviewTimestamp,
@@ -12,20 +13,24 @@ import {
     matchesActivityFilter,
     normalizeMessagePreview,
     resolveReopenApplicationPatch,
+    updateActivityComposerDraft,
+    recordActivitySendFailure,
+    recoverActivityFailedSend,
 } from "@/lib/activity/chat";
 
 describe("activity conversation helpers", () => {
     it("maps every operational status to understandable copy", () => {
-        expect(getActivityStatusMeta("negotiating")).toEqual({ label: "Im Gespräch", tone: "brand" });
-        expect(getActivityStatusMeta("accepted")).toEqual({ label: "Termin vereinbart", tone: "success" });
+        expect(getActivityStatusMeta("negotiating")).toEqual({ label: "Reserviert", tone: "brand" });
+        expect(getActivityStatusMeta("accepted")).toEqual({ label: "In Zusammenarbeit", tone: "success" });
         expect(getActivityStatusMeta("auto_rejected")).toEqual({ label: "Anderweitig vergeben", tone: "neutral" });
         expect(getActivityStatusMeta("unknown")).toEqual({ label: "Status offen", tone: "neutral" });
     });
 
-    it("separates unread, active, waitlist, accepted and archived conversations", () => {
+    it("separates unread, exclusive active, accepted and archived conversations", () => {
         expect(matchesActivityFilter("submitted", 2, "unread")).toBe(true);
         expect(matchesActivityFilter("negotiating", 0, "active")).toBe(true);
-        expect(matchesActivityFilter("waitlisted", 0, "waitlist")).toBe(true);
+        expect(matchesActivityFilter("waitlisted", 0, "active")).toBe(false);
+        expect(matchesActivityFilter("waitlisted", 0, "closed")).toBe(true);
         expect(matchesActivityFilter("accepted", 0, "accepted")).toBe(true);
         expect(matchesActivityFilter("withdrawn", 0, "closed")).toBe(true);
         expect(matchesActivityFilter("submitted", 0, "closed")).toBe(false);
@@ -87,112 +92,41 @@ describe("activity conversation helpers", () => {
         ]);
     });
 
-    it("groups the provider inbox by job with one primary and an ordered compact waitlist", () => {
+    it("keeps exactly one exclusive primary and archives historical non-primary requests", () => {
+        const base = { job_id: "job-a", job: { id: "job-a", title: "Gartenhilfe" }, created_at: "2026-10-23T10:00:00Z" };
         const groups = groupProviderActivities([
-            {
-                id: "waiting-later",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "waitlisted",
-                conversation_state: "open",
-                is_primary: false,
-                queue_position: 4,
-                created_at: "2026-07-10T12:00:00.000Z",
-                last_activity_at: "2026-07-10T12:00:00.000Z",
-                unread_count: 2,
-            },
-            {
-                id: "primary",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "negotiating",
-                conversation_state: "open",
-                is_primary: true,
-                queue_position: 1,
-                created_at: "2026-07-10T10:00:00.000Z",
-                last_activity_at: "2026-07-10T13:00:00.000Z",
-                unread_count: 1,
-            },
-            {
-                id: "waiting-earlier",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "waitlisted",
-                conversation_state: "open",
-                is_primary: false,
-                queue_position: 2,
-                created_at: "2026-07-10T11:00:00.000Z",
-                last_activity_at: "2026-07-10T11:00:00.000Z",
-                unread_count: 0,
-            },
-            {
-                id: "archived",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "withdrawn",
-                conversation_state: "closed",
-                is_primary: false,
-                queue_position: 3,
-                created_at: "2026-07-09T10:00:00.000Z",
-                last_activity_at: "2026-07-09T12:00:00.000Z",
-                unread_count: 0,
-            },
+            { ...base, id: "older-request", status: "waitlisted", is_primary: false, conversation_state: "open", unread_count: 2 },
+            { ...base, id: "reserved", status: "negotiating", is_primary: true, conversation_state: "open", unread_count: 1 },
+            { ...base, id: "withdrawn", status: "withdrawn", is_primary: false, conversation_state: "closed" },
         ]);
-
-        expect(groups).toHaveLength(1);
-        expect(groups[0].primary?.id).toBe("primary");
-        expect(groups[0].waitlist.map((application, index) => ({
-            id: application.id,
-            visibleRank: index + 1,
-        }))).toEqual([
-            { id: "waiting-earlier", visibleRank: 1 },
-            { id: "waiting-later", visibleRank: 2 },
-        ]);
-        expect(groups[0].archive.map((application) => application.id)).toEqual(["archived"]);
+        expect(groups[0].primary?.id).toBe("reserved");
+        expect(groups[0].archive.map(item => item.id).sort()).toEqual(["older-request", "withdrawn"]);
+        expect(groups[0]).not.toHaveProperty("waitlist");
         expect(groups[0].unreadCount).toBe(3);
     });
 
-    it("rebuilds a provider group deterministically after automatic promotion", () => {
+    it("never promotes a historical request after the exclusive application closes", () => {
+        const base = { job_id: "job-a", created_at: "2026-10-23T10:00:00Z" };
         const groups = groupProviderActivities([
-            {
-                id: "previous-primary",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "withdrawn",
-                conversation_state: "closed",
-                is_primary: false,
-                queue_position: 1,
-                created_at: "2026-07-10T10:00:00.000Z",
-                last_activity_at: "2026-07-11T10:00:00.000Z",
-            },
-            {
-                id: "promoted",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "negotiating",
-                conversation_state: "open",
-                is_primary: true,
-                queue_position: 2,
-                created_at: "2026-07-10T11:00:00.000Z",
-                last_activity_at: "2026-07-11T10:00:00.000Z",
-            },
-            {
-                id: "next-waiting",
-                job_id: "job-a",
-                job: { id: "job-a", title: "Gartenhilfe" },
-                status: "waitlisted",
-                conversation_state: "open",
-                is_primary: false,
-                queue_position: 3,
-                created_at: "2026-07-10T12:00:00.000Z",
-                last_activity_at: "2026-07-10T12:00:00.000Z",
-            },
+            { ...base, id: "closed", status: "withdrawn", is_primary: false, conversation_state: "closed" },
+            { ...base, id: "historical", status: "waitlisted", is_primary: false, conversation_state: "open" },
         ]);
+        expect(groups[0].primary).toBeNull();
+        expect(groups[0].archive).toHaveLength(2);
+    });
 
-        expect(groups[0].primary?.id).toBe("promoted");
-        expect(groups[0].waitlist[0].id).toBe("next-waiting");
-        expect(groups[0].waitlist[0].queue_position).toBe(3);
-        expect(groups[0].archive[0].id).toBe("previous-primary");
+    it("describes reserved, agreed, completed and historical stages for each role", () => {
+        expect(getActivityStage({ status: "negotiating", is_primary: true }, "provider")).toMatchObject({ key: "reserved", index: 1, label: "Reserviert" });
+        expect(getActivityStage({ status: "negotiating", is_primary: true }, "seeker").hint).toContain("für dich reserviert");
+        expect(getActivityStage({ status: "accepted", is_primary: true }, "provider")).toMatchObject({ key: "agreed", index: 2, label: "In Zusammenarbeit" });
+        expect(getActivityStage({ status: "accepted", is_primary: true }, "provider").hint).toBe("Die Zusammenarbeit ist bestätigt. Termine und Änderungen klärt ihr direkt hier.");
+        expect(getActivityStage({ status: "cancelled", conversation_state: "closed" }, "provider").label).toBe("Abgesagt");
+        expect(getActivityStage({ status: "auto_rejected", close_action: "waitlist_retired", conversation_state: "closed" }, "seeker")).toMatchObject({ key: "closed", label: "Beendete Anfrage", index: -1 });
+        expect(getActivityStatusMeta("auto_rejected", "waitlist_retired").label).toBe("Beendete Anfrage");
+        expect(getActivityStage({ status: "completed", conversation_state: "closed" }, "seeker")).toMatchObject({ key: "completed", index: 3 });
+        expect(getActivityStage({ status: "waitlisted", conversation_state: "open" }, "provider")).toMatchObject({ key: "closed", index: -1, label: "Beendete Anfrage" });
+        expect(getActivityStage({ status: "negotiating", conversation_state: "closed" }, "provider").label).toBe("Beendet");
+        expect(getActivityStage({ status: "negotiating", is_primary: false }, "provider").key).toBe("closed");
     });
 
     it("uses the canonical application state when a reopen already happened elsewhere", () => {
@@ -213,5 +147,59 @@ describe("activity conversation helpers", () => {
         expect(() => resolveReopenApplicationPatch({ ok: true })).toThrow(
             "Der neue Gesprächsstatus konnte nicht bestätigt werden.",
         );
+    });
+});
+
+
+describe("workspace message drafts and late send failures", () => {
+    const firstFailure = { id: "send-a1", content: "Originale Nachricht A1", error: "Verbindung unterbrochen" };
+    const secondFailure = { id: "send-a2", content: "Originale Nachricht A2", error: "Server nicht erreichbar" };
+
+    it("restores an empty draft and retains the error when its old chat instance is gone", () => {
+        const state = recordActivitySendFailure(undefined, firstFailure);
+        expect(state).toEqual({ draft: firstFailure.content, failedSends: [firstFailure] });
+        const acknowledged = recoverActivityFailedSend(state, firstFailure.id);
+        expect(acknowledged).toEqual({ draft: firstFailure.content, failedSends: [] });
+    });
+
+    it("retains two out-of-order failures without overwriting newer text", () => {
+        const newer = updateActivityComposerDraft(undefined, "Meine neuere Eingabe");
+        const second = recordActivitySendFailure(newer, secondFailure);
+        const both = recordActivitySendFailure(second, firstFailure);
+        expect(both.draft).toBe("Meine neuere Eingabe");
+        expect(both.failedSends).toEqual([secondFailure, firstFailure]);
+        expect(recordActivitySendFailure(both, firstFailure)).toBe(both);
+        expect(newer.failedSends).toEqual([]);
+    });
+
+    it("recovers only the selected failed message through an explicit append", () => {
+        const newer = updateActivityComposerDraft(undefined, "Neuere Eingabe");
+        const both = recordActivitySendFailure(recordActivitySendFailure(newer, secondFailure), firstFailure);
+        const recoveredFirst = recoverActivityFailedSend(both, firstFailure.id)!;
+        expect(recoveredFirst.draft).toBe("Neuere Eingabe\n\nOriginale Nachricht A1");
+        expect(recoveredFirst.failedSends).toEqual([secondFailure]);
+        const recoveredSecond = recoverActivityFailedSend(recoveredFirst, secondFailure.id)!;
+        expect(recoveredSecond.draft).toBe("Neuere Eingabe\n\nOriginale Nachricht A1\n\nOriginale Nachricht A2");
+        expect(recoveredSecond.failedSends).toEqual([]);
+    });
+
+    it("does not lose recoverable messages when the user edits or clears the draft", () => {
+        const failed = recordActivitySendFailure(undefined, firstFailure);
+        const edited = updateActivityComposerDraft(failed, "Anderer Text");
+        expect(edited.failedSends).toEqual([firstFailure]);
+        const cleared = updateActivityComposerDraft(edited, "");
+        expect(cleared.failedSends).toEqual([firstFailure]);
+        expect(recoverActivityFailedSend(cleared, firstFailure.id)?.draft).toBe(firstFailure.content);
+        expect(recoverActivityFailedSend(edited, "unknown")).toBe(edited);
+    });
+
+    it("keeps the other conversation's composer independent", () => {
+        const a = updateActivityComposerDraft(undefined, "Neue A-Eingabe");
+        const b = updateActivityComposerDraft(undefined, "B bleibt unverändert");
+        const states = { a, b };
+        const next = { ...states, a: recordActivitySendFailure(states.a, firstFailure) };
+        expect(next.a.draft).toBe("Neue A-Eingabe");
+        expect(next.a.failedSends).toEqual([firstFailure]);
+        expect(next.b).toBe(b);
     });
 });

@@ -6,7 +6,6 @@ import { ActivityCommandCenter } from "@/components/activity/ActivityCommandCent
 import {
     completeJobEngagement,
     confirmJobAgreement,
-    promoteWaitlistedApplication,
     rejectApplication,
     reopenApplication,
     reportActivityItem,
@@ -87,12 +86,6 @@ export function ProviderActivityList({
             }}
             onRespondReopenRequest={async (requestId, accept, reason) => {
                 const result = await respondToConversationReopenRequest(requestId, accept, reason);
-                if (result?.error) throw new Error(result.error);
-                refresh();
-                return result;
-            }}
-            onPromote={async (applicationId, reason) => {
-                const result = await promoteWaitlistedApplication(applicationId, reason);
                 if (result?.error) throw new Error(result.error);
                 refresh();
                 return result;

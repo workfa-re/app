@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Bell, CheckCheck, Loader2, RefreshCw } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -18,6 +18,8 @@ type NotificationFeedback = {
     source: "refresh" | "rpc" | "realtime";
     message: string;
 };
+
+const FRESH_FOR_MS = 30_000;
 
 const notificationDateFormatter = new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
@@ -50,27 +52,40 @@ function scheduleIdle(task: () => void, timeout = 2200) {
 
 export function NotificationsPopover({
     currentUserId,
-    initialUnreadCount = 0,
-    initialNotifications = [],
+    initialUnreadCount,
+    initialNotifications,
 }: {
     currentUserId: string | null;
     initialUnreadCount?: number;
     initialNotifications?: HeaderNotificationItem[];
 }) {
-    const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+    const hasInitialSnapshot = initialUnreadCount !== undefined && initialNotifications !== undefined;
+    const [unreadCount, setUnreadCount] = useState(initialUnreadCount ?? 0);
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState<NotificationItem[]>(
-        () => initialNotifications as NotificationItem[],
+        () => (initialNotifications ?? []) as NotificationItem[],
     );
-    const [hasLoadedFresh, setHasLoadedFresh] = useState(false);
+    const [hasLoadedFresh, setHasLoadedFresh] = useState(hasInitialSnapshot);
     const [feedback, setFeedback] = useState<NotificationFeedback | null>(null);
     const [isRefreshPending, startRefreshTransition] = useTransition();
+    const reducedMotion = useReducedMotion();
     const router = useRouter();
     const pathname = usePathname();
     const triggerRef = useRef<HTMLButtonElement>(null);
     const refreshRequestIdRef = useRef(0);
+    const refreshInFlightRef = useRef<{
+        userId: string;
+        promise: Promise<boolean>;
+        preserveRpcFeedback: boolean;
+    } | null>(null);
+    const lastLoadedAtRef = useRef(hasInitialSnapshot ? Date.now() : 0);
+    const lastPrefetchAtRef = useRef(0);
     const mountedRef = useRef(true);
     const warmNotificationsRoute = useCallback(() => {
+        if (Date.now() - lastPrefetchAtRef.current < FRESH_FOR_MS) return;
+        const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+        if (connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType ?? "")) return;
+        lastPrefetchAtRef.current = Date.now();
         router.prefetch("/app-home/notifications");
     }, [router]);
 
@@ -101,34 +116,53 @@ export function NotificationsPopover({
         };
     }, [currentUserId]);
 
-    const refreshNotifications = useCallback(async ({
+    const refreshNotifications = useCallback(({
         preserveRpcFeedback = false,
     }: {
         preserveRpcFeedback?: boolean;
     } = {}) => {
-        const requestId = ++refreshRequestIdRef.current;
-        try {
-            const next = await fetchNotifications();
-            if (!next || !mountedRef.current || requestId !== refreshRequestIdRef.current) return true;
-            setUnreadCount(next.unreadCount);
-            setNotifications(next.notifications);
-            setHasLoadedFresh(true);
-            setFeedback((current) => {
-                if (current?.source === "realtime") return current;
-                if (preserveRpcFeedback && current?.source === "rpc") return current;
-                return null;
-            });
-            return true;
-        } catch {
-            if (mountedRef.current && requestId === refreshRequestIdRef.current) {
-                setFeedback({
-                    source: "refresh",
-                    message: "Benachrichtigungen konnten gerade nicht aktualisiert werden.",
-                });
-            }
-            return false;
+        if (!currentUserId) return Promise.resolve(true);
+        const pending = refreshInFlightRef.current;
+        if (pending?.userId === currentUserId) {
+            pending.preserveRpcFeedback ||= preserveRpcFeedback;
+            return pending.promise;
         }
-    }, [fetchNotifications]);
+        const requestId = ++refreshRequestIdRef.current;
+        const request = {
+            userId: currentUserId,
+            preserveRpcFeedback,
+            promise: Promise.resolve(false),
+        };
+        const run = async () => {
+            try {
+                const next = await fetchNotifications();
+                if (!next || !mountedRef.current || requestId !== refreshRequestIdRef.current) return true;
+                setUnreadCount(next.unreadCount);
+                setNotifications(next.notifications);
+                setHasLoadedFresh(true);
+                lastLoadedAtRef.current = Date.now();
+                setFeedback((current) => {
+                    if (current?.source === "realtime") return current;
+                    if (request.preserveRpcFeedback && current?.source === "rpc") return current;
+                    return null;
+                });
+                return true;
+            } catch {
+                if (mountedRef.current && requestId === refreshRequestIdRef.current) {
+                    setFeedback({
+                        source: "refresh",
+                        message: "Benachrichtigungen konnten gerade nicht aktualisiert werden.",
+                    });
+                }
+                return false;
+            } finally {
+                if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
+            }
+        };
+        request.promise = run();
+        refreshInFlightRef.current = request;
+        return request.promise;
+    }, [currentUserId, fetchNotifications]);
 
     const retryRefresh = useCallback(() => {
         startRefreshTransition(async () => {
@@ -144,14 +178,21 @@ export function NotificationsPopover({
     }, []);
 
     useEffect(() => {
-        const isCoarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-        if (isCoarsePointer) return;
-        const timeoutId = window.setTimeout(warmNotificationsRoute, 450);
-        return () => window.clearTimeout(timeoutId);
-    }, [warmNotificationsRoute]);
+        refreshRequestIdRef.current += 1;
+        refreshInFlightRef.current = null;
+        lastLoadedAtRef.current = hasInitialSnapshot ? Date.now() : 0;
+        setUnreadCount(initialUnreadCount ?? 0);
+        setNotifications((initialNotifications ?? []) as NotificationItem[]);
+        setHasLoadedFresh(hasInitialSnapshot);
+        setFeedback(null);
+        return () => {
+            refreshRequestIdRef.current += 1;
+            refreshInFlightRef.current = null;
+        };
+    }, [currentUserId, hasInitialSnapshot, initialNotifications, initialUnreadCount]);
 
     useEffect(() => {
-        if (hasLoadedFresh || !currentUserId) return;
+        if (hasLoadedFresh || lastLoadedAtRef.current > 0 || !currentUserId) return;
         let cancelled = false;
 
         const cancelIdle = scheduleIdle(() => {
@@ -165,7 +206,8 @@ export function NotificationsPopover({
     }, [currentUserId, hasLoadedFresh, refreshNotifications]);
 
     useEffect(() => {
-        if (!open || hasLoadedFresh || !currentUserId) return;
+        if (!open || !currentUserId) return;
+        if (lastLoadedAtRef.current > 0 && Date.now() - lastLoadedAtRef.current < FRESH_FOR_MS) return;
         void refreshNotifications();
     }, [currentUserId, hasLoadedFresh, open, refreshNotifications]);
 
@@ -176,7 +218,13 @@ export function NotificationsPopover({
         const scheduleRefresh = () => {
             if (refreshTimer) clearTimeout(refreshTimer);
             refreshTimer = setTimeout(() => {
-                void refreshNotifications({ preserveRpcFeedback: true });
+                // An event may arrive after an in-flight read took its snapshot.
+                // Refresh once that read settles so the new event is not lost.
+                void (async () => {
+                    const pending = refreshInFlightRef.current;
+                    if (pending?.userId === currentUserId) await pending.promise;
+                    if (active) await refreshNotifications({ preserveRpcFeedback: true });
+                })();
             }, 80);
         };
 
@@ -317,6 +365,8 @@ export function NotificationsPopover({
                 ref={triggerRef}
                 type="button"
                 onClick={toggleOpen}
+                onPointerEnter={warmNotificationsRoute}
+                onFocus={warmNotificationsRoute}
                 aria-label={open
                     ? "Benachrichtigungen schließen"
                     : unreadCount > 0
@@ -358,18 +408,16 @@ export function NotificationsPopover({
                                 "notifications-panel fixed left-4 right-4 z-50 flex origin-top-right flex-col rounded-2xl border border-transparent p-1.5",
                                 "md:absolute md:left-auto md:right-0 md:top-[calc(100%+0.5rem)] md:w-[22rem]",
                             )}
-                            initial={{ opacity: 0, y: -6, scale: 0.985 }}
+                            initial={reducedMotion ? false : { opacity: 0, y: -12 }}
                             animate={{
                                 opacity: 1,
                                 y: 0,
-                                scale: 1,
-                                transition: { duration: 0.18, ease: [0.2, 0, 0, 1] },
+                                transition: { duration: reducedMotion ? 0 : 0.32, ease: [0.16, 1, 0.3, 1] },
                             }}
                             exit={{
                                 opacity: 0,
-                                y: -4,
-                                scale: 0.99,
-                                transition: { duration: 0.13, ease: "easeIn" },
+                                y: reducedMotion ? 0 : -4,
+                                transition: { duration: reducedMotion ? 0 : 0.13, ease: "easeIn" },
                             }}
                         >
                             <div className="notifications-panel-header flex items-center justify-between border-b px-3 pb-2.5 pt-2.5">
@@ -469,7 +517,7 @@ export function NotificationsPopover({
                                 ) : null}
                                 <Link
                                     href="/app-home/notifications"
-                                    prefetch
+                                    prefetch={false}
                                     onTouchStart={warmNotificationsRoute}
                                     onPointerDown={warmNotificationsRoute}
                                     onMouseEnter={warmNotificationsRoute}

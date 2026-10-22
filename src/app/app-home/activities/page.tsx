@@ -3,6 +3,7 @@ import { ActivitiesPageClient } from "@/components/activity/ActivitiesPageClient
 import { ProviderActivityList } from "@/components/activity/ProviderActivityList";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
+import styles from "@/components/activity/ActivityWorkspace.module.css";
 import {
     fetchActivityPartnerProfiles,
     type ActivityPartnerProfile,
@@ -71,8 +72,7 @@ async function enrichActivityRows(client: any, rows: ActivityRow[]): Promise<Act
     if (rows.length === 0) return rows;
 
     const applicationIds = rows.map((row) => row.id);
-    const jobIds = [...new Set(rows.map((row) => row.job?.id ?? row.job_id).filter(Boolean))];
-    const [summaryResult, engagementResult, reopenResult, waitlistResult] = await Promise.all([
+    const [summaryResult, engagementResult, reopenResult] = await Promise.all([
         client.rpc("get_activity_inbox_summaries"),
         client
             .from("job_engagements")
@@ -83,13 +83,11 @@ async function enrichActivityRows(client: any, rows: ActivityRow[]): Promise<Act
             .select("*")
             .in("application_id", applicationIds)
             .order("created_at", { ascending: false }),
-        client.rpc("get_waitlist_job_summaries", { p_job_ids: jobIds }),
     ]);
 
     if (summaryResult.error) console.error("Activity summary fetch error:", summaryResult.error);
     if (engagementResult.error) console.error("Activity engagement fetch error:", engagementResult.error);
     if (reopenResult.error) console.error("Activity reopen request fetch error:", reopenResult.error);
-    if (waitlistResult.error) console.error("Activity waitlist summary fetch error:", waitlistResult.error);
 
     const summaries = new Map<string, ActivityRow>(
         (summaryResult.data ?? []).map((summary: ActivityRow) => [summary.application_id, summary]),
@@ -98,9 +96,6 @@ async function enrichActivityRows(client: any, rows: ActivityRow[]): Promise<Act
         (engagementResult.data ?? []).map((engagement: ActivityRow) => [engagement.application_id, engagement]),
     );
     const reopenRequests = new Map<string, ActivityRow[]>();
-    const waitlistSummaries = new Map<string, ActivityRow>(
-        (waitlistResult.data ?? []).map((summary: ActivityRow) => [summary.job_id, summary]),
-    );
     for (const request of reopenResult.data ?? []) {
         const current = reopenRequests.get(request.application_id) ?? [];
         current.push(request);
@@ -109,7 +104,6 @@ async function enrichActivityRows(client: any, rows: ActivityRow[]): Promise<Act
 
     return rows.map((row) => {
         const summary = summaries.get(row.id);
-        const waitlistSummary = waitlistSummaries.get(row.job?.id ?? row.job_id);
         const engagement = engagements.get(row.id) ?? null;
         const appointments = [...(engagement?.appointments ?? [])].sort((a, b) => (
             new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime()
@@ -123,9 +117,6 @@ async function enrichActivityRows(client: any, rows: ActivityRow[]): Promise<Act
             last_activity_at: summary?.last_activity_at ?? row.last_activity_at ?? row.created_at,
             unread_count: Number(summary?.unread_count ?? 0),
             pending_reopen_count: Number(summary?.pending_reopen_count ?? 0),
-            my_waitlist_position: waitlistSummary?.my_waitlist_position == null
-                ? null
-                : Number(waitlistSummary.my_waitlist_position),
             engagement: engagement ? { ...engagement, appointments } : null,
             appointments,
             reopen_requests: reopenRequests.get(row.id) ?? [],
@@ -159,7 +150,7 @@ export default async function ActivityPage({
             .select(`
                 *,
                 job:jobs!inner(
-                    id, title, status, posted_by, wage_hourly, payment_type,
+                    id, title, description, status, posted_by, wage_hourly, payment_type,
                     public_location_label, category, job_kind, recurrence_rule,
                     continuity_preferred, completed_at
                 )
@@ -234,9 +225,9 @@ export default async function ActivityPage({
 
 function ActivityPageShell({ children }: { children: React.ReactNode }) {
     return (
-        <div className="activities-page jobs-home-surface container mx-auto px-4 py-2 md:px-6">
+        <div className={`${styles.page} activities-page`}>
             <AppRouteReady href="/app-home/activities" />
-            <div className="mx-auto max-w-[78rem]">{children}</div>
+            <div className={styles.pageInner}>{children}</div>
         </div>
     );
 }

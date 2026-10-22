@@ -3,32 +3,19 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import type { AccountType } from "@/lib/types";
 import type { Database } from "@/lib/types/supabase";
 import {
-  mergeWaitlistJobSummaries,
   type EffectiveViewSnapshot,
   type ErrorInfo,
   type JobsListItem,
   type ApplicationRow,
   type ApplicationStatus,
-  type WaitlistJobSummary,
 } from "@/lib/types/platform";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import { jobDistanceBounds, jobDistanceKm, type JobCoordinates, type JobDiscoveryCandidate } from "@/lib/jobs/discovery";
+import type { FilterState } from "@/lib/jobs/sortFilter";
 import {
   fetchActivityPartnerProfiles,
   fetchVisibleJobCreatorSummaries,
 } from "@/lib/dal/visible-profiles";
-
-// Haversine formula for calculating distance between two coordinates in km
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 // ────────────────────────────────────────────────────────────────────
 // Shared helpers
@@ -125,6 +112,7 @@ export type FetchJobsParams = {
   status?: Database["public"]["Enums"]["job_status"] | Database["public"]["Enums"]["job_status"][];
   limit?: number;
   offset?: number;
+  jobIds?: readonly string[];
 };
 
 type UserCoordinates = {
@@ -187,8 +175,8 @@ function toJobsListItem(row: Database["public"]["Tables"]["jobs"]["Row"]): JobsL
     created_at: String(row.created_at ?? ""),
     market_id: row.market_id ?? null,
     public_location_label: row.public_location_label ?? null,
-    public_lat: row.public_lat ? Number(row.public_lat) : null,
-    public_lng: row.public_lng ? Number(row.public_lng) : null,
+    public_lat: row.public_lat != null ? Number(row.public_lat) : null,
+    public_lng: row.public_lng != null ? Number(row.public_lng) : null,
     wage_hourly: row.wage_hourly != null ? Number(row.wage_hourly) : null,
     payment_type: row.payment_type === "fixed" ? "fixed" : "hourly",
     job_kind: row.job_kind === "recurring" ? "recurring" : "one_time",
@@ -267,37 +255,13 @@ async function enrichWithCreators(
   });
 }
 
-/**
- * Enrich reserved jobs with aggregate queue information only.
- * The RPC deliberately exposes no data about the active applicant.
- */
-async function enrichWithWaitlistSummaries(
-  supabase: SupabaseClient<Database>,
-  items: JobsListItem[],
-): Promise<JobsListItem[]> {
-  const reservedJobIds = [...new Set(items.filter((job) => job.status === "reserved").map((job) => job.id))];
-  if (reservedJobIds.length === 0) return items;
-
-  const { data, error } = await supabase.rpc("get_waitlist_job_summaries", {
-    p_job_ids: reservedJobIds,
-  });
-
-  if (error) {
-    console.warn("[DAL] get_waitlist_job_summaries error", error.message);
-    return items;
-  }
-
-  return mergeWaitlistJobSummaries(items, (data ?? []) as WaitlistJobSummary[]);
-}
-
 async function enrichJobsInParallel(
   supabase: SupabaseClient<Database>,
   items: JobsListItem[],
 ): Promise<JobsListItem[]> {
-  const [withMarkets, withCreators, withWaitlistSummaries] = await Promise.all([
+  const [withMarkets, withCreators] = await Promise.all([
     enrichWithMarketNames(supabase, items),
     enrichWithCreators(supabase, items),
-    enrichWithWaitlistSummaries(supabase, items),
   ]);
 
   return items.map((item, index) => ({
@@ -305,36 +269,11 @@ async function enrichJobsInParallel(
     market_name: withMarkets[index]?.market_name ?? item.market_name,
     brand_prefix: withMarkets[index]?.brand_prefix ?? item.brand_prefix,
     creator: withCreators[index]?.creator ?? item.creator,
-    waitlist_count: withWaitlistSummaries[index]?.waitlist_count ?? item.waitlist_count,
-    next_position: withWaitlistSummaries[index]?.next_position ?? item.next_position,
-    conversation_active: withWaitlistSummaries[index]?.conversation_active ?? item.conversation_active,
-    my_waitlist_position: withWaitlistSummaries[index]?.my_waitlist_position ?? item.my_waitlist_position,
-  }));
-}
-
-async function enrichCandidateJobsInParallel(
-  supabase: SupabaseClient<Database>,
-  items: JobsListItem[],
-): Promise<JobsListItem[]> {
-  const [withMarkets, withCreators, withWaitlistSummaries] = await Promise.all([
-    enrichWithMarketNames(supabase, items),
-    enrichWithCreators(supabase, items),
-    enrichWithWaitlistSummaries(supabase, items),
-  ]);
-
-  return items.map((item, index) => ({
-    ...item,
-    market_name: withMarkets[index]?.market_name ?? item.market_name,
-    brand_prefix: withMarkets[index]?.brand_prefix ?? item.brand_prefix,
-    creator: withCreators[index]?.creator ?? item.creator,
-    waitlist_count: withWaitlistSummaries[index]?.waitlist_count ?? item.waitlist_count,
-    next_position: withWaitlistSummaries[index]?.next_position ?? item.next_position,
-    conversation_active: withWaitlistSummaries[index]?.conversation_active ?? item.conversation_active,
-    my_waitlist_position: withWaitlistSummaries[index]?.my_waitlist_position ?? item.my_waitlist_position,
   }));
 }
 
 export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsListItem[]>> {
+  if (params.jobIds?.length === 0) return { ok: true, data: [] };
   const supabase = await supabaseServer();
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
@@ -356,6 +295,7 @@ export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsLis
     : await fetchAppliedJobIds(params.userId);
 
   let q = supabase.from("jobs").select("*");
+  if (params.jobIds) q = q.in("id", [...params.jobIds]);
   if (params.mode === "feed") {
     if (Array.isArray(status)) {
       q = q.in("status", status);
@@ -379,10 +319,7 @@ export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsLis
 
   let items = (data ?? []).map((row) => {
     const appData = appliedJobIds.get(row.id);
-    let distance_km = null;
-    if (userLat != null && userLng != null && row.public_lat != null && row.public_lng != null) {
-      distance_km = calculateDistance(userLat, userLng, Number(row.public_lat), Number(row.public_lng));
-    }
+    const distance_km = jobDistanceKm({ lat: userLat, lng: userLng }, { lat: row.public_lat, lng: row.public_lng });
 
     return {
       ...toJobsListItem(row),
@@ -396,6 +333,46 @@ export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsLis
   items = await enrichJobsInParallel(supabase, items) as typeof items;
 
   return { ok: true, data: items };
+}
+
+/** Read only the fields needed to find matching IDs before loading full job cards. */
+export async function fetchJobDiscoveryCandidates(params: {
+  marketId?: string | null;
+  userCoordinates: JobCoordinates;
+  filters: FilterState;
+}): Promise<Result<JobDiscoveryCandidate[]>> {
+  const supabase = await supabaseServer();
+  const bounds = jobDistanceBounds(params.userCoordinates, params.filters.maxDistanceKm);
+  const rows: JobDiscoveryCandidate[] = [];
+  const batchSize = 100;
+  let total: number | null = null;
+  for (let offset = 0; ;) {
+    let query = supabase.from("jobs")
+      .select("id, created_at, category, wage_hourly, public_lat, public_lng", offset === 0 ? { count: "exact" } : undefined)
+      .eq("status", "open");
+    if (params.marketId) query = query.or(`market_id.eq.${params.marketId},reach.eq.extended`);
+    else query = query.eq("reach", "extended");
+    if (params.filters.categories.includes("other")) {
+      // Older jobs without a category use the same "other" fallback in the UI.
+      const categories = params.filters.categories.map(value => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",");
+      query = query.or(`category.is.null,category.in.(${categories})`);
+    } else if (params.filters.categories.length) query = query.in("category", params.filters.categories);
+    if (bounds) {
+      query = query.gte("public_lat", bounds.latitudeMin).lte("public_lat", bounds.latitudeMax);
+      if (bounds.longitude) query = query.gte("public_lng", bounds.longitude.west).lte("public_lng", bounds.longitude.east);
+    }
+    const { data, error, count } = await query.order("id", { ascending: true }).range(offset, offset + batchSize - 1);
+    if (error) return { ok: false, error: toErrorInfo(error) };
+    if (offset === 0) total = count ?? null;
+    for (const row of data ?? []) rows.push({
+      ...row,
+      distance_km: jobDistanceKm(params.userCoordinates, { lat: row.public_lat, lng: row.public_lng }),
+    });
+    const returned = data?.length ?? 0;
+    offset += returned;
+    if (!returned || (total !== null ? offset >= total : returned < batchSize)) break;
+  }
+  return { ok: true, data: rows };
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -529,59 +506,16 @@ export async function fetchJobApplications(jobId: string, _userId: string): Prom
   return { ok: true, data: items };
 }
 
-export async function fetchCandidateApplications(
+/** All own applications are routing links, including ended conversations. */
+export async function fetchCandidateApplicationLinks(
   userId: string,
-  opts?: { userCoordinates?: UserCoordinates },
-): Promise<Result<{ job: JobsListItem; status: Database["public"]["Enums"]["application_status"] }[]>> {
+): Promise<Result<Pick<ApplicationRow, "id" | "job_id">[]>> {
   const supabase = await supabaseServer();
-  const { lat: userLat, lng: userLng } = await resolveUserCoordinates(
-    supabase,
-    userId,
-    opts?.userCoordinates,
-  );
-
   const { data, error } = await supabase
     .from("applications")
-    .select("id, status, job:jobs(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .select("id, job_id")
+    .eq("user_id", userId);
 
   if (error) return { ok: false, error: toErrorInfo(error) };
-
-  // Map to JobsListItem
-  let items = (data ?? []).map((row: any) => {
-    const rawJob = row.job;
-    let distance_km = null;
-
-    // Calculate distance if both user and public job coordinates exist
-    if (userLat != null && userLng != null && rawJob.public_lat != null && rawJob.public_lng != null) {
-      distance_km = calculateDistance(userLat, userLng, Number(rawJob.public_lat), Number(rawJob.public_lng));
-    }
-
-    return {
-      job: {
-        ...toJobsListItem(rawJob),
-        is_applied: true,
-        application_status: row.status,
-        application_id: row.id,
-        distance_km
-      } as JobsListItem,
-      status: row.status as any // force cast
-    };
-  });
-
-  // Enrich with market/creator (optimization: we could batch this, but for now reuse existing)
-  // We need to extract the jobs list to enrich
-  const jobsList = await enrichCandidateJobsInParallel(
-    supabase,
-    items.map((i: any) => i.job),
-  );
-
-  // Re-attach enriched jobs
-  const enrichedItems = items.map((item: any, index: number) => ({
-    ...item,
-    job: jobsList[index]
-  }));
-
-  return { ok: true, data: enrichedItems };
+  return { ok: true, data: data ?? [] };
 }

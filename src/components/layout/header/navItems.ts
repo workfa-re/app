@@ -14,13 +14,13 @@ export function getAppNavItems(profile: Profile | null): AppNavItem[] {
 
     return [
         {
-            label: "Jobs",
+            label: isProvider ? "Meine Jobs" : "Jobs finden",
             icon: Briefcase,
             href: isProvider ? "/app-home/offers" : "/app-home/jobs",
             activePattern: isProvider ? /^\/app-home\/offers/ : /^\/app-home\/jobs/,
         },
         {
-            label: "Aktivität",
+            label: isProvider ? "Bewerbungen" : "Meine Jobs",
             icon: Activity,
             href: "/app-home/activities",
             activePattern: /^\/app-home\/activities/,

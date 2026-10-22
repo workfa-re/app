@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { cn } from "@/lib/utils";
+import styles from "./Settings.module.css";
 import {
     normalizeMobileNavPreference,
     type MobileNavPreference,
@@ -83,7 +83,7 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
     };
 
     return (
-        <div className="mobile-nav-control space-y-2">
+        <div className={styles.navigationChoices} role="group" aria-label="Handy-Navigation">
             {options.map((option) => {
                 const active = preference === option.value;
                 const saving = pendingPreference === option.value || (isPending && active);
@@ -96,24 +96,18 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
                         disabled={Boolean(pendingPreference)}
                         aria-pressed={active}
                         data-active={active}
-                        className={cn(
-                            "mobile-nav-option group grid w-full grid-cols-[4.6rem_minmax(0,1fr)_1.7rem] items-center gap-3 text-left outline-none",
-                            "disabled:cursor-not-allowed disabled:opacity-70"
-                        )}
+                        className={styles.navigationOption}
                     >
                         <NavigationPreview preference={option.value} active={active} />
 
-                        <span className="mobile-nav-option-copy min-w-0">
-                            <span className="block truncate text-sm font-semibold">{option.title}</span>
-                            <span className="mt-0.5 block truncate text-xs font-medium">{option.status}</span>
+                        <span className={styles.navigationCopy}>
+                            <span className={styles.optionLabel}>{option.title}</span>
+                            <span className={styles.optionDescription}>{option.status}</span>
                         </span>
 
-                        <span className={cn(
-                            "mobile-nav-option-check flex h-6 w-6 items-center justify-center rounded-full border transition-colors",
-                            active ? "is-active" : "text-transparent"
-                        )}>
+                        <span className={styles.navigationCheck}>
                             {saving ? (
-                                <Loader2 size={13} className="animate-spin text-slate-950" />
+                                <Loader2 size={13} className={styles.spinner} />
                             ) : (
                                 <Check size={13} strokeWidth={3} />
                             )}
@@ -123,7 +117,7 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
             })}
 
             {error && (
-                <p className="mobile-nav-error rounded-xl border px-3 py-2 text-xs font-medium">
+                <p role="alert" className={styles.controlError}>
                     {error}
                 </p>
             )}
@@ -133,33 +127,13 @@ export function MobileNavPreferenceControl({ initialPreference }: MobileNavPrefe
 
 function NavigationPreview({ preference, active }: { preference: MobileNavPreference; active: boolean }) {
     return (
-        <span
-            aria-hidden="true"
-            className={cn(
-                "mobile-nav-preview relative h-12 overflow-hidden rounded-xl border",
-                active && "is-active"
-            )}
-        >
-            <span className="mobile-nav-preview-line absolute left-2 right-2 top-2 h-1 rounded-full" />
-            <span className="mobile-nav-preview-tile absolute left-2 top-5 h-4 w-7 rounded-md border" />
-            <span className="mobile-nav-preview-tile absolute right-2 top-5 h-4 w-7 rounded-md border" />
-
-            {preference === "top" ? (
-                <span className="mobile-nav-preview-pill absolute left-1/2 top-1.5 flex h-4 w-11 -translate-x-1/2 items-center gap-0.5 rounded-full border p-0.5">
-                    <span className="mobile-nav-preview-segment-active h-full flex-1 rounded-full" />
-                    <span className="mobile-nav-preview-segment-idle h-full flex-1 rounded-full" />
-                    <span className="mobile-nav-preview-segment-idle h-full flex-1 rounded-full" />
-                </span>
-            ) : (
-                <>
-                    <span className="mobile-nav-preview-bottom-fade absolute inset-x-0 bottom-0 h-5" />
-                    <span className="mobile-nav-preview-pill absolute bottom-1.5 left-1/2 flex h-4 w-12 -translate-x-1/2 items-center gap-0.5 rounded-full border p-0.5">
-                        <span className="mobile-nav-preview-segment-active h-full flex-1 rounded-full" />
-                        <span className="mobile-nav-preview-segment-idle h-full flex-1 rounded-full" />
-                        <span className="mobile-nav-preview-segment-idle h-full flex-1 rounded-full" />
-                    </span>
-                </>
-            )}
+        <span aria-hidden="true" className={styles.navigationPreview} data-preference={preference} data-active={active}>
+            <span className={styles.previewLine} />
+            <span className={styles.previewTile} />
+            <span className={styles.previewTile} />
+            <span className={styles.previewPill}>
+                <span /><span /><span />
+            </span>
         </span>
     );
 }

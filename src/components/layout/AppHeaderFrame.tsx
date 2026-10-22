@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { followGlassPointer } from "@/lib/glass-pointer";
 
 type AppHeaderFrameProps = {
     brand: ReactNode;
@@ -6,28 +7,22 @@ type AppHeaderFrameProps = {
     mobileNavigation: ReactNode;
     actions: ReactNode;
     bottomDock?: ReactNode;
+    mobileNavPreference?: "top" | "bottom";
 };
 
-// Presentation only: callers supply either connected app controls or local demo controls.
-export function AppHeaderFrame({ brand, desktopNavigation, mobileNavigation, actions, bottomDock }: AppHeaderFrameProps) {
+export function AppHeaderFrame({ brand, desktopNavigation, mobileNavigation, actions, bottomDock, mobileNavPreference = "top" }: AppHeaderFrameProps) {
     return (
-        <>
-            <div aria-hidden="true" className="app-header-scrim pointer-events-none fixed inset-x-0 top-0 z-40" />
-            <header className="app-header-shell pointer-events-none fixed left-0 right-0 top-0 z-50 px-4 md:px-6 lg:px-8">
-                <div className="pointer-events-auto mx-auto flex h-[52px] max-w-7xl items-center justify-between gap-1.5 md:gap-3 lg:gap-4">
-                    <div className="flex flex-shrink-0 items-center gap-1 md:gap-3">{brand}</div>
-                    {desktopNavigation ? (
-                        <div className="hidden md:flex app-header-center-nav absolute left-1/2 -translate-x-1/2">{desktopNavigation}</div>
-                    ) : null}
-                    {mobileNavigation ? (
-                        <div className="flex md:hidden app-phone-top-nav-fallback">{mobileNavigation}</div>
-                    ) : null}
-                    <div className="flex flex-shrink-0 justify-end gap-2 md:gap-3 lg:gap-4">
-                        <div className="flex items-center">{actions}</div>
-                    </div>
+        <div className="app-header-region" data-mobile-nav={mobileNavPreference} onPointerMove={followGlassPointer}>
+            <div aria-hidden="true" className="app-header-scrim" />
+            <header className="app-header-shell">
+                <div className="app-header-inner">
+                    <div className="app-header-brand">{brand}</div>
+                    <div className="app-header-desktop-nav">{desktopNavigation}</div>
+                    <div className="app-header-actions">{actions}</div>
+                    <div className="app-header-mobile-nav">{mobileNavigation}</div>
                 </div>
             </header>
             {bottomDock}
-        </>
+        </div>
     );
 }

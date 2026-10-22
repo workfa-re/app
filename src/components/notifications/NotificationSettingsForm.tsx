@@ -37,11 +37,6 @@ const IN_APP_OPTIONS: PreferenceOption[] = [
         description: "Neue Nachrichten und Öffnungsanfragen in deinen Gesprächen.",
     },
     {
-        key: "in_app_waitlist_updates",
-        label: "Warteliste",
-        description: "Neue Positionen und automatisches Nachrücken.",
-    },
-    {
         key: "in_app_appointments",
         label: "Termine",
         description: "Vereinbarte, geänderte oder abgesagte Termine.",
@@ -58,11 +53,6 @@ const EMAIL_OPTIONS: PreferenceOption[] = [
         key: "email_messages",
         label: "Nachrichten",
         description: "Hinweise auf neue Nachrichten in deinen Gesprächen.",
-    },
-    {
-        key: "email_waitlist_updates",
-        label: "Warteliste",
-        description: "Änderungen an deiner Position und automatisches Nachrücken.",
     },
     {
         key: "email_appointments",

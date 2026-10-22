@@ -2,7 +2,7 @@ import { format, isToday, isYesterday } from "date-fns";
 import { de } from "date-fns/locale";
 
 export type ActivityRole = "seeker" | "provider";
-export type ActivityFilter = "all" | "unread" | "active" | "waitlist" | "accepted" | "closed";
+export type ActivityFilter = "all" | "unread" | "active" | "accepted" | "closed";
 export type ActivityStatusTone = "neutral" | "brand" | "success" | "warning" | "danger";
 
 export type ActivityStatusMeta = {
@@ -21,6 +21,51 @@ export type ActivityMessage = {
     is_temp?: boolean;
     failed?: boolean;
 };
+
+export type ActivityFailedSend = {
+    id: string;
+    content: string;
+    error: string;
+};
+
+export type ActivityComposerState = {
+    draft: string;
+    failedSends: ActivityFailedSend[];
+};
+
+export function updateActivityComposerDraft(
+    current: ActivityComposerState | undefined,
+    draft: string,
+    onlyIfEmpty = false,
+): ActivityComposerState {
+    if (current && (current.draft === draft || (onlyIfEmpty && current.draft))) return current;
+    return { draft, failedSends: current?.failedSends ?? [] };
+}
+
+export function recordActivitySendFailure(
+    current: ActivityComposerState | undefined,
+    failure: ActivityFailedSend,
+): ActivityComposerState {
+    if (current?.failedSends.some(item => item.id === failure.id)) return current;
+    return {
+        draft: current?.draft || failure.content,
+        failedSends: [...(current?.failedSends ?? []), failure],
+    };
+}
+
+export function recoverActivityFailedSend(
+    current: ActivityComposerState | undefined,
+    failureId: string,
+): ActivityComposerState | undefined {
+    const failure = current?.failedSends.find(item => item.id === failureId);
+    if (!current || !failure) return current;
+    return {
+        draft: current.draft === failure.content
+            ? current.draft
+            : current.draft ? `${current.draft}\n\n${failure.content}` : failure.content,
+        failedSends: current.failedSends.filter(item => item.id !== failureId),
+    };
+}
 
 type DatedActivityTimelineItem = {
     id: string;
@@ -42,7 +87,6 @@ export type ProviderGroupableActivity = {
     status?: string | null;
     conversation_state?: string | null;
     is_primary?: boolean | null;
-    queue_position?: number | null;
     created_at: string;
     last_activity_at?: string | null;
     last_message_at?: string | null;
@@ -60,22 +104,21 @@ export type ProviderActivityGroup<T extends ProviderGroupableActivity = Provider
     job: T["job"];
     applications: T[];
     primary: T | null;
-    waitlist: T[];
     archive: T[];
     unreadCount: number;
     lastActivityAt: number;
 };
 
 export const ACTIVITY_STATUS_META: Record<string, ActivityStatusMeta> = {
-    submitted: { label: "Bewerbung gesendet", tone: "brand" },
-    negotiating: { label: "Im Gespräch", tone: "brand" },
-    waitlisted: { label: "Warteliste", tone: "warning" },
-    accepted: { label: "Termin vereinbart", tone: "success" },
+    submitted: { label: "Reserviert", tone: "brand" },
+    negotiating: { label: "Reserviert", tone: "brand" },
+    waitlisted: { label: "Beendete Anfrage", tone: "neutral" },
+    accepted: { label: "In Zusammenarbeit", tone: "success" },
     completed: { label: "Abgeschlossen", tone: "success" },
     rejected: { label: "Abgelehnt", tone: "danger" },
     auto_rejected: { label: "Anderweitig vergeben", tone: "neutral" },
     withdrawn: { label: "Zurückgezogen", tone: "neutral" },
-    cancelled: { label: "Beendet", tone: "neutral" },
+    cancelled: { label: "Abgesagt", tone: "neutral" },
 };
 
 export const CLOSED_ACTIVITY_STATUSES = new Set([
@@ -84,9 +127,10 @@ export const CLOSED_ACTIVITY_STATUSES = new Set([
     "withdrawn",
     "cancelled",
     "completed",
+    "waitlisted",
 ]);
 
-export const ACTIVE_ACTIVITY_STATUSES = new Set(["submitted", "negotiating", "waitlisted", "accepted"]);
+export const ACTIVE_ACTIVITY_STATUSES = new Set(["submitted", "negotiating", "accepted"]);
 export const WRITABLE_ACTIVITY_STATUSES = new Set(["submitted", "negotiating", "accepted"]);
 
 export function resolveReopenApplicationPatch(result: unknown): Record<string, unknown> | null {
@@ -115,26 +159,12 @@ export function resolveReopenApplicationPatch(result: unknown): Record<string, u
     };
 }
 
-function compareQueueOrder(a: ProviderGroupableActivity, b: ProviderGroupableActivity) {
-    const aPosition = a.queue_position != null && Number.isFinite(Number(a.queue_position))
-        ? Number(a.queue_position)
-        : Number.MAX_SAFE_INTEGER;
-    const bPosition = b.queue_position != null && Number.isFinite(Number(b.queue_position))
-        ? Number(b.queue_position)
-        : Number.MAX_SAFE_INTEGER;
-
-    if (aPosition !== bPosition) return aPosition - bPosition;
-
-    const createdDifference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    if (Number.isFinite(createdDifference) && createdDifference !== 0) return createdDifference;
-    return a.id.localeCompare(b.id);
+function compareApplicationCreated(a: ProviderGroupableActivity, b: ProviderGroupableActivity) {
+    const difference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    return Number.isFinite(difference) && difference !== 0 ? difference : a.id.localeCompare(b.id);
 }
 
-/**
- * Builds the provider inbox read model without changing the stored FIFO key.
- * `queue_position` remains the immutable fairness order; the visible waitlist
- * rank is the array index after this function has sorted open waitlist entries.
- */
+/** One exclusive application per job; older non-primary requests remain in the archive. */
 export function groupProviderActivities<T extends ProviderGroupableActivity>(
     applications: T[],
 ): ProviderActivityGroup<T>[] {
@@ -155,19 +185,9 @@ export function groupProviderActivities<T extends ProviderGroupableActivity>(
                     && Boolean(application.is_primary)
                     && WRITABLE_ACTIVITY_STATUSES.has(application.status ?? "")
                 ))
-                .sort(compareQueueOrder);
+                .sort(compareApplicationCreated);
             const primary = primaryCandidates[0] ?? null;
-            const waitlist = groupApplications
-                .filter((application) => (
-                    application.conversation_state !== "closed"
-                    && application.status === "waitlisted"
-                    && application.id !== primary?.id
-                ))
-                .sort(compareQueueOrder);
-            const activeIds = new Set([
-                ...(primary ? [primary.id] : []),
-                ...waitlist.map((application) => application.id),
-            ]);
+            const activeIds = new Set(primary ? [primary.id] : []);
             const archive = groupApplications
                 .filter((application) => !activeIds.has(application.id))
                 .sort((a, b) => getConversationActivityTimestamp(b) - getConversationActivityTimestamp(a));
@@ -177,7 +197,6 @@ export function groupProviderActivities<T extends ProviderGroupableActivity>(
                 job: groupApplications.find((application) => application.job)?.job ?? null,
                 applications: groupApplications,
                 primary,
-                waitlist,
                 archive,
                 unreadCount: groupApplications.reduce((total, application) => {
                     const unreadCount = Number(application.unread_count || 0);
@@ -195,8 +214,37 @@ export function groupProviderActivities<T extends ProviderGroupableActivity>(
         });
 }
 
-export function getActivityStatusMeta(status: string | null | undefined): ActivityStatusMeta {
+export function getActivityStatusMeta(status: string | null | undefined, closeAction?: string | null): ActivityStatusMeta {
+    if (closeAction === "waitlist_retired") return ACTIVITY_STATUS_META.waitlisted;
     return ACTIVITY_STATUS_META[status ?? ""] ?? { label: "Status offen", tone: "neutral" };
+}
+
+export type ActivityStage = {
+    key: "open" | "reserved" | "agreed" | "completed" | "closed";
+    index: number;
+    label: string;
+    hint: string;
+};
+
+export function getActivityStage(source: {
+    status?: string | null;
+    close_action?: string | null;
+    conversation_state?: string | null;
+    is_primary?: boolean | null;
+}, role: ActivityRole): ActivityStage {
+    const status = source.status ?? "";
+    if (source.close_action === "waitlist_retired") return { key: "closed", index: -1, label: "Beendete Anfrage", hint: "Diese frühere Anfrage ist beendet. Du kannst den bisherigen Verlauf lesen." };
+    if (status === "completed") return { key: "completed", index: 3, label: "Abgeschlossen", hint: "Der Auftrag ist abgeschlossen. Der bisherige Verlauf bleibt erhalten." };
+    if (source.conversation_state === "closed" || CLOSED_ACTIVITY_STATUSES.has(status)
+        || (ACTIVE_ACTIVITY_STATUSES.has(status) && source.is_primary === false)) {
+        return { key: "closed", index: -1, label: status === "waitlisted" ? "Beendete Anfrage" : CLOSED_ACTIVITY_STATUSES.has(status) ? getActivityStatusMeta(status).label : "Beendet",
+            hint: status === "waitlisted" ? "Diese frühere Anfrage ist beendet. Du kannst den bisherigen Verlauf lesen." : "Diese Anfrage ist beendet. Der bisherige Verlauf bleibt erhalten." };
+    }
+    if (status === "accepted") return { key: "agreed", index: 2, label: "In Zusammenarbeit", hint: "Die Zusammenarbeit ist bestätigt. Termine und Änderungen klärt ihr direkt hier." };
+    if (ACTIVE_ACTIVITY_STATUSES.has(status)) return { key: "reserved", index: 1, label: "Reserviert", hint: role === "provider"
+        ? "Der Job ist für diese Bewerbung reserviert. Vereinbare einen Termin oder gib ihn wieder frei."
+        : "Der Job ist für dich reserviert. Kläre den Termin direkt mit dem Anbieter." };
+    return { key: "open", index: 0, label: "Offen", hint: "Der Job ist noch nicht reserviert." };
 }
 
 export function matchesActivityFilter(
@@ -207,7 +255,6 @@ export function matchesActivityFilter(
     if (filter === "all") return true;
     if (filter === "unread") return unreadCount > 0;
     if (filter === "active") return ACTIVE_ACTIVITY_STATUSES.has(status ?? "");
-    if (filter === "waitlist") return status === "waitlisted";
     if (filter === "accepted") return status === "accepted";
     return CLOSED_ACTIVITY_STATUSES.has(status ?? "");
 }

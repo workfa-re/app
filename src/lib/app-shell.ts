@@ -61,14 +61,14 @@ const getVerificationState = cache(async (
   }
 
   const supabase = await supabaseServer();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count } = await (supabase as any)
+  const { data, error } = await supabase
     .from("guardian_relationships")
-    .select("*", { count: "exact", head: true })
+    .select("child_id")
     .eq("child_id", profileId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .limit(1);
 
-  const hasActiveGuardian = count !== null && count > 0;
+  const hasActiveGuardian = !error && Boolean(data?.length);
 
   return {
     guardianStatus: hasActiveGuardian ? "linked" : "none",
@@ -78,7 +78,12 @@ const getVerificationState = cache(async (
   };
 });
 
-export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
+type AppHomeContext = Pick<AppHomeSnapshot,
+  "sessionUserId" | "profile" | "profileLite" | "effectiveView" | "isStaff" | "accountEmail"
+>;
+
+/** Request-scoped identity needed to start page data without waiting for header UI. */
+export const getAppHomeContext = cache(async (): Promise<AppHomeContext> => {
   const authState = await getAuthState();
 
   if (authState.state === "no-session" || authState.state === "email-unconfirmed") {
@@ -91,15 +96,35 @@ export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
 
   const profile = authState.profile!;
   const effectiveView = authState.effectiveView ?? buildFallbackView(profile);
+  const normalizedProfile: AppHeaderProfile = { ...profile, account_type: effectiveView.viewRole };
 
-  const marketPromise = getMarketSummary(profile.market_id);
-  const verificationPromise = getVerificationState(
+  return {
+    sessionUserId: profile.id,
+    profile: normalizedProfile,
+    profileLite: normalizedProfile,
+    effectiveView,
+    isStaff: authState.systemRoles.some((role) => ["admin", "moderator", "analyst"].includes(role)),
+    accountEmail: profile.email?.trim() || null,
+  };
+});
+
+export function getAppHomeAccess(context: AppHomeContext) {
+  const { profile, effectiveView } = context;
+  return getVerificationState(
     profile.id,
     effectiveView.viewRole,
     profile.guardian_status,
     profile.provider_verification_status,
     profile.provider_verified_at,
   );
+}
+
+export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
+  const context = await getAppHomeContext();
+  const { profile } = context;
+
+  const marketPromise = getMarketSummary(profile.market_id);
+  const verificationPromise = getAppHomeAccess(context);
   const supabase = await supabaseServer();
   const [market, verification, unreadResult, notificationsResult] = await Promise.all([
     marketPromise,
@@ -114,25 +139,21 @@ export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
       .select("id, type, title, body, data, created_at, read_at")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(10),
   ]);
 
-  const accountEmail = profile.email?.trim() || null;
   const normalizedProfile: AppHeaderProfile = {
     ...profile,
-    account_type: effectiveView.viewRole,
     guardian_status: verification.guardianStatus as Profile["guardian_status"],
     has_active_guardian: verification.hasActiveGuardian,
   };
 
   return {
-    sessionUserId: profile.id,
+    ...context,
     profile: normalizedProfile,
     profileLite: normalizedProfile,
-    effectiveView,
     market,
-    isStaff: authState.systemRoles.some((role) => ["admin", "moderator", "analyst"].includes(role)),
-    accountEmail,
     guardianStatus: verification.guardianStatus,
     hasActiveGuardian: verification.hasActiveGuardian,
     isVerified: verification.isVerified,

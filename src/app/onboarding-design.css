@@ -111,9 +111,8 @@
 .onboarding-experience .onboarding-auth-actions { display: grid; gap: 12px; margin-top: 24px; }
 .onboarding-experience .onboarding-auth-actions > button { width: 100%; justify-content: space-between; }
 .onboarding-experience .onboarding-auth-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 0 7px; margin-top: 20px; color: var(--onboarding-copy); font-size: 14px; }
-.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action) { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0; border: 0; border-radius: 4px; background: transparent; color: #d2d2d2; font-size: 14px; font-weight: 400; line-height: 1.5; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: rgb(255 255 255 / .3); text-underline-offset: 4px; transition: text-decoration-color 180ms ease; }
-.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action):hover { color: #fff; text-decoration-color: rgb(255 255 255 / .7); }
-.onboarding-experience .onboarding-parent-link { margin-top: 20px; font-size: 16px; font-weight: 400; }
+.onboarding-experience :is(.onboarding-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action) { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0; border: 0; border-radius: 4px; background: transparent; color: #d2d2d2; font-size: 14px; font-weight: 400; line-height: 1.5; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: rgb(255 255 255 / .3); text-underline-offset: 4px; transition: text-decoration-color 180ms ease; }
+.onboarding-experience :is(.onboarding-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action):hover { color: #fff; text-decoration-color: rgb(255 255 255 / .7); }
 .onboarding-experience .onboarding-field-hint, .onboarding-experience .onboarding-location-help, .onboarding-experience .onboarding-location-status { margin-top: 8px; color: var(--onboarding-muted); font-size: 13px; line-height: 1.55; }
 .onboarding-experience .onboarding-location-status { min-height: 20px; }
 .onboarding-experience .onboarding-location-error { color: #cacaca; font-size: 14px; }
@@ -223,7 +222,6 @@ html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedbac
 .onboarding-experience .onboarding-support-action small { display: block; margin-top: 4px; color: var(--onboarding-faint); font-size: 12px; }
 .onboarding-experience .onboarding-support-action:disabled { color: var(--onboarding-muted); opacity: .65; }
 .onboarding-experience .onboarding-support-action:is(:hover, :focus-visible):not(:disabled) { background: rgb(255 255 255 / .07); }
-.onboarding-experience .onboarding-guardian-help > p { padding: 4px 8px 12px; color: var(--onboarding-copy); font-size: 14px; line-height: 1.65; }
 
 @media (hover: hover) {
   .onboarding-experience :is(.onboarding-primary, .onboarding-secondary, .onboarding-help-button, .onboarding-back-button, .onboarding-password-toggle, .onboarding-icon-button, .onboarding-film-toggle, .onboarding-location-primary, .onboarding-location-back, .onboarding-feedback-action, button[class*="bg-blue-600"], button[class*="border-white/30"]):hover:not(:disabled)::after { opacity: 1; }
@@ -274,7 +272,6 @@ html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedbac
   .onboarding-experience .onboarding-entry-actions > button { min-height: 54px; padding-inline: 18px; font-size: 14px; }
   .onboarding-experience .onboarding-entry-actions .onboarding-primary { min-width: 184px; }
   .onboarding-experience .onboarding-entry-actions .onboarding-secondary { min-width: 128px; }
-  .onboarding-experience .onboarding-parent-link { margin-top: 14px; font-size: 15px; }
   .onboarding-experience .onboarding-legal { grid-row: 4; width: 100%; min-height: 52px; padding: 4px 0 calc(4px + env(safe-area-inset-bottom, 0px)); }
   .onboarding-experience .onboarding-help-dialog { width: calc(100% - 32px); padding: 22px; }
   .onboarding-experience .onboarding-help-dialog h2 { font-size: 26px; }

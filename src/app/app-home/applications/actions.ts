@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { appointmentMutationError, type AppointmentMutation, type AppointmentRequest } from "@/lib/activity/appointments";
 
 type RpcPayload = {
     ok?: boolean;
@@ -37,6 +38,7 @@ function revalidateActivityPaths() {
     revalidatePath("/app-home/activities");
     revalidatePath("/app-home/offers");
     revalidatePath("/app-home/jobs");
+    revalidatePath("/app-home/offers/[jobId]", "page");
 }
 
 async function callActivityRpc(
@@ -52,29 +54,30 @@ async function callActivityRpc(
     return { success: true, ...payload } as const;
 }
 
-export async function rejectApplication(applicationId: string, reason: string) {
+export async function rejectApplication(applicationId: string, reason = "") {
     const normalizedReason = reason.trim();
-    if (normalizedReason.length < 3) return { error: "Bitte gib einen kurzen Grund an." };
     if (normalizedReason.length > 500) return { error: "Der Grund darf höchstens 500 Zeichen lang sein." };
 
     const result = await callActivityRpc("reject_application", {
         p_application_id: applicationId,
-        p_reason: normalizedReason,
+        p_reason: normalizedReason || null,
     }, "Die Bewerbung konnte nicht abgelehnt werden.");
     if ("error" in result) return result;
+    if (result.ok !== true) return { error: "Die Freigabe wurde nicht bestätigt." };
     revalidateActivityPaths();
     return result;
 }
 
-export async function withdrawApplication(applicationId: string, reason = "Kein Interesse mehr") {
-    const normalizedReason = reason.trim() || "Kein Interesse mehr";
+export async function withdrawApplication(applicationId: string, reason = "") {
+    const normalizedReason = reason.trim();
     if (normalizedReason.length > 500) return { error: "Der Grund darf höchstens 500 Zeichen lang sein." };
 
     const result = await callActivityRpc("withdraw_application", {
         p_application_id: applicationId,
-        p_reason: normalizedReason,
+        p_reason: normalizedReason || null,
     }, "Die Bewerbung konnte nicht zurückgezogen werden.");
     if ("error" in result) return result;
+    if (result.ok !== true) return { error: "Das Zurückziehen wurde nicht bestätigt." };
     revalidateActivityPaths();
     return result;
 }
@@ -115,20 +118,6 @@ export async function respondToConversationReopenRequest(
         p_accept: accept,
         p_reason: normalizedReason || null,
     }, "Die Anfrage konnte nicht beantwortet werden.");
-    if ("error" in result) return result;
-    revalidateActivityPaths();
-    return result;
-}
-
-export async function promoteWaitlistedApplication(applicationId: string, reason: string) {
-    const normalizedReason = reason.trim();
-    if (normalizedReason.length < 20) return { error: "Bitte begründe die Ausnahme in mindestens 20 Zeichen." };
-    if (normalizedReason.length > 500) return { error: "Der Grund darf höchstens 500 Zeichen lang sein." };
-
-    const result = await callActivityRpc("promote_waitlisted_application", {
-        p_application_id: applicationId,
-        p_reason: normalizedReason,
-    }, "Die Bewerbung konnte nicht vorgezogen werden.");
     if ("error" in result) return result;
     revalidateActivityPaths();
     return result;
@@ -191,6 +180,34 @@ export async function completeJobEngagement(applicationId: string, reason = "") 
     if ("error" in result) return result;
     revalidateActivityPaths();
     return result;
+}
+
+export async function getAppointmentRequests(applicationId: string) {
+    if (!/^[0-9a-f-]{36}$/i.test(applicationId)) return { error: "Der Vorgang ist nicht verfügbar.", available: false } as const;
+    const client = await supabaseServer();
+    const { data, error } = await client.from("job_appointment_requests")
+        .select("id, application_id, appointment_id, requested_by, starts_at, ends_at, timezone, note, status, created_at, responded_at")
+        .eq("application_id", applicationId).eq("status", "pending").order("created_at", { ascending: false }).limit(1);
+    if (error) return { error: "Terminanfragen konnten nicht geladen werden.", available: false } as const;
+    return { requests: (data ?? []) as AppointmentRequest[], available: true } as const;
+}
+
+export async function manageJobAppointment(input: AppointmentMutation) {
+    const validation = appointmentMutationError(input);
+    if (validation) return { error: validation } as const;
+    const result = await callActivityRpc("manage_job_appointment", {
+        p_application_id: input.applicationId,
+        p_action: input.action,
+        p_appointment_id: input.appointmentId ?? null,
+        p_request_id: input.requestId ?? null,
+        p_starts_at: ["propose", "update", "add"].includes(input.action) && input.startsAt ? new Date(input.startsAt).toISOString() : null,
+        p_ends_at: ["propose", "update", "add"].includes(input.action) && input.endsAt ? new Date(input.endsAt).toISOString() : null,
+        p_note: input.note?.trim() || null,
+    }, "Die Terminänderung konnte nicht gespeichert werden.");
+    if ("error" in result) return result;
+    if (result.ok !== true) return { error: "Die Terminänderung wurde nicht bestätigt." } as const;
+    revalidateActivityPaths();
+    return { ...result, appointment: result.appointment && typeof result.appointment.id === "string" ? result.appointment : null };
 }
 
 export async function reportActivityItem(input: {

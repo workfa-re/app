@@ -260,7 +260,7 @@ export function PersonalNotificationCenter({
                         Benachrichtigungen
                     </h1>
                     <p className="mt-2 max-w-2xl text-pretty text-sm leading-6 text-[var(--text-muted)]">
-                        Updates zu deinen Bewerbungen, Nachrichten, Wartelisten und Terminen.
+                        Updates zu deinen Bewerbungen, Nachrichten und Terminen.
                     </p>
                 </div>
 

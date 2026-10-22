@@ -5,7 +5,7 @@ import { parse } from "dotenv";
 import { API_URL, APP_URL, assertLocalEnvironment, assertLoopbackBindings, cli, dockerConnection, ENV_FILE, existingFile, fail, inspectProject, LABEL, NETWORK, PROJECT, ROOT, RUNTIME, sql, verifyProject } from "./common.mjs";
 
 const schemaDirectory = path.join(ROOT, "infrastructure/demo/schema");
-const schemaNames = ["platform.sql", "isolation.sql", "service-api.sql", "auth-guard.sql", "seed.sql", "cleanup-schedule.sql"];
+const schemaNames = ["platform.sql", "../../database/migrations/20261022181830_appointment_requests.sql", "../../database/migrations/20261022224929_exclusive_job_reservations.sql", "isolation.sql", "service-api.sql", "auth-guard.sql", "seed.sql", "cleanup-schedule.sql"];
 const config = `project_id = "${PROJECT}"
 [api]
 enabled = true
@@ -57,7 +57,7 @@ const databaseStateSql = `SELECT json_build_object(
   AND to_regprocedure('public.demo_cleanup_expired_sessions(integer)') IS NOT NULL
   AND EXISTS (SELECT FROM pg_trigger WHERE tgname='demo_guard_auth_user' AND tgrelid='auth.users'::regclass AND tgenabled='O')
   AND EXISTS (SELECT FROM pg_trigger WHERE tgname='demo_require_final_auth_binding' AND tgrelid='auth.users'::regclass AND tgdeferrable AND tginitdeferred AND tgenabled='O')
-  AND (SELECT count(*) FROM pg_policies WHERE schemaname='public' AND policyname='demo_visit_boundary' AND permissive='RESTRICTIVE')=23
+  AND (SELECT count(*) FROM pg_policies WHERE schemaname='public' AND policyname='demo_visit_boundary' AND permissive='RESTRICTIVE')=24
   AND (SELECT count(*) FROM pg_roles WHERE rolname IN ('demo_executor','demo_scope_reader') AND NOT rolcanlogin AND NOT rolbypassrls AND NOT rolsuper)=2
 );`;
 

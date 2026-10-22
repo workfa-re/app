@@ -160,8 +160,8 @@ html[data-onboarding-theme="light"] :is(.onboarding-canvas, .onboarding-experien
 .onboarding-experience .onboarding-waitlist-form .onboarding-select-control select { display: block; appearance: none; -webkit-appearance: none; padding-right: 52px; }
 .onboarding-experience .onboarding-select-chevron { position: absolute; right: 18px; top: 50%; translate: 0 -50%; color: var(--onboarding-ink); pointer-events: none; }
 .onboarding-experience .onboarding-select-control select:disabled + .onboarding-select-chevron { opacity: .55; }
-.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action) { color: var(--onboarding-link); text-decoration-color: var(--onboarding-control-border); }
-.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action):hover { color: var(--onboarding-link-hover); text-decoration-color: currentColor; }
+.onboarding-experience :is(.onboarding-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action) { color: var(--onboarding-link); text-decoration-color: var(--onboarding-control-border); }
+.onboarding-experience :is(.onboarding-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action):hover { color: var(--onboarding-link-hover); text-decoration-color: currentColor; }
 .onboarding-experience :is(.onboarding-location-error, .onboarding-date-error) { color: var(--onboarding-error); }
 
 html .onboarding-experience .onboarding-choice { border-color: var(--onboarding-control-border) !important; background: var(--onboarding-control-bg) !important; }
@@ -200,7 +200,6 @@ html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedbac
 .onboarding-experience .onboarding-support-action { color: var(--onboarding-ink); }
 .onboarding-experience .onboarding-support-action:is(:hover, :focus-visible):not(:disabled) { background: var(--onboarding-row-hover); }
 .onboarding-experience .onboarding-support-action small { color: var(--onboarding-faint); }
-.onboarding-experience .onboarding-guardian-help > p { color: var(--onboarding-copy); }
 .onboarding-experience .onboarding-legal > :is(button, a) { color: var(--onboarding-muted); }
 
 /* Older wizard fields still carry utility colors; semantic controls take precedence. */

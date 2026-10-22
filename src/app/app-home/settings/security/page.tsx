@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { PasswordResetButton } from "@/components/settings/PasswordResetButton";
+import styles from "@/components/settings/Settings.module.css";
 
 type SecurityEvent = {
   id: string;
@@ -25,55 +26,56 @@ export default async function SecuritySettingsPage() {
   const events = (data ?? []) as SecurityEvent[];
 
   return (
-    <div className="container mx-auto py-8 px-4 md:px-6 max-w-2xl">
-      <Link href="/app-home/settings" className="mb-6 flex items-center gap-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]">
-        <ArrowLeft size={16} />
-        <span>Zurück</span>
+    <div className={`${styles.page} ${styles.detailPage}`}>
+      <Link href="/app-home/settings" prefetch={false} className={styles.backLink}>
+        <ArrowLeft size={16} aria-hidden="true" />
+        Einstellungen
       </Link>
+      <header className={styles.header}>
+        <h1>Sicherheit</h1>
+        <p>Dein Passwort und die letzten Sicherheitsereignisse deines Kontos.</p>
+      </header>
 
-      <h1 className="mb-2 text-2xl font-bold text-[var(--text-strong)]">Sicherheit</h1>
-      <p className="mb-8 text-[var(--text-muted)]">Schütze deinen Account.</p>
-
-      <div className="space-y-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-card)]">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-strong)]">
-            <History size={18} className="text-[var(--brand)]" />
+      <div className={styles.detailStack}>
+        <section className={styles.group} aria-labelledby="security-activity-title">
+          <h2 id="security-activity-title" className={styles.sectionTitle}>
+            <History size={20} strokeWidth={1.6} aria-hidden="true" />
             Sicherheitsaktivität
-          </h3>
-          <div className="space-y-3">
-            {events.length === 0 ? (
-              <p className="text-sm leading-6 text-[var(--text-muted)]">
-                Noch keine protokollierten Sicherheitsereignisse.
-              </p>
-            ) : (
-              events.map((event) => (
-                <div key={event.id} className="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] py-3 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-[var(--surface-muted)] p-2 text-[var(--text-muted)]">
-                      {event.user_agent?.includes("Mobile") ? <Smartphone size={16} /> : <Laptop size={16} />}
-                    </div>
+          </h2>
+          {events.length === 0 ? (
+            <p className={styles.detailCopy}>Noch keine protokollierten Sicherheitsereignisse.</p>
+          ) : (
+            <div className={styles.eventList}>
+              {events.map((event) => (
+                <div key={event.id} className={styles.event}>
+                  <div className={styles.eventIdentity}>
+                    <span className={styles.eventIcon} aria-hidden="true">
+                      {event.user_agent?.includes("Mobile") ? <Smartphone size={17} /> : <Laptop size={17} />}
+                    </span>
                     <div>
-                      <p className="text-sm font-medium capitalize text-[var(--text-default)]">{event.event_type.replace(/_/g, " ")}</p>
-                      <p className="text-xs text-[var(--text-muted)]">{new Date(String(event.created_at)).toLocaleString("de-DE")}</p>
+                      <p className={styles.eventTitle}>{event.event_type.replace(/_/g, " ")}</p>
+                      <time className={styles.eventTime} dateTime={event.created_at}>
+                        {new Date(String(event.created_at)).toLocaleString("de-DE")}
+                      </time>
                     </div>
                   </div>
-                  <span className="hidden font-mono text-xs text-[var(--text-muted)] sm:inline">{String(event.ip_address || "IP geschützt")}</span>
+                  <span className={styles.eventIp}>{String(event.ip_address || "IP geschützt")}</span>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </section>
 
-        <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-card)]">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-strong)]">
-            <Key size={18} className="text-amber-600 dark:text-amber-300" />
+        <section className={styles.group} aria-labelledby="security-password-title">
+          <h2 id="security-password-title" className={styles.sectionTitle}>
+            <Key size={20} strokeWidth={1.6} aria-hidden="true" />
             Passwort ändern
-          </h3>
-          <p className="mb-4 text-sm text-[var(--text-muted)]">
+          </h2>
+          <p className={styles.detailCopy}>
             Wenn du denkst, dass dein Account gefährdet ist, ändere sofort dein Passwort.
           </p>
           <PasswordResetButton email={snapshot.accountEmail} />
-        </div>
+        </section>
       </div>
     </div>
   );

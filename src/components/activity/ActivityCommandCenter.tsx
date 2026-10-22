@@ -2,9 +2,9 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { startTransition, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import {
     ArrowRight,
     Briefcase,
@@ -18,7 +18,10 @@ import {
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import {
     type ActivityFilter,
+    type ActivityComposerState,
+    type ActivityFailedSend,
     type ActivityRole,
+    ACTIVE_ACTIVITY_STATUSES,
     formatConversationTime,
     getActivityStatusMeta,
     getConversationActivityTimestamp,
@@ -27,9 +30,13 @@ import {
     groupProviderActivities,
     matchesActivityFilter,
     normalizeMessagePreview,
+    updateActivityComposerDraft,
+    recordActivitySendFailure,
+    recoverActivityFailedSend,
     type ProviderActivityGroup,
 } from "@/lib/activity/chat";
 import { cn } from "@/lib/utils";
+import styles from "./ActivityWorkspace.module.css";
 
 const ApplicationChat = dynamic(
     () => import("@/components/activity/ApplicationChat").then((mod) => mod.ApplicationChat),
@@ -51,7 +58,6 @@ type ActivityCommandCenterProps = {
     onReopen?: (applicationId: string) => Promise<any>;
     onRequestReopen?: (applicationId: string, message: string) => Promise<any>;
     onRespondReopenRequest?: (requestId: string, accept: boolean, reason?: string) => Promise<any>;
-    onPromote?: (applicationId: string, reason: string) => Promise<any>;
     onComplete?: (applicationId: string, reason?: string) => Promise<any>;
     onReport?: (input: {
         applicationId: string;
@@ -65,11 +71,14 @@ type ActivityCommandCenterProps = {
 
 type ActivityAttentionSource = {
     status?: string | null;
+    close_action?: string | null;
+    conversation_state?: string | null;
+    is_primary?: boolean | null;
     unread_count?: unknown;
     pending_reopen_count?: unknown;
 };
 
-type InboxFilter = Extract<ActivityFilter, "active" | "all">;
+type InboxFilter = Extract<ActivityFilter, "active" | "closed">;
 
 export type ActivityAttentionSummary = {
     unreadCount: number;
@@ -87,7 +96,7 @@ export function getActivityAttentionSummary(
     source: ActivityAttentionSource,
 ): ActivityAttentionSummary {
     const unreadCount = normalizeAttentionCount(source.unread_count);
-    const pendingReopenCount = normalizeAttentionCount(source.pending_reopen_count);
+    const pendingReopenCount = (source.status === "waitlisted" || source.close_action === "waitlist_retired") ? 0 : normalizeAttentionCount(source.pending_reopen_count);
     const totalCount = unreadCount + pendingReopenCount;
 
     return {
@@ -134,33 +143,46 @@ export function getActivityAttentionLabel(summary: ActivityAttentionSummary) {
     return parts.join(" und ") || "Keine neuen Hinweise";
 }
 
+export function getActivityWorkspaceSection(source: ActivityAttentionSource): InboxFilter {
+    return source.conversation_state !== "closed" && source.is_primary !== false && ACTIVE_ACTIVITY_STATUSES.has(source.status ?? "")
+        ? "active"
+        : "closed";
+}
+
 export function matchesActivityCommandCenterFilter(
     application: ActivityAttentionSource,
     filter: ActivityFilter,
 ) {
-    const attention = getActivityAttentionSummary(application);
-    if (attention.totalCount > 0 && (filter === "active" || filter === "unread")) {
-        return true;
+    if (filter === "active" || filter === "closed") {
+        return getActivityWorkspaceSection(application) === filter;
     }
-
+    const attention = getActivityAttentionSummary(application);
+    if (filter === "unread") return attention.totalCount > 0;
     return matchesActivityFilter(application.status, attention.unreadCount, filter);
 }
 
+export function getActivityWorkspaceSelection(
+    requestedId: string | null | undefined,
+    requestedView: string | null | undefined,
+    applications: ReadonlyArray<ActivityAttentionSource & { id: string }>,
+) {
+    const selected = requestedId ? applications.find(application => application.id === requestedId) : null;
+    return {
+        selectedAppId: selected?.id ?? null,
+        filter: selected ? getActivityWorkspaceSection(selected) : requestedView === "archive" ? "closed" as const : "active" as const,
+    };
+}
+
 function getFilterAriaLabel(
-    filter: ActivityFilter,
     label: string,
     count: number,
     role: ActivityRole,
+    attention: ActivityAttentionSummary,
 ) {
     const noun = role === "provider"
         ? count === 1 ? "Job" : "Jobs"
-        : count === 1 ? "Gespräch" : "Gespräche";
-
-    if (filter === "active") {
-        return `${label}, ${count} ${noun}, einschließlich neuer Nachrichten und offener Öffnungsanfragen`;
-    }
-
-    return `${label}, ${count} ${noun}`;
+        : count === 1 ? "Bewerbung" : "Bewerbungen";
+    return `${label}, ${count} ${noun}${attention.totalCount ? `, ${getActivityAttentionLabel(attention)}` : ""}`;
 }
 
 function getPartner(app: any, role: ActivityRole) {
@@ -185,7 +207,7 @@ function getPartner(app: any, role: ActivityRole) {
 
 function getSearchText(app: any, role: ActivityRole) {
     const partner = getPartner(app, role);
-    const status = getActivityStatusMeta(app.status);
+    const status = getActivityStatusMeta(app.status, app.close_action);
     return [
         partner.name,
         partner.subtitle,
@@ -203,12 +225,24 @@ function getApplicationJobId(app: any) {
     return app.job?.id || app.job_id || `missing-job:${app.id}`;
 }
 
-function updateConversationUrl(applicationId: string | null) {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
+export function getActivityWorkspaceUrl(
+    currentHref: string,
+    applicationId: string | null,
+    filter: InboxFilter,
+) {
+    const url = new URL(currentHref);
     if (applicationId) url.searchParams.set("conversation", applicationId);
     else url.searchParams.delete("conversation");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    if (filter === "closed") url.searchParams.set("view", "archive");
+    else url.searchParams.delete("view");
+    return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function updateConversationUrl(applicationId: string | null, filter: InboxFilter) {
+    const href = getActivityWorkspaceUrl(window.location.href, applicationId, filter);
+    if (href === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
+    // Native history updates are integrated with Next's useSearchParams without a server fetch.
+    window.history.pushState(null, "", href);
 }
 
 export function ActivityCommandCenter({
@@ -226,23 +260,40 @@ export function ActivityCommandCenter({
     onReopen,
     onRequestReopen,
     onRespondReopenRequest,
-    onPromote,
     onComplete,
     onReport,
 }: ActivityCommandCenterProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [items, setItems] = useState(applications);
+    const [conversationComposers, setConversationComposers] = useState<Record<string, ActivityComposerState>>({});
+    const updateConversationDraft = useCallback((applicationId: string, value: string, onlyIfEmpty = false) => {
+        setConversationComposers(current => ({
+            ...current,
+            [applicationId]: updateActivityComposerDraft(current[applicationId], value, onlyIfEmpty),
+        }));
+    }, []);
+    const handleSendFailure = useCallback((applicationId: string, failure: ActivityFailedSend) => {
+        setConversationComposers(current => ({
+            ...current,
+            [applicationId]: recordActivitySendFailure(current[applicationId], failure),
+        }));
+    }, []);
+    const recoverFailedSend = useCallback((applicationId: string, failureId: string) => {
+        setConversationComposers(current => {
+            const recovered = recoverActivityFailedSend(current[applicationId], failureId);
+            return recovered ? { ...current, [applicationId]: recovered } : current;
+        });
+    }, []);
+    const { selectedAppId, filter } = getActivityWorkspaceSelection(
+        searchParams.get("conversation"), searchParams.get("view"), items,
+    );
     const [query, setQuery] = useState("");
     const deferredQuery = useDeferredValue(query);
-    const [filter, setFilter] = useState<InboxFilter>("active");
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const searchInputId = useId();
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchButtonRef = useRef<HTMLButtonElement>(null);
-    const [selectedAppId, setSelectedAppId] = useState<string | null>(() => {
-        if (!initialConversationId) return null;
-        return applications.some((app) => app.id === initialConversationId) ? initialConversationId : null;
-    });
     const [expandedProviderJobIds, setExpandedProviderJobIds] = useState<Set<string>>(() => {
         if (role !== "provider" || applications.length === 0) return new Set();
         const initialApplication = applications.find((app) => app.id === initialConversationId) ?? applications[0];
@@ -270,13 +321,6 @@ export function ActivityCommandCenter({
     useEffect(() => {
         selectedAppIdRef.current = selectedAppId;
     }, [selectedAppId]);
-
-    useEffect(() => {
-        if (!initialConversationId) return;
-        if (items.some((app) => app.id === initialConversationId)) {
-            setSelectedAppId(initialConversationId);
-        }
-    }, [initialConversationId, items]);
 
     useEffect(() => {
         if (!currentUserId || readOnly) return;
@@ -386,24 +430,14 @@ export function ActivityCommandCenter({
         [items, role],
     );
 
-    const selectedApp = useMemo(() => {
-        if (!selectedAppBase || role !== "provider" || selectedAppBase.status !== "waitlisted") {
-            return selectedAppBase;
-        }
-
-        const group = providerGroups.find((candidate) => (
-            candidate.applications.some((application) => application.id === selectedAppBase.id)
-        ));
-        const waitlistIndex = group?.waitlist.findIndex((application) => application.id === selectedAppBase.id) ?? -1;
-
-        return waitlistIndex >= 0
-            ? { ...selectedAppBase, my_waitlist_position: waitlistIndex + 1 }
-            : selectedAppBase;
-    }, [providerGroups, role, selectedAppBase]);
+    const selectedApp = selectedAppBase;
 
     useEffect(() => {
         if (role !== "provider" || providerGroups.length === 0) return;
         const selectedJobId = selectedApp ? getApplicationJobId(selectedApp) : null;
+        if (selectedJobId && getActivityWorkspaceSection(selectedApp) === "closed") {
+            setExpandedProviderArchives(current => current.has(selectedJobId) ? current : new Set(current).add(selectedJobId));
+        }
 
         setExpandedProviderJobIds((current) => {
             const validIds = new Set(providerGroups.map((group) => group.jobId));
@@ -418,12 +452,13 @@ export function ActivityCommandCenter({
 
     const filterOptions = useMemo(() => {
         const options: Array<{ key: InboxFilter; label: string }> = [
-            { key: "active", label: "Aktiv" },
-            { key: "all", label: "Alle" },
+            { key: "active", label: "Laufend" },
+            { key: "closed", label: "Archiv" },
         ];
 
         return options.map((option) => ({
             ...option,
+            attention: getGroupedActivityAttentionSummary(items.filter(app => matchesActivityCommandCenterFilter(app, option.key))),
             count: role === "provider"
                 ? providerGroups.filter((group) => group.applications.some((app) => (
                     matchesActivityCommandCenterFilter(app, option.key)
@@ -444,24 +479,19 @@ export function ActivityCommandCenter({
         if (role !== "provider") return [];
         const normalizedQuery = deferredQuery.trim().toLowerCase();
 
-        return providerGroups.filter((group) => {
-            const matchesFilter = group.applications.some((app) => (
-                matchesActivityCommandCenterFilter(app, filter)
-            ));
-            if (!matchesFilter) return false;
-            if (!normalizedQuery) return true;
-
-            const jobText = [group.job?.title, group.job?.status].filter(Boolean).join(" ").toLowerCase();
-            return jobText.includes(normalizedQuery)
-                || group.applications.some((app) => getSearchText(app, role).includes(normalizedQuery));
-        });
-    }, [deferredQuery, filter, providerGroups, role]);
+        return groupProviderActivities(items.filter(app => matchesActivityCommandCenterFilter(app, filter)))
+            .filter((group) => {
+                if (!normalizedQuery) return true;
+                const jobText = [group.job?.title, group.job?.status].filter(Boolean).join(" ").toLowerCase();
+                return jobText.includes(normalizedQuery)
+                    || group.applications.some((app) => getSearchText(app, role).includes(normalizedQuery));
+            });
+    }, [deferredQuery, filter, items, role]);
 
     const visibleInboxCount = role === "provider" ? visibleProviderGroups.length : visibleItems.length;
 
     const selectConversation = (applicationId: string) => {
         selectedAppIdRef.current = applicationId;
-        setSelectedAppId(applicationId);
         setItems((current) => current.map((app) => (
             app.id === applicationId ? { ...app, unread_count: 0 } : app
         )));
@@ -472,7 +502,8 @@ export function ActivityCommandCenter({
                 setExpandedProviderJobIds((current) => new Set(current).add(jobId));
             }
         }
-        updateConversationUrl(applicationId);
+        const application = items.find(app => app.id === applicationId);
+        updateConversationUrl(applicationId, application ? getActivityWorkspaceSection(application) : filter);
     };
 
     const toggleProviderJob = (jobId: string) => {
@@ -495,28 +526,31 @@ export function ActivityCommandCenter({
 
     const closeConversation = () => {
         selectedAppIdRef.current = null;
-        setSelectedAppId(null);
-        updateConversationUrl(null);
+        updateConversationUrl(null, filter);
     };
 
     const updateSelectedStatus = async (reason: string, status: "withdrawn" | "rejected") => {
         if (!selectedAppId) return;
-        const previousApplication = items.find((app) => app.id === selectedAppId);
-        setItems((current) => current.map((app) => (
-            app.id === selectedAppId ? { ...app, status, rejection_reason: reason } : app
-        )));
-
-        try {
-            if (status === "withdrawn" && onWithdraw) await onWithdraw(selectedAppId, reason);
-            if (status === "rejected" && onReject) await onReject(selectedAppId, reason);
-        } catch (error) {
-            if (previousApplication) {
-                setItems((current) => current.map((app) => (
-                    app.id === selectedAppId ? { ...app, ...previousApplication } : app
-                )));
-            }
-            throw error;
-        }
+        const action = status === "withdrawn" ? onWithdraw : onReject;
+        if (!action) return;
+        await action(selectedAppId, reason);
+        setItems((current) => current.map((app) => {
+            if (app.id !== selectedAppId) return app;
+            const wasAccepted = app.status === "accepted";
+            return {
+                ...app,
+                status: wasAccepted ? "cancelled" : status,
+                close_action: wasAccepted ? "engagement_cancelled" : status === "withdrawn" ? "seeker_withdrew" : "provider_rejected",
+                conversation_state: "closed",
+                is_primary: false,
+                closed_by: currentUserId,
+                closed_at: new Date().toISOString(),
+                closed_reason: reason.trim() || (wasAccepted ? "Zusammenarbeit abgesagt." : role === "provider" ? "Vom Anbieter abgelehnt." : "Bewerbung zurückgezogen."),
+                closure_version: Number(app.closure_version || 0) + 1,
+                rejection_reason: reason.trim() || null,
+                engagement: wasAccepted && app.engagement ? { ...app.engagement, status: "cancelled" } : app.engagement,
+            };
+        }));
     };
 
     const scheduleSelectedApplication = async (scheduledFor: string, note?: string) => {
@@ -545,28 +579,13 @@ export function ActivityCommandCenter({
         return result;
     };
 
-    const promoteSelectedApplication = async (reason: string) => {
-        if (!selectedAppId || !onPromote) return;
-        const result = await onPromote(selectedAppId, reason);
+    const completeSelectedApplication = async (reason?: string) => {
+        if (!selectedAppId || !onComplete) return;
+        const result = await onComplete(selectedAppId, reason);
         if (result?.error) throw new Error(result.error);
-
-        const promotedAt = new Date().toISOString();
-        setItems((current) => current.map((app) => {
-            if (app.id === selectedAppId) {
-                return {
-                    ...app,
-                    status: "negotiating",
-                    is_primary: true,
-                    promoted_at: promotedAt,
-                    promotion_reason: reason,
-                };
-            }
-            if (result?.displaced_application_id && app.id === result.displaced_application_id) {
-                return { ...app, status: "waitlisted", is_primary: false };
-            }
-            return app;
-        }));
-
+        setItems(current => current.map(app => app.id === selectedAppId
+            ? { ...app, status: "completed", conversation_state: "closed", is_primary: false }
+            : app));
         return result;
     };
 
@@ -580,28 +599,27 @@ export function ActivityCommandCenter({
 
     if (items.length === 0) {
         return (
-            <ActivityEmptyState
-                role={role}
-                selectedJobId={selectedJobId}
-                selectedJobTitle={selectedJobTitle}
-            />
+            <MotionConfig reducedMotion="user">
+                <ActivityEmptyState
+                    role={role}
+                    selectedJobId={selectedJobId}
+                    selectedJobTitle={selectedJobTitle}
+                />
+            </MotionConfig>
         );
     }
 
     return (
+        <MotionConfig reducedMotion="user">
         <div
-            className="activities-command-center jobs-home-surface"
+            className={cn(styles.experience, "activities-command-center jobs-home-surface")}
+            data-ui="conversations"
             data-role={role}
             data-chat-open={selectedApp ? "true" : "false"}
         >
             <div className="jobs-home-heading activity-home-heading">
                 <div>
-                    <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">Aktivitäten</h1>
-                    <p className="text-slate-400">
-                        {role === "provider"
-                            ? "Bewerbungen, Gespräche und Vereinbarungen übersichtlich verwalten."
-                            : "Gespräche, Antworten und nächste Schritte zu deinen Bewerbungen."}
-                    </p>
+                    <h1>{role === "provider" ? "Bewerbungen" : "Meine Jobs"}</h1>
                 </div>
 
                 {selectedJobId && (
@@ -614,7 +632,7 @@ export function ActivityCommandCenter({
             </div>
 
             <div className="activity-workspace">
-                <aside className={cn("activity-inbox-panel", selectedApp ? "hidden lg:flex" : "flex")} aria-label="Gespräche">
+                <aside className={cn("activity-inbox-panel", selectedApp ? "hidden lg:flex" : "flex")} aria-label={role === "provider" ? "Bewerbungen" : "Meine Jobs"}>
                     <div className="activity-panel-heading" data-search-open={isSearchOpen ? "true" : "false"}>
                         <AnimatePresence initial={false} mode="popLayout">
                             {isSearchOpen ? (
@@ -626,7 +644,7 @@ export function ActivityCommandCenter({
                                     exit={{ opacity: 0, y: -4 }}
                                     transition={{ duration: 0.16, ease: "easeOut" }}
                                 >
-                                    <span className="sr-only">{role === "provider" ? "Bewerbungen durchsuchen" : "Gespräche durchsuchen"}</span>
+                                    <span className="sr-only">{role === "provider" ? "Bewerbungen durchsuchen" : "Meine Jobs durchsuchen"}</span>
                                     <Search aria-hidden="true" size={16} />
                                     <input
                                         ref={searchInputRef}
@@ -642,12 +660,12 @@ export function ActivityCommandCenter({
                                             event.stopPropagation();
                                             closeInboxSearch();
                                         }}
-                                        placeholder={role === "provider" ? "Jobs oder Bewerber suchen" : "Gespräche suchen"}
+                                        placeholder={role === "provider" ? "Jobs oder Bewerber suchen" : "Job oder Anbieter suchen"}
                                     />
                                     <span className="sr-only" role="status" aria-live="polite">
                                         {visibleInboxCount} {role === "provider"
                                             ? visibleInboxCount === 1 ? "Job gefunden" : "Jobs gefunden"
-                                            : visibleInboxCount === 1 ? "Gespräch gefunden" : "Gespräche gefunden"}
+                                            : visibleInboxCount === 1 ? "Job gefunden" : "Jobs gefunden"}
                                     </span>
                                 </motion.label>
                             ) : (
@@ -659,25 +677,22 @@ export function ActivityCommandCenter({
                                     exit={{ opacity: 0, y: -4 }}
                                     transition={{ duration: 0.16, ease: "easeOut" }}
                                 >
-                                    <div className="activity-panel-title">
-                                        <strong>{role === "provider" ? "Bewerbungen" : "Gespräche"}</strong>
-                                    </div>
-
                                     <div
                                         className="activity-filter-strip"
                                         role="group"
-                                        aria-label={role === "provider" ? "Bewerbungen anzeigen" : "Gespräche anzeigen"}
+                                        aria-label={role === "provider" ? "Bewerbungen anzeigen" : "Meine Jobs anzeigen"}
                                     >
                                         {filterOptions.map((option) => (
                                             <button
                                                 key={option.key}
                                                 type="button"
-                                                onClick={() => setFilter(option.key)}
+                                                onClick={() => updateConversationUrl(null, option.key)}
                                                 className={cn(filter === option.key && "is-active")}
                                                 aria-pressed={filter === option.key}
-                                                aria-label={getFilterAriaLabel(option.key, option.label, option.count, role)}
+                                                aria-label={getFilterAriaLabel(option.label, option.count, role, option.attention)}
                                             >
                                                 {option.label}
+                                                {option.attention.totalCount > 0 && <span className="activity-filter-attention" aria-hidden="true">{option.attention.totalCount > 99 ? "99+" : option.attention.totalCount}</span>}
                                             </button>
                                         ))}
                                     </div>
@@ -691,7 +706,7 @@ export function ActivityCommandCenter({
                             className="activity-panel-search-toggle"
                             aria-label={isSearchOpen
                                 ? "Suche schließen"
-                                : role === "provider" ? "Bewerbungen durchsuchen" : "Gespräche durchsuchen"}
+                                : role === "provider" ? "Bewerbungen durchsuchen" : "Meine Jobs durchsuchen"}
                             aria-expanded={isSearchOpen}
                             aria-controls={searchInputId}
                             onClick={() => {
@@ -745,10 +760,10 @@ export function ActivityCommandCenter({
                         {visibleInboxCount === 0 && (
                             <div className="activity-no-results">
                                 <Search size={20} />
-                                <strong>{query.trim() ? "Keine Treffer" : filter === "active" ? "Nichts Aktives" : "Noch keine Einträge"}</strong>
+                                <strong>{query.trim() ? "Keine Treffer" : filter === "active" ? "Keine laufenden Jobs" : "Archiv ist leer"}</strong>
                                 <span>{query.trim()
                                     ? "Prüfe den Suchbegriff oder schließe die Suche."
-                                    : filter === "active" ? "Unter „Alle“ findest du auch beendete Gespräche." : "Neue Gespräche erscheinen automatisch hier."}</span>
+                                    : filter === "active" ? "Beendete Bewerbungen und Jobs findest du im Archiv." : "Beendete Bewerbungen und Jobs bleiben hier mit ihrem Verlauf erhalten."}</span>
                             </div>
                         )}
                     </div>
@@ -759,6 +774,11 @@ export function ActivityCommandCenter({
                         <ApplicationChat
                             key={selectedApp.id}
                             application={selectedApp}
+                            draftValue={conversationComposers[selectedApp.id]?.draft ?? ""}
+                            failedSends={conversationComposers[selectedApp.id]?.failedSends}
+                            onSendFailure={handleSendFailure}
+                            onRecoverFailedSend={recoverFailedSend}
+                            onDraftChange={updateConversationDraft}
                             currentUserRole={role}
                             currentUserId={currentUserId}
                             readOnly={readOnly}
@@ -776,14 +796,12 @@ export function ActivityCommandCenter({
                             onReopen={onReopen ? () => onReopen(selectedApp.id) : undefined}
                             onRequestReopen={onRequestReopen ? (message: string) => onRequestReopen(selectedApp.id, message) : undefined}
                             onRespondReopenRequest={onRespondReopenRequest}
-                            onPromote={role === "provider" && onPromote ? promoteSelectedApplication : undefined}
-                            onComplete={role === "provider" && onComplete ? (reason?: string) => onComplete(selectedApp.id, reason) : undefined}
+                            onComplete={role === "provider" && onComplete ? completeSelectedApplication : undefined}
                             onReport={onReport}
                             onSendMessage={onSendMessage}
                             onClose={closeConversation}
                             onConversationRead={handleConversationRead}
                             embedded
-                            contextPanel={false}
                         />
                     ) : (
                         <ActivityDetailPlaceholder role={role} />
@@ -791,6 +809,7 @@ export function ActivityCommandCenter({
                 </section>
             </div>
         </div>
+        </MotionConfig>
     );
 }
 
@@ -820,21 +839,18 @@ function ProviderJobGroup({
         getActivityAttentionSummary(application).pendingReopenCount === 0
     ));
     const primaryLabel = group.primary
-        ? group.primary.status === "accepted" ? "Vereinbart" : "Im Gespräch"
+        ? group.primary.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"
         : null;
     const summaryParts = [
         primaryLabel,
-        group.waitlist.length > 0
-            ? `${group.waitlist.length} ${group.waitlist.length === 1 ? "wartet" : "warten"}`
-            : null,
         attention.pendingReopenCount > 0
             ? `${attention.pendingReopenCount} ${attention.pendingReopenCount === 1 ? "Öffnungsanfrage" : "Öffnungsanfragen"}`
             : null,
-        !group.primary && group.waitlist.length === 0 && archivedApplications.length > 0
+        !group.primary && archivedApplications.length > 0
             ? `${archivedApplications.length} beendet`
             : null,
     ].filter(Boolean);
-    const archiveOnly = !group.primary && group.waitlist.length === 0;
+    const archiveOnly = !group.primary;
     const showArchive = archiveOnly || archiveExpanded;
 
     return (
@@ -870,8 +886,8 @@ function ProviderJobGroup({
                     {group.primary ? (
                         <section className="activity-provider-section" aria-label="Aktuelles Gespräch">
                             <div className="activity-provider-section-heading">
-                                <strong>{group.primary.status === "accepted" ? "Vereinbart" : "Im Gespräch"}</strong>
-                                <span>{group.primary.status === "accepted" ? "Termin und Zusammenarbeit" : "Direkter Chat"}</span>
+                                <strong>{group.primary.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"}</strong>
+                                <span>{group.primary.status === "accepted" ? "Zusammenarbeit bestätigt" : "Eine Bewerbung · exklusiv reserviert"}</span>
                             </div>
                             <ProviderConversationRow
                                 app={group.primary}
@@ -882,34 +898,13 @@ function ProviderJobGroup({
                         </section>
                     ) : null}
 
-                    {group.waitlist.length > 0 ? (
-                        <section className="activity-provider-section" aria-label="Warteliste">
-                            <div className="activity-provider-section-heading">
-                                <strong>Warteliste</strong>
-                                <span>Rückt automatisch nach</span>
-                            </div>
-                            <div className="activity-provider-waitlist">
-                                {group.waitlist.map((application: any, index: number) => (
-                                    <ProviderConversationRow
-                                        key={application.id}
-                                        app={application}
-                                        kind="waitlist"
-                                        waitlistRank={index + 1}
-                                        selected={selectedAppId === application.id}
-                                        onSelect={() => onSelect(application.id)}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    ) : null}
-
                     {pendingReopenApplications.length > 0 ? (
                         <section className="activity-provider-section activity-provider-attention-section" aria-label="Offene Öffnungsanfragen">
                             <div className="activity-provider-section-heading">
                                 <strong>{pendingReopenApplications.length === 1 ? "Öffnungsanfrage" : "Öffnungsanfragen"}</strong>
                                 <span>Antwort ausstehend</span>
                             </div>
-                            <div className="activity-provider-waitlist">
+                            <div className="activity-provider-request-list">
                                 {pendingReopenApplications.map((application: any) => (
                                     <ProviderConversationRow
                                         key={application.id}
@@ -966,18 +961,16 @@ function ProviderJobGroup({
 function ProviderConversationRow({
     app,
     kind,
-    waitlistRank,
     selected,
     onSelect,
 }: {
     app: any;
-    kind: "primary" | "waitlist" | "archive";
-    waitlistRank?: number;
+    kind: "primary" | "archive";
     selected: boolean;
     onSelect: () => void;
 }) {
     const partner = getPartner(app, "provider");
-    const status = getActivityStatusMeta(app.status);
+    const status = getActivityStatusMeta(app.status, app.close_action);
     const attention = getActivityAttentionSummary(app);
     const preview = normalizeMessagePreview(
         app.last_message_preview,
@@ -985,10 +978,8 @@ function ProviderConversationRow({
     );
     const previewTimestamp = getConversationPreviewTimestamp(app);
     const baseMetaLabel = kind === "primary"
-        ? app.status === "accepted" ? "Vereinbart" : "Im Gespräch"
-        : kind === "waitlist"
-            ? `Warteliste · ${waitlistRank ?? "–"}.`
-            : status.label;
+        ? app.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"
+        : status.label;
     const metaLabel = attention.pendingReopenCount > 0
         ? `${baseMetaLabel} · ${attention.pendingReopenCount === 1 ? "Öffnungsanfrage offen" : `${attention.pendingReopenCount} Öffnungsanfragen offen`}`
         : baseMetaLabel;
@@ -1039,7 +1030,7 @@ function ActivityInboxItem({
     selected: boolean;
     onSelect: () => void;
 }) {
-    const status = getActivityStatusMeta(app.status);
+    const status = getActivityStatusMeta(app.status, app.close_action);
     const partner = getPartner(app, role);
     const attention = getActivityAttentionSummary(app);
     const preview = normalizeMessagePreview(
@@ -1069,15 +1060,15 @@ function ActivityInboxItem({
             </span>
             <span className="activity-inbox-body">
                 <span className="activity-inbox-title-row">
-                    <strong>{partner.name}</strong>
+                    <strong>{partner.subtitle}</strong>
                     <time dateTime={previewTimestamp}>{activityTime}</time>
                 </span>
                 <span className="activity-inbox-context-row">
-                    <span className="activity-inbox-job">{partner.subtitle}</span>
-                    <span className="activity-inbox-status" data-tone={status.tone}>
+                    <span className="activity-inbox-job">{partner.name}</span>
+                    {!["submitted", "negotiating"].includes(app.status) && <span className="activity-inbox-status" data-tone={status.tone}>
                         <span aria-hidden="true" />
                         {status.label}
-                    </span>
+                    </span>}
                 </span>
                 <span className="activity-inbox-preview">{preview}</span>
                 {attention.pendingReopenCount > 0 ? (
@@ -1107,8 +1098,8 @@ function ActivityDetailPlaceholder({ role }: { role: ActivityRole }) {
             <div className="activity-placeholder-icon">
                 <MessageSquare size={24} />
             </div>
-            <h2>{role === "provider" ? "Wähle eine Bewerbung" : "Wähle ein Gespräch"}</h2>
-            <p>Öffne links einen Eintrag. Der Verlauf erscheint direkt hier.</p>
+            <h2>{role === "provider" ? "Wähle eine Bewerbung" : "Wähle einen Job"}</h2>
+            <p>Gespräch, Termin und Details findest du hier an einem Ort.</p>
         </div>
     );
 }
@@ -1126,7 +1117,8 @@ function ActivityEmptyState({
         <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="activity-empty-command"
+            className={cn(styles.experience, "activity-empty-command")}
+            data-ui="conversations"
         >
             <div className="activity-placeholder-icon">
                 {role === "provider" ? <User size={26} /> : <Briefcase size={26} />}
@@ -1136,7 +1128,7 @@ function ActivityEmptyState({
                     ? `Noch keine Bewerbungen für ${selectedJobTitle || "diesen Job"}`
                     : role === "provider"
                         ? "Noch keine Bewerbungen"
-                        : "Noch keine Aktivitäten"}
+                        : "Noch keine Bewerbungen"}
             </h1>
             <p>
                 {role === "provider"

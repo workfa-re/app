@@ -16,6 +16,8 @@ import "./activity-polish.css";
 import "./onboarding-design.css";
 import "./onboarding-theme.css";
 import "./legal-design.css";
+import "./app-chrome.css";
+import "./brand-glass.css";
 
 const fontSans = Inter({
   variable: "--font-sans",

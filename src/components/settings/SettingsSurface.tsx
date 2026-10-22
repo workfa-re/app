@@ -1,165 +1,88 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, Compass, Monitor, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { MobileNavPreferenceControl } from "@/components/settings/MobileNavPreferenceControl";
 import { ThemePreferenceControl } from "@/components/settings/ThemePreferenceControl";
 import type { MobileNavPreference } from "@/lib/mobile-nav-preference";
 import type { ThemePreference } from "@/lib/theme-preference";
+import styles from "./Settings.module.css";
 
 type SettingsSurfaceProps = {
     mobileNavPreference: MobileNavPreference;
     themePreference: ThemePreference;
 };
 
-const themePreferenceLabels: Record<ThemePreference, string> = {
-    system: "Systemeinstellung",
-    light: "Hellmodus",
-    dark: "Dunkelmodus",
-};
-
 export function SettingsSurface({ mobileNavPreference, themePreference }: SettingsSurfaceProps) {
-    const navigationStatus = mobileNavPreference === "bottom" ? "Dock unten" : "Tabs oben";
-    const themeStatus = themePreferenceLabels[themePreference];
-
     return (
-        <div className="settings-page mx-auto w-full max-w-5xl px-4 pb-14 pt-8 md:px-6">
-            <header className="settings-header border-b pb-6">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
-                        Einstellungen
-                    </h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-6 md:text-base">
-                        Lege fest, wie Workfare auf deinen Geräten navigiert und welche Kontobereiche du verwalten möchtest.
-                    </p>
-                </div>
+        <div className={styles.page}>
+            <header className={styles.header}>
+                <h1>Einstellungen</h1>
+                <p>Richte Workfare so ein, wie es für dich passt.</p>
             </header>
 
-            <div className="settings-panel mt-7 space-y-4 md:space-y-0 md:overflow-hidden">
-                <SettingsGroup
-                    id="appearance"
-                    title="Darstellung"
-                    description="Standardmäßig folgt Workfare deinem Gerät."
-                >
-                    <SettingsRow
-                        title="Farbmodus"
-                        description={themeStatus}
-                    >
-                        <ThemePreferenceControl initialPreference={themePreference} />
-                    </SettingsRow>
+            <div className={styles.preferenceGrid}>
+                <SettingsGroup id="appearance" title="Darstellung" icon={Monitor}
+                    description="Hell, dunkel oder passend zu deinem Gerät.">
+                    <ThemePreferenceControl initialPreference={themePreference} />
                 </SettingsGroup>
 
-                <SettingsGroup
-                    id="navigation"
-                    title="Navigation"
-                    description="Nur für Handys. Desktop und Tablet bleiben unverändert."
-                >
-                    <SettingsRow
-                        title="Handy-Navigation"
-                        description={navigationStatus}
-                    >
-                        <MobileNavPreferenceControl initialPreference={mobileNavPreference} />
-                    </SettingsRow>
-                </SettingsGroup>
-
-                <SettingsGroup
-                    id="konto"
-                    title="Konto"
-                    description="Weiterführende Einstellungen, die eigene Seiten brauchen."
-                >
-                    <SettingsLinkRow
-                        href="/app-home/profile"
-                        title="Profil"
-                        description="Persönliche Daten, Sichtbarkeit und Verifizierung."
-                    />
-                    <SettingsLinkRow
-                        href="/app-home/settings/notifications"
-                        title="Benachrichtigungen"
-                        description="E-Mail, Push und wichtige Updates."
-                    />
-                    <SettingsLinkRow
-                        href="/app-home/settings/security"
-                        title="Sicherheit"
-                        description="Passwort, Login und Kontoschutz."
-                    />
+                <SettingsGroup id="navigation" title="Navigation" icon={Compass}
+                    description="Wähle, wie du Workfare auf dem Handy bedienst.">
+                    <MobileNavPreferenceControl initialPreference={mobileNavPreference} />
                 </SettingsGroup>
             </div>
+
+            <SettingsGroup id="konto" title="Konto" icon={UserRound}
+                description="Dein Profil, deine Mitteilungen und deine Sicherheit." className={styles.accountGroup}>
+                <div className={styles.linkList}>
+                    <SettingsLinkRow href="/app-home/profile" icon={UserRound} title="Profil"
+                        description="Persönliche Daten, Sichtbarkeit und Verifizierung" />
+                    <SettingsLinkRow href="/app-home/settings/notifications" icon={Bell} title="Benachrichtigungen"
+                        description="Persönliche Hinweise und E-Mails" />
+                    <SettingsLinkRow href="/app-home/settings/security" icon={ShieldCheck} title="Sicherheit"
+                        description="Passwort und Sicherheitsaktivität" />
+                </div>
+            </SettingsGroup>
         </div>
     );
 }
 
-function SettingsGroup({
-    id,
-    title,
-    description,
-    children,
-}: {
+function SettingsGroup({ id, title, description, icon: Icon, children, className = "" }: {
     id: string;
     title: string;
     description: string;
+    icon: LucideIcon;
     children: ReactNode;
+    className?: string;
 }) {
     return (
-        <section
-            id={id}
-            className="settings-section scroll-mt-28 overflow-hidden"
-        >
-            <div className="settings-section-grid grid md:grid-cols-[14rem_minmax(0,1fr)]">
-                <div className="settings-section-label border-b px-5 py-5 md:border-b-0 md:border-r md:px-6 md:py-6">
-                    <h2 className="text-sm font-semibold">{title}</h2>
-                    <p className="mt-2 text-sm leading-6">{description}</p>
-                </div>
-                <div className="settings-section-content divide-y">
-                    {children}
+        <section id={id} aria-labelledby={`${id}-title`} className={`${styles.group} ${className}`}>
+            <div className={styles.groupHeading}>
+                <span className={styles.groupIcon}><Icon size={21} strokeWidth={1.6} aria-hidden="true" /></span>
+                <div>
+                    <h2 id={`${id}-title`}>{title}</h2>
+                    <p>{description}</p>
                 </div>
             </div>
+            {children}
         </section>
     );
 }
 
-function SettingsRow({
-    title,
-    description,
-    children,
-}: {
-    title: string;
-    description: string;
-    children: ReactNode;
-}) {
-    return (
-        <div className="settings-row grid gap-4 px-5 py-5 md:grid-cols-[minmax(0,1fr)_minmax(17rem,0.95fr)] md:items-center md:px-6">
-            <div className="max-w-xl">
-                <h3 className="text-[15px] font-semibold">{title}</h3>
-                <p className="mt-1 text-sm leading-6">{description}</p>
-            </div>
-            <div className="settings-control-slot min-w-0">{children}</div>
-        </div>
-    );
-}
-
-function SettingsLinkRow({
-    href,
-    title,
-    description,
-}: {
+function SettingsLinkRow({ href, title, description, icon: Icon }: {
     href: string;
     title: string;
     description: string;
+    icon: LucideIcon;
 }) {
     return (
-        <Link
-            href={href}
-            className="settings-link-row group grid gap-4 px-5 py-5 transition-colors md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:px-6"
-        >
-            <div>
-                <h3 className="text-[15px] font-semibold transition-colors">
-                    {title}
-                </h3>
-                <p className="mt-1 text-sm leading-6">{description}</p>
-            </div>
-            <span className="settings-link-action inline-flex h-9 w-fit items-center gap-2 rounded-full border px-3 text-sm font-semibold transition-colors">
-                Öffnen
-                <ChevronRight size={15} />
+        <Link href={href} prefetch={false} className={styles.linkRow}>
+            <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
+            <span className={styles.linkCopy}>
+                <span className={styles.linkTitle}>{title}</span>
+                <span className={styles.linkDescription}>{description}</span>
             </span>
+            <ChevronRight size={17} strokeWidth={1.6} aria-hidden="true" />
         </Link>
     );
 }

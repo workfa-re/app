@@ -8,7 +8,6 @@ type ApplicationPayload = {
     error?: string;
     application?: Record<string, unknown>;
     is_primary?: boolean;
-    queue_position?: number;
 };
 
 export async function applyToJob(formData: FormData | string) {
@@ -38,7 +37,11 @@ export async function applyToJob(formData: FormData | string) {
         console.error("Atomic application RPC failed:", error);
         return { error: "Die Bewerbung konnte nicht gesendet werden." };
     }
-    if (payload.ok === false) return { error: payload.error || "Die Bewerbung konnte nicht gesendet werden." };
+    if (payload.ok !== true) return { error: payload.error || "Die Bewerbung konnte nicht bestätigt werden." };
+    if (payload.is_primary !== true || typeof payload.application?.id !== "string"
+        || !["submitted", "negotiating", "accepted"].includes(String(payload.application.status))) {
+        return { error: "Der Job konnte nicht für dich reserviert werden. Bitte aktualisiere die Jobübersicht." };
+    }
 
     revalidatePath("/app-home/jobs");
     revalidatePath("/app-home/activities");
@@ -47,7 +50,5 @@ export async function applyToJob(formData: FormData | string) {
     return {
         success: true,
         application: payload.application,
-        isPrimary: Boolean(payload.is_primary),
-        queuePosition: payload.queue_position,
     };
 }

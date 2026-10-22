@@ -4,7 +4,7 @@ import { MyJobsView } from "./components/MyJobsView";
 import { fetchJobs } from "@/lib/dal/platform";
 import type { ApplicationStatus, JobsListItem } from "@/lib/types/platform";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
-import type { ProviderJobApplicationSummary } from "./components/MyJobsView";
+import { summarizeProviderApplications, type ProviderJobApplicationSummary } from "./presentation";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import { CumulativeLoadMoreLink } from "@/components/ui/CumulativeLoadMoreLink";
 
@@ -56,17 +56,10 @@ async function fetchCumulativeOffers(
 }
 
 type ApplicationSummaryRow = {
+    id: string;
     job_id: string;
     status: ApplicationStatus;
-    created_at: string;
 };
-
-const ACTIONABLE_APPLICATION_STATUSES = new Set<ApplicationStatus>([
-    "submitted",
-    "negotiating",
-    "accepted",
-    "waitlisted",
-]);
 
 async function fetchApplicationSummaries(jobIds: string[]): Promise<Record<string, ProviderJobApplicationSummary> | null> {
     if (jobIds.length === 0) return {};
@@ -77,8 +70,10 @@ async function fetchApplicationSummaries(jobIds: string[]): Promise<Record<strin
         requests.push(
             supabase
                 .from("applications")
-                .select("job_id, status, created_at")
-                .in("job_id", jobIds.slice(offset, offset + SUMMARY_JOB_CHUNK_SIZE)),
+                .select("id, job_id, status")
+                .in("job_id", jobIds.slice(offset, offset + SUMMARY_JOB_CHUNK_SIZE))
+                .in("status", ["submitted", "negotiating", "accepted"])
+                .order("created_at", { ascending: false }),
         );
     }
 
@@ -88,27 +83,7 @@ async function fetchApplicationSummaries(jobIds: string[]): Promise<Record<strin
 
     const data = results.flatMap((result) => result.data ?? []);
 
-    const summaries: Record<string, ProviderJobApplicationSummary> = {};
-
-    for (const item of data as ApplicationSummaryRow[]) {
-        const current = summaries[item.job_id] ?? {
-            total: 0,
-            attention: 0,
-            submitted: 0,
-            latestAt: null,
-        };
-
-        current.total += 1;
-        if (ACTIONABLE_APPLICATION_STATUSES.has(item.status)) current.attention += 1;
-        if (item.status === "submitted") current.submitted += 1;
-        if (!current.latestAt || new Date(item.created_at) > new Date(current.latestAt)) {
-            current.latestAt = item.created_at;
-        }
-
-        summaries[item.job_id] = current;
-    }
-
-    return summaries;
+    return summarizeProviderApplications(data as ApplicationSummaryRow[]);
 }
 
 export default async function OffersPage({
@@ -158,11 +133,11 @@ export default async function OffersPage({
     const marketLabel = regionName || "deiner Region";
 
     return (
-        <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8">
+        <div className="provider-home-surface">
             <AppRouteReady href="/app-home/offers" />
-            <div className="mb-7 md:mb-9">
+            <div className="jobs-home-heading">
                 <div className="max-w-2xl">
-                    <h1 className="text-balance text-4xl font-semibold tracking-tight text-[var(--text-strong)] md:text-6xl">Jobs</h1>
+                    <h1>Meine Jobs</h1>
                 </div>
             </div>
 

@@ -1,46 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
-import { endPerfMark, startPerfMark } from "@/lib/perf";
-import { warmRouteAdjacentUI } from "@/lib/ui-warmup";
+import { startPerfMark } from "@/lib/perf";
+import { useIntentPrefetch } from "@/hooks/use-intent-prefetch";
+import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { useAppNavigation } from "../AppNavigationProvider";
-import { AppNavPendingIndicator } from "./AppNavPendingIndicator";
 import { getAppNavItems } from "./navItems";
 
 export function MobileBottomDock({ profile, enabled }: { profile: Profile | null; enabled: boolean }) {
     const pathname = usePathname();
-    const router = useRouter();
+    const warmRoute = useIntentPrefetch();
+    const reducedMotion = useReducedMotion();
     const { pendingHref, beginNavigation } = useAppNavigation();
     const currentPath = pendingHref || pathname || "";
     const committedPath = pathname || "";
     const navItems = getAppNavItems(profile);
-    const warmedRoutesRef = useRef(new Set<string>());
-
-    useEffect(() => {
-        endPerfMark("app-mobile-dock-route");
-    }, [pathname]);
-
-    if (!enabled) {
-        return null;
-    }
-
-    const warmRoute = (href: string) => {
-        if (warmedRoutesRef.current.has(href)) return;
-        warmedRoutesRef.current.add(href);
-        router.prefetch(href);
-        void warmRouteAdjacentUI(href);
-    };
+    if (!enabled) return null;
 
     return (
-        <nav
+        <LayoutGroup id="app-mobile-navigation"><nav
             aria-label="Hauptnavigation"
-            className="app-mobile-dock-shell fixed inset-x-0 z-50"
+            className="app-mobile-dock-shell"
         >
-            <div className="app-mobile-dock-panel mx-auto grid grid-cols-3">
+            <div className="app-mobile-dock-panel">
                 {navItems.map((item) => {
                     const isActive = item.activePattern.test(currentPath);
                     const isCurrent = item.activePattern.test(committedPath);
@@ -49,6 +34,7 @@ export function MobileBottomDock({ profile, enabled }: { profile: Profile | null
                         <Link
                             key={item.href}
                             href={item.href}
+                            prefetch={false}
                             aria-label={item.label}
                             aria-current={isCurrent ? "page" : undefined}
                             onClick={(event) => {
@@ -67,30 +53,31 @@ export function MobileBottomDock({ profile, enabled }: { profile: Profile | null
                                     startPerfMark("app-mobile-dock-route");
                                 }
                             }}
-                            onMouseEnter={() => warmRoute(item.href)}
+                            onPointerEnter={event => { if (event.pointerType === "mouse") warmRoute(item.href); }}
                             onFocus={() => warmRoute(item.href)}
                             className={cn(
-                                "app-mobile-dock-item group relative flex min-w-0 items-center justify-center outline-none transition-[color,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100",
+                                "app-mobile-dock-item",
                                 isActive && "is-active"
                             )}
                         >
-                            <span aria-hidden="true" className="app-mobile-dock-active absolute" />
-                            <span className="app-mobile-dock-content relative z-10 flex min-w-0 flex-col items-center justify-center">
+                            {isActive && <motion.span aria-hidden="true" className="app-mobile-dock-active"
+                                layoutId="app-mobile-navigation-selection" initial={false}
+                                transition={{ type: "spring", duration: reducedMotion ? 0 : 0.32, bounce: 0 }} />}
+                            <span className="app-mobile-dock-content">
                                 <item.icon
                                     aria-hidden="true"
                                     size={19}
-                                    strokeWidth={2.25}
+                                    strokeWidth={1.7}
                                     className="app-mobile-dock-icon"
                                 />
-                                <span className="app-mobile-dock-label max-w-full truncate">
+                                <span className="app-mobile-dock-label">
                                     {item.label}
                                 </span>
                             </span>
-                            <AppNavPendingIndicator className="bottom-[0.2rem]" />
                         </Link>
                     );
                 })}
             </div>
-        </nav>
+        </nav></LayoutGroup>
     );
 }

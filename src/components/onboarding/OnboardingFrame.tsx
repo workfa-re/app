@@ -50,7 +50,6 @@ export function OnboardingFrame({ step, mode, children, onBack }: {
   const helpId = useId();
   const workspaceRef = useRef<HTMLElement>(null);
   const lastStepRef = useRef(step);
-  const [helpTopic, setHelpTopic] = useState<"general" | "guardian">("general");
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
@@ -90,13 +89,6 @@ export function OnboardingFrame({ step, mode, children, onBack }: {
     };
   }, []);
 
-  const openHelp = (topic: "general" | "guardian" = "general") => {
-    setHelpTopic(topic);
-    returnFocusRef.current = document.activeElement as HTMLElement;
-    positionHelp();
-    helpRef.current?.showPopover();
-  };
-
   const highlightGlass = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse") return;
     const target = (event.target as Element).closest<HTMLElement>("button:not(:disabled), .onboarding-brand-symbol");
@@ -120,14 +112,13 @@ export function OnboardingFrame({ step, mode, children, onBack }: {
         {step !== "welcome" && step !== "mode" && onBack && <button className="onboarding-text-button onboarding-back-button" type="button" aria-label="Zurück" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /><span>Zurück</span></button>}
         <OnboardingThemeToggle />
         <button ref={helpButtonRef} className="onboarding-text-button onboarding-help-button" type="button" aria-label="Hilfe" aria-expanded={helpOpen} aria-controls={helpId} popoverTarget={helpId}
-          onClick={() => { setHelpTopic("general"); returnFocusRef.current = helpButtonRef.current; positionHelp(); }}><CircleHelp size={21} aria-hidden="true" /></button>
+          onClick={() => { returnFocusRef.current = helpButtonRef.current; positionHelp(); }}><CircleHelp size={21} aria-hidden="true" /></button>
       </nav>
     </header>
 
     <main id="onboarding-content" className="onboarding-main">
       <section ref={workspaceRef} className="onboarding-workspace" tabIndex={-1} aria-label="Dein Einstieg bei Workfare">
         {children}
-        {(step === "welcome" || step === "mode") && <button type="button" className="onboarding-parent-link" onClick={() => openHelp("guardian")}>Einladung als Elternteil erhalten?</button>}
       </section>
     </main>
 
@@ -138,18 +129,15 @@ export function OnboardingFrame({ step, mode, children, onBack }: {
     <div ref={helpRef} id={helpId} popover="auto" className="onboarding-help-popover" role="dialog" aria-modal="false" aria-labelledby={`${helpId}-title`}>
       <div className="onboarding-help-content">
         <header>
-          <h2 id={`${helpId}-title`}>{helpTopic === "guardian" ? "Elternfreigabe" : step === "location" ? "Deine Stadt wählen" : "Hilfe & Support"}</h2>
-          <button type="button" className="onboarding-icon-button" aria-label="Hilfe schließen" popoverTarget={helpId} popoverTargetAction="hide" data-help-focus={helpTopic === "guardian" ? true : undefined}><X size={20} aria-hidden="true" /></button>
+          <h2 id={`${helpId}-title`}>{step === "location" ? "Deine Stadt wählen" : "Hilfe & Support"}</h2>
+          <button type="button" className="onboarding-icon-button" aria-label="Hilfe schließen" popoverTarget={helpId} popoverTargetAction="hide"><X size={20} aria-hidden="true" /></button>
         </header>
-        {helpTopic === "guardian" ? <div className="onboarding-guardian-help">
-          <p>Öffne den persönlichen Einladungslink deines Kindes. Darüber kannst du dich mit deinem eigenen Konto anmelden oder registrieren und die Freigabe erteilen.</p>
-          <a className="onboarding-support-action" href={`mailto:${BRAND_SUPPORT_EMAIL}`}><Headphones size={20} aria-hidden="true" /><span>Support kontaktieren</span><ArrowRight size={17} aria-hidden="true" /></a>
-        </div> : <div className="onboarding-support-actions">
+        <div className="onboarding-support-actions">
           {step === "location" && <p className="onboarding-context-help">Wähle deine Stadt aus den Suchvorschlägen. Bei Fragen hilft dir unser Support.</p>}
           <a className="onboarding-support-action" data-help-focus href={`mailto:${BRAND_SUPPORT_EMAIL}`}><Headphones size={20} aria-hidden="true" /><span>Support kontaktieren</span><ArrowRight size={17} aria-hidden="true" /></a>
           <button type="button" className="onboarding-support-action" disabled><BookOpen size={20} aria-hidden="true" /><span>FAQs lesen<small>Bald verfügbar</small></span></button>
           <button type="button" className="onboarding-support-action" disabled><Route size={20} aria-hidden="true" /><span>Begleitete Registrierung<small>Bald verfügbar</small></span></button>
-        </div>}
+        </div>
       </div>
     </div>
 

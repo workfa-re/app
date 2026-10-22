@@ -1,46 +1,45 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import {
     ArrowDown,
     ArrowLeft,
-    BriefcaseBusiness,
     CalendarDays,
     CheckCircle2,
-    Clock3,
-    Euro,
     Flag,
     Info,
-    ListOrdered,
-    MapPin,
     MessageCircleWarning,
-    Repeat2,
     RotateCcw,
     Send,
     ShieldCheck,
     Trash2,
     UserRound,
-    Wifi,
     WifiOff,
     X,
     XCircle,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { UserProfileModal, type VisibleProfile } from "@/components/profile/UserProfileModal";
 import {
     type ActivityMessage,
+    type ActivityFailedSend,
     type ActivityRole,
     WRITABLE_ACTIVITY_STATUSES,
     buildActivityTimeline,
     formatChatDateLabel,
     formatClosureReason,
     getActivityStatusMeta,
+    getActivityStage,
     getProfileInitials,
     resolveReopenApplicationPatch,
 } from "@/lib/activity/chat";
 import { markApplicationMessagesRead } from "@/app/app-home/applications/actions";
 import { cn } from "@/lib/utils";
+import styles from "./ActivityWorkspace.module.css";
+import { useActivityDialogFocus } from "./useActivityDialogFocus";
+import { ChatDetails, HighlightedChatText } from "./ChatDetails";
+import { ChatAppointments } from "./ChatAppointments";
+import detailsStyles from "./ChatDetails.module.css";
 
 type RealtimeState = "connecting" | "live" | "delayed";
 
@@ -61,7 +60,6 @@ interface ApplicationChatProps {
     onReopen?: () => Promise<any>;
     onRequestReopen?: (message: string) => Promise<any>;
     onRespondReopenRequest?: (requestId: string, accept: boolean, reason?: string) => Promise<any>;
-    onPromote?: (reason: string) => Promise<any>;
     onComplete?: (reason?: string) => Promise<any>;
     onReport?: (input: {
         applicationId: string;
@@ -72,10 +70,14 @@ interface ApplicationChatProps {
         reopenRequestId?: string | null;
     }) => Promise<any>;
     onSendMessage: (applicationId: string, message: string) => Promise<any>;
+    draftValue?: string;
+    failedSends?: readonly ActivityFailedSend[];
+    onSendFailure?: (applicationId: string, failure: ActivityFailedSend) => void;
+    onRecoverFailedSend?: (applicationId: string, failureId: string) => void;
+    onDraftChange?: (applicationId: string, value: string, onlyIfEmpty?: boolean) => void;
     onConversationRead?: () => void;
     onClose?: () => void;
     embedded?: boolean;
-    contextPanel?: boolean;
     premiumComposer?: boolean;
     readOnly?: boolean;
 }
@@ -173,21 +175,28 @@ export function ApplicationChat({
     onReopen,
     onRequestReopen,
     onRespondReopenRequest,
-    onPromote,
     onComplete,
     onReport,
     onSendMessage,
+    draftValue,
+    failedSends,
+    onSendFailure,
+    onRecoverFailedSend,
+    onDraftChange,
     onConversationRead,
     onClose,
     embedded = false,
-    contextPanel: _contextPanel = true,
     premiumComposer: _premiumComposer = false,
     readOnly = false,
 }: ApplicationChatProps) {
-    void _contextPanel;
     void _premiumComposer;
 
-    const [draft, setDraft] = useState("");
+    const [localDraft, setLocalDraft] = useState("");
+    const draft = draftValue ?? localDraft;
+    const setDraft = useCallback((value: string, onlyIfEmpty = false) => {
+        setLocalDraft(current => onlyIfEmpty && current ? current : value);
+        onDraftChange?.(application.id, value, onlyIfEmpty);
+    }, [application.id, onDraftChange]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(knownCurrentUserId ?? null);
     const [messages, setMessages] = useState<ActivityMessage[]>([]);
     const [loadingMessages, setLoadingMessages] = useState(true);
@@ -196,7 +205,10 @@ export function ApplicationChat({
     const [sending, setSending] = useState(false);
     const [realtimeState, setRealtimeState] = useState<RealtimeState>("connecting");
     const [detailsOpen, setDetailsOpen] = useState(false);
-    const [profileOpen, setProfileOpen] = useState(false);
+    const [compactDetails, setCompactDetails] = useState(true);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [messageHighlight, setMessageHighlight] = useState<{ id: string; query: string } | null>(null);
     const [actionOpen, setActionOpen] = useState(false);
     const [actionReason, setActionReason] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
@@ -217,10 +229,6 @@ export function ApplicationChat({
     const [requestResponseError, setRequestResponseError] = useState<string | null>(null);
     const [declineRequest, setDeclineRequest] = useState<ReopenRequest | null>(null);
     const [declineReason, setDeclineReason] = useState("");
-    const [promoteOpen, setPromoteOpen] = useState(false);
-    const [promoteReason, setPromoteReason] = useState("");
-    const [promotePending, setPromotePending] = useState(false);
-    const [promoteError, setPromoteError] = useState<string | null>(null);
     const [completeOpen, setCompleteOpen] = useState(false);
     const [completeReason, setCompleteReason] = useState("");
     const [completePending, setCompletePending] = useState(false);
@@ -237,7 +245,11 @@ export function ApplicationChat({
     const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
     const [authorizedJobLocation, setAuthorizedJobLocation] = useState<AuthorizedJobLocation | null>(null);
 
+    const detailsDialogRef = useActivityDialogFocus<HTMLElement>(detailsOpen, compactDetails);
+    const detailsTriggerRef = useRef<HTMLButtonElement>(null);
     const messagesViewportRef = useRef<HTMLDivElement>(null);
+    const composerRef = useRef<HTMLTextAreaElement>(null);
+    const messageElementsRef = useRef(new Map<string, HTMLDivElement>());
     const typingChannelRef = useRef<ReturnType<typeof supabaseBrowser.channel> | null>(null);
     const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const typingExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -248,17 +260,30 @@ export function ApplicationChat({
     const requestGenerationRef = useRef(0);
 
     useEffect(() => {
+        const media = window.matchMedia("(min-width: 1280px)");
+        const update = () => setCompactDetails(!media.matches);
+        update();
+        media.addEventListener("change", update);
+        return () => media.removeEventListener("change", update);
+    }, []);
+
+    useEffect(() => {
+        if (!detailsOpen || !compactDetails) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => { document.body.style.overflow = previous; };
+    }, [compactDetails, detailsOpen]);
+
+    useEffect(() => {
         if (!detailsOpen) return;
 
         const handleEscape = (event: KeyboardEvent) => {
             if (
                 event.key !== "Escape"
-                || profileOpen
                 || actionOpen
                 || scheduleOpen
                 || reopenDialogOpen
                 || declineRequest
-                || promoteOpen
                 || completeOpen
                 || reportTarget
             ) return;
@@ -272,8 +297,6 @@ export function ApplicationChat({
         actionOpen,
         completeOpen,
         detailsOpen,
-        profileOpen,
-        promoteOpen,
         declineRequest,
         reopenDialogOpen,
         reportTarget,
@@ -282,7 +305,7 @@ export function ApplicationChat({
 
     useEffect(() => {
         const jobId = liveApplication?.job?.id ?? liveApplication?.job_id;
-        if (!detailsOpen || !jobId) return;
+        if (!detailsOpen || !jobId || readOnly) return;
 
         let cancelled = false;
         void supabaseBrowser
@@ -302,15 +325,15 @@ export function ApplicationChat({
         return () => {
             cancelled = true;
         };
-    }, [detailsOpen, liveApplication?.job?.id, liveApplication?.job_id, liveApplication?.status]);
+    }, [detailsOpen, liveApplication?.job?.id, liveApplication?.job_id, liveApplication?.status, readOnly]);
 
     useEffect(() => {
         setLiveApplication((current: any) => ({
             ...current,
             ...application,
-            agreement: application?.agreement ?? current?.agreement ?? null,
-            scheduled_for: application?.scheduled_for ?? current?.scheduled_for ?? null,
-            agreed_at: application?.agreed_at ?? current?.agreed_at ?? null,
+            agreement: application?.agreement !== undefined ? application.agreement : current?.agreement ?? null,
+            scheduled_for: application?.scheduled_for !== undefined ? application.scheduled_for : current?.scheduled_for ?? null,
+            agreed_at: application?.agreed_at !== undefined ? application.agreed_at : current?.agreed_at ?? null,
         }));
         setReopenRequests(application?.reopen_requests ?? []);
         setScheduleValue(toDateTimeLocalValue(application?.scheduled_for));
@@ -318,9 +341,13 @@ export function ApplicationChat({
     }, [application]);
 
     useEffect(() => {
-        setDraft("");
+        setLocalDraft("");
         setSendError(null);
         setDetailsOpen(false);
+        setSearchOpen(false);
+        setSearchQuery("");
+        setMessageHighlight(null);
+        messageElementsRef.current.clear();
         setActionOpen(false);
         setScheduleOpen(false);
         setActionReason("");
@@ -332,9 +359,6 @@ export function ApplicationChat({
         setRequestResponseError(null);
         setDeclineRequest(null);
         setDeclineReason("");
-        setPromoteOpen(false);
-        setPromoteReason("");
-        setPromoteError(null);
         setCompleteOpen(false);
         setCompleteReason("");
         setCompleteError(null);
@@ -368,6 +392,12 @@ export function ApplicationChat({
         nearBottomRef.current = true;
         setShowNewMessages(false);
     }, []);
+
+    useEffect(() => {
+        if (compactDetails || !nearBottomRef.current) return;
+        const frame = requestAnimationFrame(() => scrollToEnd("auto"));
+        return () => cancelAnimationFrame(frame);
+    }, [compactDetails, detailsOpen, scrollToEnd]);
 
     const markRead = useCallback(async () => {
         if (readOnly) return;
@@ -520,8 +550,10 @@ export function ApplicationChat({
         : headerProfile?.full_name || "Bewerber";
     const jobTitle = liveApplication?.job?.title || "Job-Angebot";
     const status = liveApplication?.status;
-    const statusMeta = getActivityStatusMeta(status);
-    const conversationState = liveApplication?.conversation_state ?? "open";
+    const statusMeta = getActivityStatusMeta(status, liveApplication?.close_action);
+    const historicalRequest = status === "waitlisted" || liveApplication?.close_action === "waitlist_retired";
+    const conversationState = historicalRequest ? "closed" : liveApplication?.conversation_state ?? "open";
+    const stage = getActivityStage({ ...liveApplication, conversation_state: conversationState }, currentUserRole);
     const isPrimary = Boolean(liveApplication?.is_primary);
     const isWritable = !readOnly
         && conversationState === "open"
@@ -529,7 +561,8 @@ export function ApplicationChat({
         && WRITABLE_ACTIVITY_STATUSES.has(status);
     const canCloseApplication = !readOnly
         && conversationState === "open"
-        && ["submitted", "negotiating", "waitlisted", "accepted"].includes(status)
+        && isPrimary
+        && ["submitted", "negotiating", "accepted"].includes(status)
         && (currentUserRole === "seeker" ? Boolean(onWithdraw) : Boolean(onReject));
     const canSchedule = currentUserRole === "provider"
         && !readOnly
@@ -537,11 +570,6 @@ export function ApplicationChat({
         && conversationState === "open"
         && isPrimary
         && ["submitted", "negotiating", "accepted"].includes(status);
-    const canPromote = currentUserRole === "provider"
-        && !readOnly
-        && Boolean(onPromote)
-        && conversationState === "open"
-        && status === "waitlisted";
     const canComplete = currentUserRole === "provider"
         && !readOnly
         && Boolean(onComplete)
@@ -549,6 +577,7 @@ export function ApplicationChat({
         && status === "accepted"
         && liveApplication?.engagement?.status === "active";
     const canDirectReopen = !readOnly
+        && !historicalRequest
         && conversationState === "closed"
         && liveApplication?.closed_by === currentUserId
         && Boolean(onReopen);
@@ -559,6 +588,7 @@ export function ApplicationChat({
         && request.requested_by === currentUserId
     ));
     const canRequestReopen = !readOnly
+        && !historicalRequest
         && conversationState === "closed"
         && manualClosure
         && Boolean(liveApplication?.closed_by)
@@ -567,10 +597,34 @@ export function ApplicationChat({
         && Boolean(onRequestReopen);
     const appointments = (liveApplication?.appointments ?? liveApplication?.engagement?.appointments ?? []) as any[];
     const scheduleLabel = formatSchedule(liveApplication?.scheduled_for || liveApplication?.agreement?.starts_at);
-    const waitlistPosition = Number(liveApplication?.my_waitlist_position);
-    const waitlistPositionLabel = Number.isFinite(waitlistPosition) && waitlistPosition > 0
-        ? ` · Position ${waitlistPosition}`
-        : "";
+    const closeDetailsForTool = () => {
+        if (compactDetails) setDetailsOpen(false);
+    };
+
+    const openScheduleDialog = () => {
+        closeDetailsForTool();
+        setScheduleError(null);
+        const addingRecurringAppointment = liveApplication?.job?.job_kind === "recurring" && status === "accepted";
+        setScheduleValue(addingRecurringAppointment ? "" : toDateTimeLocalValue(liveApplication?.scheduled_for));
+        setScheduleNote(addingRecurringAppointment ? "" : liveApplication?.agreement?.note ?? "");
+        setScheduleOpen(true);
+    };
+
+    const jumpToMessage = (id: string, query: string) => {
+        setMessageHighlight({ id, query: query.trim() });
+        closeDetailsForTool();
+        requestAnimationFrame(() => {
+            const element = messageElementsRef.current.get(id);
+            const viewport = messagesViewportRef.current;
+            if (!element || !viewport) return;
+            const top = element.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+            const destination = Math.max(0, top - viewport.clientHeight / 3);
+            const longJump = Math.abs(viewport.scrollTop - destination) > viewport.clientHeight * 2;
+            viewport.scrollTo({ top: destination, behavior: longJump || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+            nearBottomRef.current = false;
+            element.focus({ preventScroll: true });
+        });
+    };
 
     const broadcastTyping = useCallback((isTyping: boolean) => {
         const channel = typingChannelRef.current;
@@ -613,7 +667,7 @@ export function ApplicationChat({
             broadcastTyping(false);
             typingIdleTimerRef.current = null;
         }, 1_800);
-    }, [broadcastTyping, stopTyping]);
+    }, [broadcastTyping, setDraft, stopTyping]);
 
     useEffect(() => {
         setPartnerTyping(false);
@@ -685,6 +739,10 @@ export function ApplicationChat({
     const handleSend = async () => {
         const content = draft.trim();
         if (!content || sending || !isWritable || !currentUserId) return;
+        if (content.length > 1200) {
+            setSendError("Kürze den Entwurf auf höchstens 1.200 Zeichen.");
+            return;
+        }
 
         stopTyping();
 
@@ -716,8 +774,13 @@ export function ApplicationChat({
             ));
         } catch (error) {
             setMessages((current) => current.filter((message) => message.id !== tempId));
-            setDraft(content);
-            setSendError(error instanceof Error ? error.message : "Nachricht konnte nicht gesendet werden.");
+            const errorMessage = error instanceof Error ? error.message : "Nachricht konnte nicht gesendet werden.";
+            if (onSendFailure) {
+                onSendFailure(liveApplication.id, { id: tempId, content, error: errorMessage });
+            } else {
+                setDraft(content, true);
+                setSendError(errorMessage);
+            }
         } finally {
             setSending(false);
         }
@@ -753,10 +816,6 @@ export function ApplicationChat({
     };
 
     const handleDestructiveAction = async () => {
-        if (currentUserRole === "provider" && !actionReason.trim()) {
-            setActionError("Bitte gib einen kurzen Grund an.");
-            return;
-        }
         setActionPending(true);
         setActionError(null);
         try {
@@ -764,12 +823,13 @@ export function ApplicationChat({
             if (currentUserRole === "provider" && onReject) await onReject(actionReason.trim());
             setLiveApplication((current: any) => ({
                 ...current,
-                status: currentUserRole === "seeker" ? "withdrawn" : "rejected",
+                status: status === "accepted" ? "cancelled" : currentUserRole === "seeker" ? "withdrawn" : "rejected",
                 conversation_state: "closed",
                 closed_by: currentUserId,
                 closed_at: new Date().toISOString(),
-                closed_reason: actionReason.trim() || "Kein Interesse mehr",
-                close_action: currentUserRole === "seeker" ? "seeker_withdrew" : "provider_rejected",
+                closed_reason: actionReason.trim() || (status === "accepted" ? "Zusammenarbeit abgesagt." : currentUserRole === "provider" ? "Vom Anbieter abgelehnt." : "Bewerbung zurückgezogen."),
+                close_action: status === "accepted" ? "engagement_cancelled" : currentUserRole === "seeker" ? "seeker_withdrew" : "provider_rejected",
+                engagement: status === "accepted" && current.engagement ? { ...current.engagement, status: "cancelled" } : current.engagement,
                 closure_version: Number(current.closure_version || 0) + 1,
                 is_primary: false,
             }));
@@ -864,6 +924,7 @@ export function ApplicationChat({
     };
 
     const handleReopenResponse = async (request: ReopenRequest, accept: boolean, reason = "") => {
+        if (readOnly) return;
         if (!onRespondReopenRequest || requestResponsePending) return;
         setRequestResponsePending(request.id);
         setRequestResponseError(null);
@@ -886,34 +947,6 @@ export function ApplicationChat({
             setRequestResponseError(error instanceof Error ? error.message : "Die Anfrage konnte nicht beantwortet werden.");
         } finally {
             setRequestResponsePending(null);
-        }
-    };
-
-    const handlePromote = async () => {
-        if (!onPromote || promotePending) return;
-        const reason = promoteReason.trim();
-        if (reason.length < 20) {
-            setPromoteError("Bitte begründe die Ausnahme in mindestens 20 Zeichen.");
-            return;
-        }
-        setPromotePending(true);
-        setPromoteError(null);
-        try {
-            const result = await onPromote(reason);
-            if (result?.error) throw new Error(result.error);
-            setLiveApplication((current: any) => ({
-                ...current,
-                status: "negotiating",
-                is_primary: true,
-                promoted_at: new Date().toISOString(),
-                promotion_reason: reason,
-            }));
-            setPromoteOpen(false);
-            setPromoteReason("");
-        } catch (error) {
-            setPromoteError(error instanceof Error ? error.message : "Die Bewerbung konnte nicht vorgezogen werden.");
-        } finally {
-            setPromotePending(false);
         }
     };
 
@@ -944,7 +977,7 @@ export function ApplicationChat({
     };
 
     const handleReport = async () => {
-        if (!onReport || !reportTarget || reportPending) return;
+        if (readOnly || !onReport || !reportTarget || reportPending) return;
         setReportPending(true);
         setReportError(null);
         try {
@@ -969,64 +1002,57 @@ export function ApplicationChat({
     if (!application) return null;
 
     return (
-        <div className={cn("application-chat activity-modern-chat", embedded ? "" : "activity-modern-chat-modal")}>
-            <UserProfileModal
-                isOpen={profileOpen}
-                onClose={() => setProfileOpen(false)}
-                profile={(headerProfile ?? null) as VisibleProfile | null}
-                isStaff={Boolean(headerProfile?.is_staff)}
-            />
+        <MotionConfig reducedMotion="user">
+        <div className={cn(styles.chat, detailsStyles.workspace, "application-chat activity-modern-chat", embedded ? "" : "activity-modern-chat-modal")} data-ui="conversation" data-chat-tools data-details-open={detailsOpen}
+            onKeyDown={event => {
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+                    event.preventDefault();
+                    setSearchOpen(true);
+                    setDetailsOpen(true);
+                }
+            }}>
 
+            <div className={detailsStyles.conversation} inert={compactDetails && detailsOpen}>
             <header className="activity-chat-header">
                 {onClose ? (
-                    <button type="button" onClick={onClose} className="activity-chat-back" aria-label={embedded ? "Zur Gesprächsübersicht" : "Chat schließen"}>
+                    <button type="button" onClick={onClose} className="activity-chat-back" aria-label={embedded ? currentUserRole === "provider" ? "Zur Bewerbungsübersicht" : "Zur Jobübersicht" : "Chat schließen"}>
                         {embedded ? <ArrowLeft size={20} /> : <X size={20} />}
                     </button>
                 ) : null}
 
-                <button
-                    type="button"
-                    className="activity-chat-person"
-                    onClick={() => setProfileOpen(true)}
-                    aria-label={`Profil von ${headerName} öffnen`}
-                    disabled={!headerProfile?.id}
-                >
+                <div className="activity-chat-person">
                     <span className="activity-chat-avatar" aria-hidden="true">
                         {headerProfile?.avatar_url ? <img src={headerProfile.avatar_url} alt="" /> : getProfileInitials(headerName)}
                     </span>
                     <span>
-                        <strong>{headerName}</strong>
-                        <small>{jobTitle}</small>
+                        <strong>{jobTitle}</strong>
+                        <small>{headerName}</small>
                     </span>
-                </button>
+                </div>
 
                 <div className="activity-chat-header-meta">
                     <span className="activity-chat-status" data-tone={statusMeta.tone}>
                         <span aria-hidden="true" />
-                        {statusMeta.label}
+                        {stage.label}
                     </span>
-                    <span
+                    {!readOnly && realtimeState === "delayed" && <span
                         className="activity-realtime-state"
-                        data-state={readOnly ? "preview" : realtimeState}
-                        title={readOnly ? "Vorschau ohne Live-Aktionen" : realtimeState === "live" ? "Live verbunden" : realtimeState === "connecting" ? "Verbindung wird hergestellt" : "Verbindung verzögert"}
+                        data-state="delayed"
+                        title="Live-Verbindung verzögert"
                     >
-                        {!readOnly && realtimeState === "live" ? <Wifi size={13} /> : <WifiOff size={13} />}
-                        <span>{readOnly ? "Vorschau" : realtimeState === "live" ? "Live" : realtimeState === "connecting" ? "Verbinden" : "Verzögert"}</span>
-                    </span>
+                        <WifiOff size={13} />
+                        <span>Verzögert</span>
+                    </span>}
                 </div>
 
                 <div className="activity-chat-actions">
-                    {canSchedule ? (
+                    {canComplete && <button type="button" className="activity-schedule-button" aria-label="Zusammenarbeit abschließen" onClick={() => { closeDetailsForTool(); setCompleteReason(""); setCompleteError(null); setCompleteOpen(true); }}><CheckCircle2 size={17} /><span>Abschließen</span></button>}
+                    {canSchedule && status !== "accepted" ? (
                         <button
                             type="button"
                             className="activity-schedule-button"
-                            onClick={() => {
-                                setScheduleError(null);
-                                const addingRecurringAppointment = liveApplication?.job?.job_kind === "recurring" && status === "accepted";
-                                setScheduleValue(addingRecurringAppointment ? "" : toDateTimeLocalValue(liveApplication?.scheduled_for));
-                                setScheduleNote(addingRecurringAppointment ? "" : liveApplication?.agreement?.note ?? "");
-                                setScheduleOpen(true);
-                            }}
+                            aria-label="Termin vereinbaren oder ändern"
+                            onClick={openScheduleDialog}
                         >
                             <CalendarDays size={17} />
                             <span>
@@ -1038,53 +1064,23 @@ export function ApplicationChat({
                             </span>
                         </button>
                     ) : null}
-                    <button type="button" className="activity-icon-button" onClick={() => setDetailsOpen(true)} aria-label="Details zum Gespräch öffnen">
-                        <Info size={19} />
+                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen">
+                        <Info size={18} /><span>Details</span>
                     </button>
                 </div>
             </header>
 
-            {isPrimary && ["submitted", "negotiating"].includes(status) ? (
-                <div className="activity-chat-notice" data-tone="primary">
-                    <ListOrdered size={18} />
-                    <div>
-                        <strong>{currentUserRole === "seeker" ? "Ihr seid im Gespräch" : `${headerName} ist im Gespräch`}</strong>
-                        <span>
-                            {currentUserRole === "seeker"
-                                ? "Ihr könnt euch hier direkt abstimmen."
-                                : "Dieser Austausch ist aktuell geöffnet."}
-                        </span>
-                    </div>
-                </div>
-            ) : null}
-
-            {status === "waitlisted" ? (
-                <div className="activity-chat-notice" data-tone="warning">
-                    <Clock3 size={18} />
-                    <div>
-                        <strong>
-                            {currentUserRole === "seeker"
-                                ? `Auf der Warteliste${waitlistPositionLabel}`
-                                : `Warteliste${waitlistPositionLabel}`}
-                        </strong>
-                        <span>
-                            {currentUserRole === "seeker"
-                                ? "Du erhältst automatisch Bescheid, sobald das Gespräch für dich geöffnet wird."
-                                : "Der Chat wird automatisch geöffnet, sobald diese Bewerbung nachrückt."}
-                        </span>
-                    </div>
-                    {canPromote ? (
-                        <button type="button" onClick={() => setPromoteOpen(true)}>Ausnahmsweise vorziehen</button>
-                    ) : null}
-                </div>
-            ) : null}
+            {canCloseApplication && status !== "accepted" && <div className="activity-reservation-control">
+                <span>Reserviert · Termin abstimmen</span>
+                <button type="button" aria-label={currentUserRole === "provider" ? "Bewerbung ablehnen und Job freigeben" : "Bewerbung zurückziehen"} onClick={() => { setActionReason(""); setActionError(null); setActionOpen(true); }}>{currentUserRole === "provider" ? "Job freigeben" : "Zurückziehen"}</button>
+            </div>}
 
             {conversationState === "closed" ? (
                 <div className="activity-chat-notice" data-tone="closed">
                     <MessageCircleWarning size={18} />
                     <div>
-                        <strong>Gespräch geschlossen</strong>
-                        <span>{formatClosureReason(liveApplication.closed_reason)}</span>
+                        <strong>{historicalRequest ? "Beendete Anfrage" : "Gespräch geschlossen"}</strong>
+                        <span>{historicalRequest ? stage.hint : formatClosureReason(liveApplication.closed_reason)}</span>
                     </div>
                 </div>
             ) : null}
@@ -1132,26 +1128,28 @@ export function ApplicationChat({
                             const isOwnMessage = timelineMessage.sender_id === currentUserId;
 
                             return (
-                                <div key={timelineEntry.key} className="activity-message-entry">
+                                <div key={timelineEntry.key} className={cn("activity-message-entry", detailsStyles.messageTarget)}
+                                    ref={element => { if (element) messageElementsRef.current.set(timelineMessage.id, element); else messageElementsRef.current.delete(timelineMessage.id); }}
+                                    tabIndex={-1} data-message-id={timelineMessage.id} data-search-selected={messageHighlight?.id === timelineMessage.id}>
                                     {dateSeparator}
                                     {timelineMessage.isSystemMessage ? (
                                         <div className="activity-system-message">
                                             <CheckCircle2 size={14} />
-                                            <span>{timelineMessage.content}</span>
+                                            <span><HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} /></span>
                                             <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
                                         </div>
                                     ) : (
                                         <div className={cn("activity-message-row", isOwnMessage ? "is-own" : "is-other")}>
                                             <div className="activity-message-wrap">
                                                 <div className="activity-message-bubble">
-                                                    {timelineMessage.content}
+                                                    <HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} />
                                                 </div>
                                                 <div className="activity-message-meta">
                                                     {timelineMessage.isApplicationMessage ? <span>Bewerbung</span> : null}
                                                     <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
                                                     {timelineMessage.is_temp ? <span>Wird gesendet</span> : null}
                                                     {!timelineMessage.is_temp && isOwnMessage && timelineMessage.read_at ? <span>Gelesen</span> : null}
-                                                    {!timelineMessage.is_temp && !isOwnMessage && onReport ? (
+                                                    {!readOnly && !timelineMessage.is_temp && !isOwnMessage && onReport ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
@@ -1209,7 +1207,7 @@ export function ApplicationChat({
                                                         ? "Abgelehnt"
                                                         : "Abgelaufen"}
                                         </span>
-                                        {request.status === "pending" && isRecipient && onRespondReopenRequest ? (
+                                        {!readOnly && !historicalRequest && request.status === "pending" && isRecipient && onRespondReopenRequest ? (
                                             <div>
                                                 <button
                                                     type="button"
@@ -1232,7 +1230,7 @@ export function ApplicationChat({
                                                 </button>
                                             </div>
                                         ) : null}
-                                        {!isRequester && onReport ? (
+                                        {!readOnly && !isRequester && onReport ? (
                                             <button
                                                 type="button"
                                                 className="activity-inline-report"
@@ -1283,11 +1281,33 @@ export function ApplicationChat({
                 ) : null}
             </AnimatePresence>
 
+            {Boolean(failedSends?.length) && (
+                <aside className="activity-send-failures" aria-label="Nicht gesendete Nachrichten">
+                    {failedSends?.map(failure => {
+                        const alreadyRestored = draft === failure.content;
+                        return <div className="activity-send-failure" key={failure.id} role="status">
+                            <strong>Nachricht nicht gesendet</strong>
+                            <p>{failure.error}</p>
+                            {alreadyRestored
+                                ? <p>Der Text steht wieder in deinem Entwurf.</p>
+                                : <blockquote>{failure.content}</blockquote>}
+                            {isWritable && onRecoverFailedSend && <button type="button" onClick={() => {
+                                onRecoverFailedSend(liveApplication.id, failure.id);
+                                requestAnimationFrame(() => composerRef.current?.focus());
+                            }}>
+                                {alreadyRestored ? "Hinweis schließen" : draft ? "Zum Entwurf hinzufügen" : "In Entwurf übernehmen"}
+                            </button>}
+                        </div>;
+                    })}
+                </aside>
+            )}
+
             {isWritable ? (
                 <footer className="application-chat-inputbar activity-chat-composer">
                     {sendError ? <div className="activity-composer-error" role="alert">{sendError}</div> : null}
                     <div className="activity-composer-box">
                         <textarea
+                            ref={composerRef}
                             value={draft}
                             maxLength={1200}
                             rows={1}
@@ -1312,7 +1332,7 @@ export function ApplicationChat({
                         <button
                             type="button"
                             onClick={() => void handleSend()}
-                            disabled={!draft.trim() || sending}
+                            disabled={!draft.trim() || draft.trim().length > 1200 || sending}
                             className="activity-send-button"
                             aria-label="Nachricht senden"
                         >
@@ -1327,30 +1347,33 @@ export function ApplicationChat({
                             </span>
                         ) : null}
                     </div>
-                    <div className="activity-composer-hint">Enter zum Senden · Shift + Enter für eine neue Zeile</div>
                 </footer>
             ) : (
                 <footer className="application-chat-inputbar activity-chat-composer activity-locked-composer">
                     <div>
                         <span className="activity-locked-icon">
-                            {status === "waitlisted" ? <Clock3 size={18} /> : <MessageCircleWarning size={18} />}
+                            <MessageCircleWarning size={18} />
                         </span>
                         <div>
                             <strong>
                                 {readOnly
                                     ? "Vorschau ohne Aktionen"
-                                    : status === "waitlisted"
-                                        ? "Chat auf der Warteliste pausiert"
-                                        : "Keine normalen Nachrichten möglich"}
+                                    : historicalRequest
+                                        ? "Beendete Anfrage"
+                                        : stage.label}
                             </strong>
                             <span>
-                                {status === "waitlisted"
-                                    ? "Deine Bewerbung ist angekommen. Der Chat öffnet sich automatisch, sobald du nachrückst."
+                                {readOnly
+                                    ? "Nachrichten und Details werden hier nur angezeigt."
+                                    : historicalRequest
+                                    ? stage.hint
                                     : currentClosureRequest?.status === "pending"
                                         ? "Deine einmalige Öffnungsanfrage wurde gesendet."
+                                        : status === "completed"
+                                            ? "Der Job ist abgeschlossen. Du kannst den Verlauf weiterlesen."
                                         : liveApplication?.close_action === "job_assigned"
                                             ? "Der Job wurde verbindlich anderweitig vergeben."
-                                            : "Nur die schließende Partei kann den Chat direkt wieder öffnen."}
+                                            : "Der Chat ist geschlossen. Dein Verlauf bleibt erhalten."}
                             </span>
                         </div>
                     </div>
@@ -1368,153 +1391,66 @@ export function ApplicationChat({
                                 <MessageCircleWarning size={15} /> Einmalige Öffnungsanfrage
                             </button>
                         ) : null}
-                        {canPromote ? (
-                            <button type="button" onClick={() => setPromoteOpen(true)}>
-                                <ListOrdered size={15} /> Ausnahmsweise vorziehen
-                            </button>
-                        ) : null}
+
                     </div>
                     {reopenError ? <div className="activity-composer-error" role="alert">{reopenError}</div> : null}
                 </footer>
             )}
 
-            <AnimatePresence initial={false}>
-                {detailsOpen ? (
-                    <>
-                        <motion.button
-                            type="button"
-                            className="activity-drawer-backdrop"
-                            aria-label="Details schließen"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setDetailsOpen(false)}
-                        />
-                        <motion.aside
-                            className="activity-details-drawer"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-label="Gesprächsdetails"
-                            initial={{ opacity: 0, x: 16 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 12 }}
-                            transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-                        >
-                            <div className="activity-drawer-header">
-                                <div>
-                                    <strong>Details</strong>
-                                    <span>{jobTitle}</span>
-                                </div>
-                                <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Details schließen"><X size={19} /></button>
-                            </div>
-
-                            <button type="button" className="activity-drawer-profile" onClick={() => setProfileOpen(true)}>
-                                <span className="activity-chat-avatar" aria-hidden="true">
-                                    {headerProfile?.avatar_url ? <img src={headerProfile.avatar_url} alt="" /> : getProfileInitials(headerName)}
-                                </span>
-                                <span><strong>{headerName}</strong><small>Profil ansehen</small></span>
-                                <UserRound size={18} />
-                            </button>
-
-                            <div className="activity-detail-section">
-                                <h3>Auftrag</h3>
-                                <DetailRow icon={<BriefcaseBusiness size={17} />} label="Job" value={jobTitle} />
-                                <DetailRow
-                                    icon={liveApplication.job?.job_kind === "recurring" ? <Repeat2 size={17} /> : <CalendarDays size={17} />}
-                                    label="Jobart"
-                                    value={liveApplication.job?.job_kind === "recurring"
-                                        ? `Regelmäßig · ${formatRecurrence(liveApplication.job?.recurrence_rule)}`
-                                        : "Einmaliger Auftrag"}
-                                />
-                                {liveApplication.job?.wage_hourly ? <DetailRow icon={<Euro size={17} />} label="Vergütung" value={`${liveApplication.job.wage_hourly} € / Std.`} /> : null}
-                                {liveApplication.job?.public_location_label ? <DetailRow icon={<MapPin size={17} />} label="Ort" value={liveApplication.job.public_location_label} /> : null}
-                                {authorizedJobLocation?.address_full ? (
-                                    <DetailRow icon={<ShieldCheck size={17} />} label="Treffpunkt" value={authorizedJobLocation.address_full} />
-                                ) : null}
-                                {scheduleLabel ? <DetailRow icon={<CalendarDays size={17} />} label="Termin" value={scheduleLabel} /> : null}
-                            </div>
-
-                            {appointments.length > 0 ? (
-                                <div className="activity-detail-section activity-appointment-list">
-                                    <h3>{liveApplication.job?.job_kind === "recurring" ? "Termine der Zusammenarbeit" : "Termin"}</h3>
-                                    {appointments.map((appointment) => (
-                                        <div key={appointment.id} className="activity-appointment-item" data-status={appointment.status}>
-                                            <CalendarDays size={16} />
-                                            <div>
-                                                <strong>{formatSchedule(appointment.starts_at)}</strong>
-                                                <span>
-                                                    {appointment.status === "scheduled" ? "Geplant" : appointment.status === "completed" ? "Erledigt" : "Abgesagt"}
-                                                    {appointment.note ? ` · ${appointment.note}` : ""}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : null}
-
-                            <div className="activity-pay-placeholder">
-                                <span><ShieldCheck size={18} /></span>
-                                <div><strong>Workfare Pay</strong><small>Sichere Bezahlung direkt über Workfare</small></div>
-                                <em>In Entwicklung</em>
-                            </div>
-
-                            <div className="activity-detail-actions">
-                                {canComplete ? (
-                                    <button type="button" onClick={() => {
-                                        setCompleteError(null);
-                                        setCompleteOpen(true);
-                                    }}>
-                                        <CheckCircle2 size={17} /> Zusammenarbeit abschließen
-                                    </button>
-                                ) : null}
-                                {canDirectReopen ? (
-                                    <button type="button" onClick={() => void handleDirectReopen()} disabled={directReopenPending}>
-                                        <RotateCcw size={17} /> Gespräch wieder öffnen
-                                    </button>
-                                ) : null}
-                                {onReport && headerProfile?.id ? (
-                                    <button type="button" className="is-muted" onClick={() => {
-                                        setReportTarget({
-                                            reportedUserId: headerProfile.id,
-                                            reportedPersonName: headerName,
-                                            context: {
-                                                kind: "conversation",
-                                                label: "Gesamter Chat als Kontext",
-                                                content: `Der vollständige Gesprächsverlauf zu „${jobTitle}“ wird bei der Prüfung berücksichtigt.`,
-                                            },
-                                        });
-                                        setReportReason("inappropriate");
-                                        setReportDetails("");
-                                        setReportSuccess(false);
-                                        setReportError(null);
-                                    }}>
-                                        <Flag size={17} /> Person melden
-                                    </button>
-                                ) : null}
-                            </div>
-
-                            {canCloseApplication ? (
-                                <div className="activity-detail-danger-zone">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setActionReason("");
-                                            setActionError(null);
-                                            setActionOpen(true);
-                                        }}
-                                    >
-                                        {currentUserRole === "seeker" ? <Trash2 size={17} /> : <XCircle size={17} />}
-                                        {currentUserRole === "seeker"
-                                            ? status === "accepted"
-                                                ? "Zusammenarbeit absagen"
-                                                : status === "waitlisted" ? "Warteliste verlassen" : "Bewerbung zurückziehen"
-                                            : status === "accepted" ? "Zusammenarbeit absagen" : "Bewerbung ablehnen"}
-                                    </button>
-                                </div>
-                            ) : null}
-                        </motion.aside>
-                    </>
-                ) : null}
+            </div>
+            <AnimatePresence initial={false} onExitComplete={() => {
+                if (detailsOpen || actionOpen || scheduleOpen || reopenDialogOpen || declineRequest || completeOpen || reportTarget) return;
+                requestAnimationFrame(() => {
+                    const active = document.activeElement;
+                    if (active === document.body || (active && detailsDialogRef.current?.contains(active))) {
+                        detailsTriggerRef.current?.focus({ preventScroll: true });
+                    }
+                });
+            }}>
+                {detailsOpen && <>
+                    <motion.button type="button" className={detailsStyles.backdrop} aria-label="Details schließen" tabIndex={-1}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsOpen(false)} />
+                    <ChatDetails dialogRef={detailsDialogRef} compact={compactDetails} onClose={() => setDetailsOpen(false)}
+                        name={headerName} profile={headerProfile ?? null} partnerRole={currentUserRole === "seeker" ? "Auftraggeber" : "Bewerber"}
+                        job={liveApplication.job ?? {}} jobTitle={jobTitle}
+                        jobKind={liveApplication.job?.job_kind === "recurring" ? `Regelmäßig · ${formatRecurrence(liveApplication.job?.recurrence_rule)}` : "Einmaliger Auftrag"}
+                        statusLabel={stage.label} stage={stage}
+                        closureReason={conversationState === "closed" && liveApplication.closed_reason ? formatClosureReason(liveApplication.closed_reason) : null}
+                        authorizedAddress={authorizedJobLocation?.address_full}
+                        appointments={appointments} scheduledFor={liveApplication.scheduled_for || liveApplication.agreement?.starts_at} scheduleNote={liveApplication.agreement?.note}
+                        appointmentActions={!readOnly && currentUserId && status === "accepted" && conversationState === "open" && isPrimary && liveApplication?.engagement?.status === "active" ? <ChatAppointments
+                            key={liveApplication.id} applicationId={liveApplication.id} currentUserId={currentUserId}
+                            isProvider={currentUserRole === "provider"} recurring={liveApplication.job?.job_kind === "recurring"}
+                            appointments={appointments} formatSchedule={formatSchedule} onLegacySchedule={canSchedule ? openScheduleDialog : undefined}
+                            onChanged={appointment => {
+                                if (!appointment || typeof appointment.id !== "string") return;
+                                setLiveApplication((current: any) => {
+                                    const updated = [appointment, ...(current.appointments ?? current.engagement?.appointments ?? []).filter((item: any) => item.id !== appointment.id)];
+                                    const scheduled = updated.filter((item: any) => item.status === "scheduled").sort((a: any, b: any) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+                                    const next = scheduled.find((item: any) => new Date(item.starts_at).getTime() >= Date.now() - 60_000) ?? scheduled.at(-1);
+                                    return { ...current, appointments: updated, scheduled_for: next?.starts_at ?? null, agreement: next ? { ...current.agreement, starts_at: next.starts_at, note: next.note } : null };
+                                });
+                            }} /> : null}
+                        formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={setSearchOpen} query={searchQuery} onQuery={setSearchQuery}
+                        messages={messages} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
+                        onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
+                        onLatest={() => { closeDetailsForTool(); setMessageHighlight(null); requestAnimationFrame(() => scrollToEnd("auto")); }}
+                        actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || (!readOnly && onReport && headerProfile?.id) ? <>
+                            {canSchedule && status !== "accepted" && <button type="button" onClick={openScheduleDialog}><CalendarDays aria-hidden="true" />Termin vereinbaren</button>}
+                            {canComplete && <button type="button" onClick={() => { closeDetailsForTool(); setCompleteError(null); setCompleteOpen(true); }}><CheckCircle2 aria-hidden="true" />Zusammenarbeit abschließen</button>}
+                            {canDirectReopen && <button type="button" onClick={() => void handleDirectReopen()} disabled={directReopenPending}><RotateCcw aria-hidden="true" />Gespräch wieder öffnen</button>}
+                            {canRequestReopen && <button type="button" onClick={() => { closeDetailsForTool(); setReopenError(null); setReopenMessage(""); setReopenDialogOpen(true); }}><RotateCcw aria-hidden="true" />Öffnung anfragen</button>}
+                            {!readOnly && onReport && headerProfile?.id && <button type="button" onClick={() => {
+                                closeDetailsForTool();
+                                setReportTarget({ reportedUserId: headerProfile.id, reportedPersonName: headerName, context: { kind: "conversation", label: "Gesamter Chat als Kontext", content: `Der vollständige Gesprächsverlauf zu „${jobTitle}“ wird bei der Prüfung berücksichtigt.` } });
+                                setReportReason("inappropriate"); setReportDetails(""); setReportSuccess(false); setReportError(null);
+                            }}><Flag aria-hidden="true" />Person melden</button>}
+                        </> : null}
+                        dangerAction={canCloseApplication ? <button type="button" onClick={() => { closeDetailsForTool(); setActionReason(""); setActionError(null); setActionOpen(true); }}>
+                            {currentUserRole === "seeker" ? <Trash2 aria-hidden="true" /> : <XCircle aria-hidden="true" />}
+                            {currentUserRole === "seeker" ? status === "accepted" ? "Zusammenarbeit absagen" : "Bewerbung zurückziehen" : status === "accepted" ? "Zusammenarbeit absagen" : "Ablehnen & Job freigeben"}
+                        </button> : null} />
+                </>}
             </AnimatePresence>
 
             <AnimatePresence initial={false}>
@@ -1581,23 +1517,6 @@ export function ApplicationChat({
                         onConfirm={() => void handleReopenResponse(declineRequest, false, declineReason)}
                     />
                 ) : null}
-                {promoteOpen ? (
-                    <TextActionDialog
-                        icon={<ListOrdered size={21} />}
-                        title="Wartelisten-Bewerbung vorziehen?"
-                        description="Die aktuell offene Bewerbung hat grundsätzlich Vorrang. Nutze diese Ausnahme nur mit einem konkreten, fairen Grund. Die betroffene Person wird über die Abweichung informiert."
-                        label="Begründung der Ausnahme"
-                        value={promoteReason}
-                        setValue={setPromoteReason}
-                        minLength={20}
-                        pending={promotePending}
-                        error={promoteError}
-                        confirmLabel="Begründet vorziehen"
-                        tone="warning"
-                        onCancel={() => setPromoteOpen(false)}
-                        onConfirm={() => void handlePromote()}
-                    />
-                ) : null}
                 {completeOpen ? (
                     <TextActionDialog
                         icon={<CheckCircle2 size={21} />}
@@ -1632,15 +1551,7 @@ export function ApplicationChat({
                 ) : null}
             </AnimatePresence>
         </div>
-    );
-}
-
-function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-    return (
-        <div className="activity-detail-row">
-            <span>{icon}</span>
-            <div><small>{label}</small><strong>{value}</strong></div>
-        </div>
+        </MotionConfig>
     );
 }
 
@@ -1665,24 +1576,17 @@ function ActionDialog({
 }) {
     const isProvider = role === "provider";
     const isAccepted = status === "accepted";
-    const isWaitlisted = status === "waitlisted";
-    const title = isAccepted
-        ? "Zusammenarbeit absagen?"
-        : isProvider
-            ? "Bewerbung ablehnen?"
-            : isWaitlisted
-                ? "Warteliste verlassen?"
-                : "Bewerbung zurückziehen?";
+    const title = isAccepted ? "Zusammenarbeit absagen?" : isProvider ? "Bewerbung ablehnen und Job freigeben?" : "Bewerbung zurückziehen?";
     const description = isAccepted
-        ? "Der vereinbarte Auftrag und alle geplanten Termine werden abgesagt. Falls Personen warten, rückt die nächste Bewerbung nach. Das Gespräch wird geschlossen."
-        : isProvider
-            ? "Die Person wird informiert und das Gespräch geschlossen. Du kannst es später wieder öffnen."
-            : isWaitlisted
-                ? "Dein Eintrag wird von der Warteliste entfernt. Solange der Job nicht vergeben ist, kannst du das Gespräch später wieder öffnen."
-                : "Das Gespräch wird geschlossen. Solange der Job nicht vergeben ist, kannst du es später wieder öffnen.";
+        ? "Der vereinbarte Auftrag und alle geplanten Termine werden abgesagt. Das Gespräch wird geschlossen und der Job wieder freigegeben."
+        : "Das Gespräch wird geschlossen. Der Job ist danach wieder für eine neue Bewerbung offen.";
+    const dialogRef = useActivityDialogFocus<HTMLDivElement>();
     return (
-        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && onCancel()}>
+        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
             <motion.div
+                ref={dialogRef}
+                tabIndex={-1}
+                aria-busy={pending}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="activity-action-title"
@@ -1695,14 +1599,14 @@ function ActionDialog({
                 <h2 id="activity-action-title">{title}</h2>
                 <p>{description}</p>
                 <label>
-                    <span>{isProvider ? "Kurzer Grund" : "Grund (optional)"}</span>
-                    <textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} />
+                    <span>Grund (optional)</span>
+                    <textarea disabled={pending} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} />
                 </label>
                 {error ? <div className="activity-dialog-error" role="alert">{error}</div> : null}
                 <div className="activity-dialog-actions">
                     <button type="button" onClick={onCancel} disabled={pending}>Abbrechen</button>
-                    <button type="button" className="is-danger" onClick={onConfirm} disabled={pending || (isProvider && !reason.trim())}>
-                        {pending ? "Wird verarbeitet …" : "Bestätigen"}
+                    <button type="button" className="is-danger" onClick={onConfirm} disabled={pending}>
+                        {pending ? "Wird verarbeitet …" : isAccepted ? "Zusammenarbeit absagen" : isProvider ? "Ablehnen & freigeben" : "Bewerbung zurückziehen"}
                     </button>
                 </div>
             </motion.div>
@@ -1733,9 +1637,13 @@ function ScheduleDialog({
     onCancel: () => void;
     onConfirm: () => void;
 }) {
+    const dialogRef = useActivityDialogFocus<HTMLDivElement>();
     return (
-        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && onCancel()}>
+        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
             <motion.div
+                ref={dialogRef}
+                tabIndex={-1}
+                aria-busy={pending}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="activity-schedule-title"
@@ -1755,11 +1663,11 @@ function ScheduleDialog({
                 </p>
                 <label>
                     <span>Datum und Uhrzeit</span>
-                    <input autoFocus type="datetime-local" value={value} onChange={(event) => setValue(event.target.value)} />
+                    <input disabled={pending} type="datetime-local" value={value} onChange={(event) => setValue(event.target.value)} />
                 </label>
                 <label>
                     <span>Notiz (optional)</span>
-                    <input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder="z. B. Treffpunkt oder kurze Absprache" />
+                    <input disabled={pending} value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder="z. B. Treffpunkt oder kurze Absprache" />
                 </label>
                 <div className="activity-schedule-trust">
                     <ShieldCheck size={17} />
@@ -1812,9 +1720,13 @@ function TextActionDialog({
     onCancel: () => void;
     onConfirm: () => void;
 }) {
+    const dialogRef = useActivityDialogFocus<HTMLDivElement>();
     return (
-        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && onCancel()}>
+        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
             <motion.div
+                ref={dialogRef}
+                tabIndex={-1}
+                aria-busy={pending}
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
@@ -1829,7 +1741,7 @@ function TextActionDialog({
                 <label>
                     <span>{label}</span>
                     <textarea
-                        autoFocus
+                        disabled={pending}
                         value={value}
                         onChange={(event) => setValue(event.target.value)}
                         maxLength={500}
@@ -1877,9 +1789,13 @@ function ReportDialog({
     onCancel: () => void;
     onConfirm: () => void;
 }) {
+    const dialogRef = useActivityDialogFocus<HTMLDivElement>();
     return (
-        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && onCancel()}>
+        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
             <motion.div
+                ref={dialogRef}
+                tabIndex={-1}
+                aria-busy={pending}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="activity-report-title"
@@ -1933,7 +1849,7 @@ function ReportDialog({
                         </section>
                         <label>
                             <span>Grund</span>
-                            <select autoFocus className="min-h-11" value={reason} onChange={(event) => setReason(event.target.value as typeof reason)}>
+                            <select disabled={pending} className="min-h-11" value={reason} onChange={(event) => setReason(event.target.value as typeof reason)}>
                                 <option value="inappropriate">Unangemessener Inhalt</option>
                                 <option value="harassment">Belästigung oder Druck</option>
                                 <option value="fraud">Betrugsverdacht</option>
@@ -1944,7 +1860,7 @@ function ReportDialog({
                         </label>
                         <label>
                             <span>Beschreibung (optional)</span>
-                            <textarea className="min-h-24" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={1500} rows={4} />
+                            <textarea disabled={pending} className="min-h-24" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={1500} rows={4} />
                         </label>
                         {error ? <div className="activity-dialog-error" role="alert">{error}</div> : null}
                         <div className="activity-dialog-actions">

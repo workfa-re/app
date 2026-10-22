@@ -1,4 +1,5 @@
 import { memo } from "react";
+import styles from "./JobCard.module.css";
 import { JobCard } from "@/components/jobs/JobCard";
 import { cn } from "@/lib/utils";
 import type { JobsListItem } from "@/lib/types/platform";
@@ -33,20 +34,17 @@ export const JobsListSection = memo(function JobsListSection({
     return (
         <div className={cn("jobs-section space-y-6", hiddenOnMobile ? "hidden lg:block" : "")}>
             <div className="jobs-section-heading-row flex items-center">
-                <h2 className={cn("jobs-section-heading flex min-w-0 items-center gap-2.5 text-2xl font-bold tracking-[-0.01em]", isWhiteTitle ? "text-white" : colorClass)}>
+                <h2 className={cn(styles.sectionHeading, "jobs-section-heading flex min-w-0 items-center gap-2.5 text-2xl font-bold tracking-[-0.01em]", isWhiteTitle ? "text-white" : colorClass)}>
                     {Icon && (
                         <div className={cn("jobs-section-icon rounded-lg border p-2", isWhiteTitle ? "border-white/10 bg-white/10 text-indigo-400" : "border-white/10 bg-white/5")}>
                             <Icon size={18} />
                         </div>
                     )}
                     <span className="truncate">{title}</span>
-                    <span className="jobs-section-count rounded-full bg-white/10 px-3 py-1 text-sm font-semibold tracking-normal text-slate-400">
-                        {jobs.length}
-                    </span>
                 </h2>
             </div>
 
-            <div className="jobs-card-grid grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className={cn(styles.list, "jobs-card-grid")}>
                 {jobs.length === 0 ? (
                     <div className="jobs-empty-state col-span-full flex min-h-[17.5rem] items-center justify-center overflow-hidden rounded-[1.5rem] border-0 px-5 py-10 text-center">
                         <div className="w-full">{emptyMsg}</div>
@@ -59,8 +57,8 @@ export const JobsListSection = memo(function JobsListSection({
                         >
                             <JobCard
                                 job={job}
-                                isApplied={title === 'Bereits Beworben'}
-                                isLocked={!canApply}
+                                isApplied={Boolean(job.is_applied)}
+                                isLocked={!canApply && !job.is_applied}
                                 hideStatusLabel={hideStatusLabel}
                                 isCrossRegionalBadge={isExtendedSection}
                                 onSelect={onSelect}

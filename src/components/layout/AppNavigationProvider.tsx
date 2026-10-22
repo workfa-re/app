@@ -11,7 +11,7 @@ import {
     type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { AppRouteLoading } from "./AppRouteLoading";
+import { endPerfMark } from "@/lib/perf";
 
 type AppNavigationContextValue = {
     pendingHref: string | null;
@@ -43,6 +43,8 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
+        endPerfMark("app-header-route");
+        endPerfMark("app-mobile-dock-route");
         if (previousPathnameRef.current === pathname) return;
         previousPathnameRef.current = pathname;
 
@@ -82,32 +84,19 @@ export function useAppNavigation() {
 export function AppNavigationViewport({ children }: { children: ReactNode }) {
     const { pendingHref, isStalled } = useAppNavigation();
 
-    const pendingContent = pendingHref?.startsWith("/app-home/activities")
-        ? <AppRouteLoading title="Aktivität" variant="activities" />
-        : pendingHref?.startsWith("/app-home/settings")
-            ? <AppRouteLoading title="Einstellungen" variant="settings" />
-            : pendingHref?.startsWith("/app-home/offers")
-                ? <AppRouteLoading title="Jobs" variant="offers" />
-                : pendingHref?.startsWith("/app-home/jobs")
-                    ? <AppRouteLoading title="Finde deinen Job" variant="jobs" />
-                    : null;
-
     return (
         <>
-            <div
-                aria-hidden={pendingContent ? "true" : undefined}
-                style={{ display: pendingContent ? "none" : "contents" }}
-            >
+            <div className="app-navigation-content" aria-busy={Boolean(pendingHref)}>
                 {children}
             </div>
-            {pendingContent}
-            {pendingContent && isStalled && pendingHref ? (
+            <span className="sr-only" role="status">{pendingHref ? "Seite wird geladen." : ""}</span>
+            {isStalled && pendingHref ? (
                 <div className="container mx-auto -mt-3 px-4 pb-8 md:px-6" role="alert">
-                    <div className="mx-auto flex max-w-[78rem] flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-slate-950/85 dark:text-slate-200">
+                    <div className="mx-auto flex max-w-[78rem] flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/90 px-4 py-3 text-sm text-neutral-700 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/85 dark:text-neutral-200">
                         <span>Das Laden dauert ungewöhnlich lange.</span>
                         <a
                             href={pendingHref}
-                            className="font-semibold text-blue-700 underline-offset-4 hover:underline dark:text-blue-300"
+                            className="font-medium text-neutral-950 underline underline-offset-4 dark:text-white"
                         >
                             Seite neu laden
                         </a>

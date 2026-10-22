@@ -583,6 +583,59 @@ export type Database = {
           },
         ]
       }
+      job_appointment_requests: {
+        Row: {
+          id: string
+          application_id: string
+          appointment_id: string | null
+          requested_by: string
+          starts_at: string
+          ends_at: string | null
+          timezone: string
+          note: string | null
+          appointment_version: string | null
+          status: string
+          responded_by: string | null
+          created_at: string
+          responded_at: string | null
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          appointment_id?: string | null
+          requested_by: string
+          starts_at: string
+          ends_at?: string | null
+          timezone?: string
+          note?: string | null
+          appointment_version?: string | null
+          status?: string
+          responded_by?: string | null
+          created_at?: string
+          responded_at?: string | null
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          appointment_id?: string | null
+          requested_by?: string
+          starts_at?: string
+          ends_at?: string | null
+          timezone?: string
+          note?: string | null
+          appointment_version?: string | null
+          status?: string
+          responded_by?: string | null
+          created_at?: string
+          responded_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "job_appointment_requests_application_id_fkey"; columns: ["application_id"]; isOneToOne: false; referencedRelation: "applications"; referencedColumns: ["id"] },
+          { foreignKeyName: "job_appointment_requests_appointment_id_fkey"; columns: ["appointment_id"]; isOneToOne: false; referencedRelation: "job_appointments"; referencedColumns: ["id"] },
+          { foreignKeyName: "job_appointment_requests_requested_by_fkey"; columns: ["requested_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "job_appointment_requests_responded_by_fkey"; columns: ["responded_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
       job_appointments: {
         Row: {
           created_at: string
@@ -1504,6 +1557,18 @@ export type Database = {
         }
         Returns: Json
       }
+      manage_job_appointment: {
+        Args: {
+          p_application_id: string
+          p_action: string
+          p_appointment_id?: string | null
+          p_starts_at?: string | null
+          p_ends_at?: string | null
+          p_note?: string | null
+          p_request_id?: string | null
+        }
+        Returns: Json
+      }
       create_guardian_invitation: {
         Args: { p_invited_email?: string }
         Returns: Json
@@ -1657,7 +1722,7 @@ export type Database = {
         Returns: Json
       }
       reject_application: {
-        Args: { p_application_id: string; p_reason: string }
+        Args: { p_application_id: string; p_reason?: string | null }
         Returns: Json
       }
       reopen_application: { Args: { p_application_id: string }; Returns: Json }

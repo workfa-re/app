@@ -62,7 +62,10 @@ export default function DatenschutzPage() {
             gespeichert und übertragen.
           </li>
           <li>
-            <strong>MapTiler</strong> – Darstellung von Karteninhalten innerhalb der Plattform.
+            <strong>OpenStreetMap Foundation</strong> – Auslieferung der Kartenkacheln innerhalb der
+            Plattform. Beim Laden erhält der Dienst technisch erforderliche Verbindungsdaten wie
+            deine IP-Adresse. Weitere Informationen findest du in der{" "}
+            <a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noreferrer">Datenschutzerklärung von OpenStreetMap</a>.
           </li>
           <li>
             <strong>OpenStreetMap / Nominatim</strong> – Adress- und Standortsuche innerhalb der

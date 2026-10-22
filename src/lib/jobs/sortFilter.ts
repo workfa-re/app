@@ -13,6 +13,13 @@ export interface FilterState {
     maxDistanceKm: number | null;
 }
 
+type SortableJob = Pick<JobsListItem, "id" | "created_at" | "distance_km" | "wage_hourly">;
+type FilterableJob = Pick<JobsListItem, "category" | "distance_km">;
+
+export function validDistance(value: number | null | undefined): number | null {
+    return value != null && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const DEFAULT_SORT_OPTION: SortOption = "distance";
@@ -53,7 +60,7 @@ export function isValidMaxDistanceKm(v: unknown): v is MaxDistanceKm {
  *   2. Tie-break 1: newest first (created_at desc)
  *   3. Tie-break 2: id asc (lexicographic, stable across JS engines)
  */
-export function sortJobs(jobs: readonly JobsListItem[], mode: SortOption): JobsListItem[] {
+export function sortJobs<T extends SortableJob>(jobs: readonly T[], mode: SortOption): T[] {
     return [...jobs].sort((a, b) => {
         const primary = comparePrimary(a, b, mode);
         if (primary !== 0) return primary;
@@ -66,11 +73,11 @@ export function sortJobs(jobs: readonly JobsListItem[], mode: SortOption): JobsL
     });
 }
 
-function comparePrimary(a: JobsListItem, b: JobsListItem, mode: SortOption): number {
+function comparePrimary(a: SortableJob, b: SortableJob, mode: SortOption): number {
     switch (mode) {
         case "distance": {
-            const aKm = a.distance_km ?? null;
-            const bKm = b.distance_km ?? null;
+            const aKm = validDistance(a.distance_km);
+            const bKm = validDistance(b.distance_km);
             if (aKm === null && bKm === null) return 0;
             if (aKm === null) return 1;  // jobs without distance sink to bottom
             if (bKm === null) return -1;
@@ -97,10 +104,10 @@ function comparePrimary(a: JobsListItem, b: JobsListItem, mode: SortOption): num
  * Filter jobs by categories and max distance.
  * Jobs with unknown distance_km are hidden when a max-distance filter is active.
  */
-export function applyFilters(
-    jobs: readonly JobsListItem[],
+export function applyFilters<T extends FilterableJob>(
+    jobs: readonly T[],
     filters: FilterState
-): JobsListItem[] {
+): T[] {
     // Fast path: no filters active
     if (filters.categories.length === 0 && filters.maxDistanceKm === null) {
         return [...jobs];
@@ -114,7 +121,7 @@ export function applyFilters(
             return false;
         }
         if (filters.maxDistanceKm !== null) {
-            const km = job.distance_km ?? null;
+            const km = validDistance(job.distance_km);
             if (km === null || km > filters.maxDistanceKm) return false;
         }
         return true;
@@ -127,10 +134,10 @@ export function applyFilters(
  * Apply filters then sort in a single call.
  * Use this in rendering layers to avoid repeating `sortJobs(applyFilters(...))`.
  */
-export function deriveVisibleJobs(
-    jobs: readonly JobsListItem[],
+export function deriveVisibleJobs<T extends SortableJob & FilterableJob>(
+    jobs: readonly T[],
     filters: FilterState,
     sort: SortOption
-): JobsListItem[] {
+): T[] {
     return sortJobs(applyFilters(jobs, filters), sort);
 }

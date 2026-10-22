@@ -19,6 +19,7 @@ GRANT demo_executor,demo_scope_reader TO postgres WITH SET TRUE;
 CREATE SCHEMA demo_private AUTHORIZATION postgres;
 REVOKE ALL ON SCHEMA demo_private FROM PUBLIC;
 GRANT USAGE ON SCHEMA public, auth, extensions, demo_private TO demo_executor;
+GRANT USAGE, CREATE ON SCHEMA activity_private TO demo_executor;
 GRANT CREATE ON SCHEMA public TO demo_executor;
 GRANT USAGE ON SCHEMA auth, demo_private TO demo_scope_reader;
 GRANT CREATE ON SCHEMA demo_private TO demo_scope_reader;
@@ -284,6 +285,18 @@ CREATE POLICY demo_visit_boundary ON public.waitlist AS RESTRICTIVE FOR ALL
   USING (demo_visit_id = demo_private.current_visit()) WITH CHECK (demo_visit_id = demo_private.current_visit());
 CREATE POLICY demo_executor_access ON public.waitlist AS PERMISSIVE FOR ALL
   TO demo_executor USING (true) WITH CHECK (true);
+CREATE POLICY demo_visit_boundary ON public.job_appointment_requests AS RESTRICTIVE FOR ALL
+  TO anon,authenticated,demo_executor USING (
+    demo_private.same_visit(requested_by)
+    AND EXISTS (SELECT FROM public.applications a WHERE a.id=job_appointment_requests.application_id)
+    AND (appointment_id IS NULL OR EXISTS (SELECT FROM public.job_appointments a WHERE a.id=job_appointment_requests.appointment_id))
+  ) WITH CHECK (
+    demo_private.same_visit(requested_by)
+    AND EXISTS (SELECT FROM public.applications a WHERE a.id=job_appointment_requests.application_id)
+    AND (appointment_id IS NULL OR EXISTS (SELECT FROM public.job_appointments a WHERE a.id=job_appointment_requests.appointment_id))
+  );
+CREATE POLICY demo_executor_access ON public.job_appointment_requests AS PERMISSIVE FOR ALL TO demo_executor USING (true) WITH CHECK (true);
+GRANT SELECT, INSERT, UPDATE ON public.job_appointment_requests TO demo_executor;
 GRANT SELECT ON public.profiles,public.jobs,public.applications,public.application_events,public.messages,public.conversation_reopen_requests,public.job_engagements,public.job_agreements,public.job_appointments,public.job_private_details,public.notifications,public.notification_preferences,public.guardian_relationships,public.guardian_invitations,public.guardian_consent_links,public.guardian_consents,public.reports,public.security_events,public.user_system_roles,public.moderation_actions,public.system_roles,public.regions_live,public.waitlist TO demo_executor;
 GRANT INSERT, UPDATE ON public.application_events,public.applications,public.conversation_reopen_requests,public.guardian_invitations,public.guardian_relationships,public.job_agreements,public.job_appointments,public.job_engagements,public.job_private_details,public.jobs,public.messages,public.notifications,public.profiles,public.reports,public.waitlist TO demo_executor;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO demo_executor;
@@ -318,7 +331,7 @@ DECLARE fn record;
 BEGIN
   FOR fn IN SELECT p.oid::regprocedure AS signature FROM pg_proc p
     JOIN pg_namespace n ON n.oid=p.pronamespace
-    WHERE n.nspname='public' AND p.prosecdef
+    WHERE n.nspname IN ('public','activity_private') AND p.prosecdef
       AND p.proname NOT IN ('handle_new_user','sync_profile_from_auth_user','sync_user_email')
   LOOP
     EXECUTE format('ALTER FUNCTION %s OWNER TO demo_executor',fn.signature);
@@ -333,6 +346,7 @@ BEGIN
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon',fn.signature);
   END LOOP;
 END $$;
+REVOKE CREATE ON SCHEMA activity_private FROM demo_executor;
 REVOKE CREATE ON SCHEMA public FROM demo_executor;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO demo_executor;
 REVOKE ALL ON FUNCTION public.handle_new_user(),public.sync_profile_from_auth_user(),public.sync_user_email()
@@ -362,7 +376,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['jobs','applications','messages','notifications','application_events',
-    'conversation_reopen_requests','job_agreements','job_engagements','job_appointments'] LOOP
+    'conversation_reopen_requests','job_agreements','job_engagements','job_appointments','job_appointment_requests'] LOOP
     IF NOT EXISTS(SELECT FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename=t) THEN
       EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I',t);
     END IF;

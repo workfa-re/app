@@ -33,7 +33,8 @@ describe("full application deployment framing policy", () => {
     expect(directive(policy, "frame-ancestors")).toBe("frame-ancestors https://workfa.re https://www.workfa.re");
     expect(directive(policy, "connect-src")).toBe("connect-src 'self' https://abcdefghijklmnopqrst.supabase.co wss://abcdefghijklmnopqrst.supabase.co");
     expect(directive(policy, "form-action")).toBe("form-action 'self'");
-    expect(directive(policy, "img-src")).toContain("https://*.basemaps.cartocdn.com");
+    expect(directive(policy, "img-src")).toContain("https://tile.openstreetmap.org");
+    expect(directive(policy, "img-src")).not.toContain("cartocdn.com");
     expect(directive(policy, "img-src")).toContain("https://abcdefghijklmnopqrst.supabase.co");
     expect(policy).not.toContain("localhost");
     expect(policy).not.toContain("unsafe-eval");

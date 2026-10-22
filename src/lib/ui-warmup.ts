@@ -1,34 +1,21 @@
 let jobsWarmPromise: Promise<unknown> | null = null;
-let activityWarmPromise: Promise<unknown> | null = null;
+
+function canWarmUI() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  return !connection?.saveData && !["slow-2g", "2g"].includes(connection?.effectiveType ?? "");
+}
 
 export function warmJobsUI() {
+  if (!canWarmUI()) return Promise.resolve();
   if (!jobsWarmPromise) {
-    jobsWarmPromise = Promise.all([
-      import("@/components/jobs/JobDetailModal"),
-      import("@/components/jobs/JobApplicationModal"),
-      import("@/components/jobs/JobFilterSortPanel"),
-    ]);
+    jobsWarmPromise = import("@/components/jobs/JobDetailModal").catch(() => {
+      // Speculative loading must not break navigation; allow a later intent to retry.
+      jobsWarmPromise = null;
+    });
   }
 
   return jobsWarmPromise;
-}
-
-export function warmActivityUI() {
-  if (!activityWarmPromise) {
-    activityWarmPromise = import("@/components/activity/ApplicationChat");
-  }
-
-  return activityWarmPromise;
-}
-
-export function warmRouteAdjacentUI(href: string) {
-  if (href.startsWith("/app-home/jobs") || href.startsWith("/app-home/offers")) {
-    return warmJobsUI();
-  }
-
-  if (href.startsWith("/app-home/activities")) {
-    return warmActivityUI();
-  }
-
-  return Promise.resolve();
 }

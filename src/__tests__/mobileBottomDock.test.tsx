@@ -48,17 +48,9 @@ vi.mock("@/components/layout/AppNavigationProvider", () => ({
     }),
 }));
 
-vi.mock("@/components/layout/header/AppNavPendingIndicator", () => ({
-    AppNavPendingIndicator: () => null,
-}));
-
 vi.mock("@/lib/perf", () => ({
     endPerfMark: vi.fn(),
     startPerfMark: vi.fn(),
-}));
-
-vi.mock("@/lib/ui-warmup", () => ({
-    warmRouteAdjacentUI: vi.fn(),
 }));
 
 import { MobileBottomDock } from "@/components/layout/header/MobileBottomDock";
@@ -87,14 +79,14 @@ describe("mobile bottom dock", () => {
 
         expect(markup).toContain('aria-label="Hauptnavigation"');
         expect(testState.renderedLinks.map(({ href, label }) => ({ href, label }))).toEqual([
-            { href: "/app-home/jobs", label: "Jobs" },
-            { href: "/app-home/activities", label: "Aktivität" },
+            { href: "/app-home/jobs", label: "Jobs finden" },
+            { href: "/app-home/activities", label: "Meine Jobs" },
             { href: "/app-home/settings", label: "Einstellungen" },
         ]);
         expect(testState.renderedLinks.find(({ ariaCurrent }) => ariaCurrent === "page")?.label)
-            .toBe("Aktivität");
+            .toBe("Meine Jobs");
         expect(testState.renderedLinks.find(({ className }) => className?.includes("is-active"))?.label)
-            .toBe("Aktivität");
+            .toBe("Meine Jobs");
     });
 
     it("uses the provider jobs destination without changing the dock structure", () => {
@@ -106,7 +98,7 @@ describe("mobile bottom dock", () => {
         expect(testState.renderedLinks[0]).toMatchObject({
             ariaCurrent: "page",
             href: "/app-home/offers",
-            label: "Jobs",
+            label: "Meine Jobs",
         });
     });
 
@@ -117,7 +109,7 @@ describe("mobile bottom dock", () => {
         renderDock();
 
         expect(testState.renderedLinks.find(({ ariaCurrent }) => ariaCurrent === "page")?.label)
-            .toBe("Jobs");
+            .toBe("Jobs finden");
         expect(testState.renderedLinks.find(({ className }) => className?.includes("is-active"))?.label)
             .toBe("Einstellungen");
     });

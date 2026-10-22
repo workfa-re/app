@@ -7,18 +7,15 @@ import { CenterNavPill } from "./header/CenterNavPill";
 import { RightActionGroup } from "./header/RightActionGroup";
 import { MobileBottomDock } from "./header/MobileBottomDock";
 import type { AppHomeSnapshot } from "@/lib/types/platform";
-import { usePhoneDevice } from "@/hooks/use-phone-device";
 import {
     normalizeMobileNavPreference,
     type MobileNavPreference,
 } from "@/lib/mobile-nav-preference";
 
 export function AppHeader({ snapshot }: { snapshot: AppHomeSnapshot }) {
-    const isPhoneDevice = usePhoneDevice();
     const [mobileNavPreference, setMobileNavPreference] = useState<MobileNavPreference>(
         normalizeMobileNavPreference(snapshot.profile.mobile_nav_preference)
     );
-    const useBottomDock = isPhoneDevice && mobileNavPreference === "bottom";
     useEffect(() => {
         setMobileNavPreference(normalizeMobileNavPreference(snapshot.profile.mobile_nav_preference));
     }, [snapshot.profile.mobile_nav_preference]);
@@ -42,9 +39,10 @@ export function AppHeader({ snapshot }: { snapshot: AppHomeSnapshot }) {
 
     return (
         <AppHeaderFrame
+            mobileNavPreference={mobileNavPreference}
             brand={<LeftBrandChip market={snapshot.market} />}
-            desktopNavigation={useBottomDock ? null : <CenterNavPill profile={snapshot.profile} instanceId="desktop" />}
-            mobileNavigation={useBottomDock ? null : <CenterNavPill profile={snapshot.profile} instanceId="mobile" />}
+            desktopNavigation={<CenterNavPill profile={snapshot.profile} instanceId="desktop" />}
+            mobileNavigation={<CenterNavPill profile={snapshot.profile} instanceId="mobile" />}
             actions={
                 <RightActionGroup
                     profile={snapshot.profile}
@@ -54,7 +52,7 @@ export function AppHeader({ snapshot }: { snapshot: AppHomeSnapshot }) {
                     notificationsPreview={snapshot.notificationsPreview}
                 />
             }
-            bottomDock={<MobileBottomDock profile={snapshot.profile} enabled={useBottomDock} />}
+            bottomDock={<MobileBottomDock profile={snapshot.profile} enabled={mobileNavPreference === "bottom"} />}
         />
     );
 }

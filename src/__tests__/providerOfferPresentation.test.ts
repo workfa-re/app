@@ -4,7 +4,9 @@ import {
     formatProviderCompensation,
     getProviderJobPrimaryAction,
     getProviderJobStatusMeta,
-} from "../presentation";
+    summarizeProviderApplications,
+    getProviderConversationLabel,
+} from "@/app/app-home/offers/presentation";
 
 describe("provider offer presentation", () => {
     it.each([
@@ -18,9 +20,10 @@ describe("provider offer presentation", () => {
         expect(getProviderJobStatusMeta(status).label).toBe(expectedLabel);
     });
 
-    it("only derives 'In Abstimmung' from an active negotiation", () => {
+    it("distinguishes an exclusive reservation from confirmed collaboration", () => {
         expect(getProviderJobStatusMeta("open", ["rejected"]).label).toBe("Aktiv");
-        expect(getProviderJobStatusMeta("open", ["negotiating"]).label).toBe("In Abstimmung");
+        expect(getProviderJobStatusMeta("open", ["negotiating"]).label).toBe("Reserviert");
+        expect(getProviderJobStatusMeta("reserved", ["accepted"]).label).toBe("In Zusammenarbeit");
         expect(getProviderJobStatusMeta("reserved", ["negotiating"]).label).toBe("Reserviert");
     });
 
@@ -36,10 +39,11 @@ describe("provider offer presentation", () => {
     });
 
     it("distinguishes an application load failure from an empty inbox", () => {
-        expect(formatProviderApplicationSummary(0, true)).toBe("Noch keine Bewerbungen eingegangen.");
-        expect(formatProviderApplicationSummary(0, false)).toBe("Bewerbungen konnten gerade nicht geladen werden.");
-        expect(formatProviderApplicationSummary(1, true)).toBe("Eine Bewerbung ist eingegangen.");
-        expect(formatProviderApplicationSummary(3, true)).toBe("3 Bewerbungen sind eingegangen.");
+        expect(formatProviderApplicationSummary(null, true)).toContain("Die erste Bewerbung reserviert diesen Job.");
+        expect(formatProviderApplicationSummary(null, false)).toBe("Das Gespräch konnte gerade nicht geladen werden.");
+        expect(formatProviderApplicationSummary("submitted", true)).toContain("exklusiv reserviert");
+        expect(formatProviderApplicationSummary("negotiating", true)).toContain("Termin");
+        expect(formatProviderApplicationSummary("accepted", true)).toContain("Termin ist bestätigt");
     });
 
     it("only sends drafts directly into editing", () => {
@@ -54,5 +58,17 @@ describe("provider offer presentation", () => {
             kind: "open",
         });
         expect(getProviderJobPrimaryAction("reserved", "job-1").kind).toBe("open");
+        expect(getProviderJobPrimaryAction("reserved", "job-1", "active-app")).toEqual({ href: "/app-home/activities?conversation=active-app", label: "Gespräch öffnen", kind: "conversation" });
+    });
+
+    it("uses one real active conversation per job and ignores historical queues", () => {
+        expect(summarizeProviderApplications([
+            { id: "old-queue", job_id: "job-1", status: "waitlisted" },
+            { id: "active", job_id: "job-1", status: "negotiating" },
+            { id: "old", job_id: "job-1", status: "rejected" },
+            { id: "finished", job_id: "job-2", status: "completed" },
+        ])).toEqual({ "job-1": { conversationId: "active", status: "negotiating" } });
+        expect(getProviderConversationLabel("submitted")).toBe("Reserviert");
+        expect(getProviderConversationLabel("accepted")).toBe("In Zusammenarbeit");
     });
 });

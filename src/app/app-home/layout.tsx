@@ -1,5 +1,5 @@
 import { AppHeader } from "@/components/layout/AppHeader";
-import { LiquidBackground } from "@/components/ui/LiquidBackground";
+import "./surface-refinement.css";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { getAppHomeSnapshot } from "@/lib/app-shell";
 import {
@@ -16,9 +16,7 @@ export default async function AppHomeLayout({
 
     return (
         <AppNavigationProvider>
-            <div className="relative flex min-h-dvh flex-col bg-background text-foreground">
-                {/* Shared Background for the entire app area */}
-                <LiquidBackground />
+            <div className="app-shell relative flex min-h-dvh flex-col">
 
                 <RoleGuard profile={snapshot.profile} />
 
@@ -26,7 +24,7 @@ export default async function AppHomeLayout({
                 <AppHeader snapshot={snapshot} />
 
                 {/* Page Content */}
-                <main className="app-shell-main relative z-10 flex-1 pt-24">
+                <main className="app-shell-main relative flex-1">
                     <AppNavigationViewport>{children}</AppNavigationViewport>
                 </main>
 

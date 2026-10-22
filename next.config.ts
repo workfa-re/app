@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: ${supabaseOrigin} https://*.basemaps.cartocdn.com`,
+      `img-src 'self' data: blob: ${supabaseOrigin} https://tile.openstreetmap.org`,
       "font-src 'self' data:",
       `connect-src 'self' ${supabaseOrigin} ${realtimeOrigin}${isDevelopment ? " ws://localhost:3001 ws://127.0.0.1:3001" : ""}`,
       "object-src 'none'",

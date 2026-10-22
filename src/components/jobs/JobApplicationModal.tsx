@@ -1,14 +1,16 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import Link from "next/link";
 import { Dialog, Transition } from "@headlessui/react";
-import { X, Send, Lock, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { X, Send, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
+import styles from "./JobApplicationModal.module.css";
 import { applyToJob } from "@/app/app-home/jobs/actions";
 import { GuardianConsentModal } from "@/components/GuardianConsentModal";
 import { endPerfMark, startPerfMark } from "@/lib/perf";
 import type { GuardianStatus } from "@/lib/types";
+import { getActivityConversationHref } from "@/lib/activity/navigation";
 
 interface JobApplicationModalProps {
     isOpen: boolean;
@@ -17,24 +19,18 @@ interface JobApplicationModalProps {
     jobId: string;
     canApply: boolean;
     guardianStatus: string;
-    isWaitlistMode?: boolean;
 }
 
-export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply, guardianStatus, isWaitlistMode }: JobApplicationModalProps) {
+export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply, guardianStatus }: JobApplicationModalProps) {
     const router = useRouter();
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
     const [showGuardianModal, setShowGuardianModal] = useState(false);
-    const [submissionOutcome, setSubmissionOutcome] = useState<{ isPrimary: boolean } | null>(null);
+    const [submissionOutcome, setSubmissionOutcome] = useState<{ href: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleClose = () => {
         if (loading) return;
-        if (closeTimerRef.current) {
-            clearTimeout(closeTimerRef.current);
-            closeTimerRef.current = null;
-        }
         onClose();
         setSubmissionOutcome(null);
         setMessage("");
@@ -48,10 +44,6 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
         });
         return () => cancelAnimationFrame(frameId);
     }, [isOpen]);
-
-    useEffect(() => () => {
-        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -73,9 +65,14 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
             const result = await applyToJob(formData);
             endPerfMark("job-apply-submit");
             if (result.success) {
-                setSubmissionOutcome({ isPrimary: result.isPrimary });
-                router.refresh();
-                closeTimerRef.current = setTimeout(handleClose, 2600);
+                const applicationId = result.application?.id;
+                if (typeof applicationId !== "string" || !applicationId.trim()) {
+                    setError("Das Gespräch konnte nicht geöffnet werden. Bitte lade deine Jobs erneut.");
+                    return;
+                }
+                const href = getActivityConversationHref(applicationId);
+                setSubmissionOutcome({ href });
+                router.push(href);
             } else {
                 setError(result.error || "Ein unbekannter Fehler ist aufgetreten.");
             }
@@ -90,125 +87,112 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
     return (
         <>
             <Transition appear show={isOpen} as={Fragment}>
-                <Dialog as="div" className="relative z-[60]" onClose={handleClose}>
+                <Dialog as="div" className={"app-portal-surface " + styles.root} onClose={handleClose}>
                     <Transition.Child
                         as={Fragment}
-                        enter="ease-out duration-300"
+                        enter="ease-out duration-240 motion-reduce:duration-0"
                         enterFrom="opacity-0"
                         enterTo="opacity-100"
-                        leave="ease-in duration-200"
+                        leave="ease-in duration-160 motion-reduce:duration-0"
                         leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                     >
-                        <div className="job-application-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm" />
+                        <div className={styles.backdrop} />
                     </Transition.Child>
 
-                    <div className="fixed inset-0 overflow-y-auto">
-                        <div className="flex min-h-full items-center justify-center p-4 text-center">
+                    <div className={styles.viewport}>
+                        <div className={styles.positioner}>
                             <Transition.Child
                                 as={Fragment}
-                                enter="ease-out duration-300"
-                                enterFrom="opacity-0 scale-95"
-                                enterTo="opacity-100 scale-100"
-                                leave="ease-in duration-200"
-                                leaveFrom="opacity-100 scale-100"
-                                leaveTo="opacity-0 scale-95"
+                                enter="ease-out duration-240 motion-reduce:duration-0"
+                                enterFrom="opacity-0 translate-y-3"
+                                enterTo="opacity-100 translate-y-0"
+                                leave="ease-in duration-160 motion-reduce:duration-0"
+                                leaveFrom="opacity-100 translate-y-0"
+                                leaveTo="opacity-0 translate-y-2"
                             >
-                                <Dialog.Panel className="job-application-modal w-full max-w-md transform overflow-hidden rounded-3xl border p-6 text-left align-middle shadow-xl transition-all">
-                                    <div className="absolute top-4 right-4">
+                                <Dialog.Panel className={styles.panel}>
+                                    <div className={styles.closePosition}>
                                         <button
                                             type="button"
                                             onClick={handleClose}
                                             disabled={loading}
                                             aria-label="Bewerbungsfenster schließen"
-                                            className="job-application-close p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                            className={styles.close}
                                         >
                                             <X size={20} />
                                         </button>
                                     </div>
 
                                     {submissionOutcome ? (
-                                        <div className="py-12 flex flex-col items-center text-center" role="status" aria-live="polite">
-                                            <div className="job-application-success-mark mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+                                        <div className={styles.success} role="status" aria-live="polite">
+                                            <div className={styles.successMark}>
                                                 <CheckCircle2 size={32} aria-hidden="true" />
                                             </div>
-                                            <h3 className="text-xl font-bold text-white mb-2">
-                                                {submissionOutcome.isPrimary ? "Bewerbung gesendet" : "Auf Warteliste eingetragen"}
-                                            </h3>
-                                            <p className="text-slate-400">
-                                                {submissionOutcome.isPrimary
-                                                    ? "Dein Gespräch ist jetzt geöffnet. Der Anbieter kann dir direkt antworten."
-                                                    : "Deine Bewerbung ist sofort gespeichert und für den Anbieter sichtbar. Der Chat öffnet sich, sobald du nachrückst."}
+                                            <Dialog.Title as="h2" className={styles.title}>
+                                                Job für dich reserviert
+                                            </Dialog.Title>
+                                            <p className={styles.copy}>
+                                                Deine Bewerbung ist gespeichert. Das Gespräch mit dem Anbieter öffnet sich jetzt.
                                             </p>
+                                            <Link href={submissionOutcome.href} className={styles.submit}>Gespräch öffnen</Link>
                                         </div>
                                     ) : (
                                         <>
                                             <Dialog.Title
-                                                as="h3"
-                                                className="text-xl font-bold leading-6 text-white mb-1"
+                                                as="h2"
+                                                className={styles.title}
                                             >
-                                                {isWaitlistMode ? "Warteliste beitreten" : "Bewerbung schreiben"}
+                                                Auf diesen Job bewerben
                                             </Dialog.Title>
-                                            <p className="text-sm text-slate-400 mb-6">
-                                                Für: <span className="text-indigo-400 font-medium">{jobTitle}</span>
+                                            <p className={styles.jobTitle}>
+                                                {jobTitle}
                                             </p>
 
-                                            {isWaitlistMode && (
-                                                <div className="job-application-waitlist-note mb-6 flex items-start gap-3 rounded-xl border p-4">
-                                                    <Clock className="job-application-waitlist-note-icon mt-0.5 shrink-0" size={18} aria-hidden="true" />
-                                                    <div className="text-sm">
-                                                        <h4 className="job-application-waitlist-note-title mb-1 font-semibold">So funktioniert die Warteliste</h4>
-                                                        <p className="job-application-waitlist-note-copy">
-                                                            Deine Bewerbung wird sofort gespeichert und ist für den Anbieter sichtbar. Der Chat öffnet sich, sobald du automatisch nachrückst.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             {!canApply && (
-                                                <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex gap-3 items-start">
-                                                    <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                                                <div className={styles.notice}>
+                                                    <AlertTriangle className={styles.noticeIcon} size={18} />
                                                     <div className="text-sm">
-                                                        <h4 className="font-semibold text-amber-100 mb-1">Bestätigung & Jugendschutz</h4>
-                                                        <p className="text-amber-200/70">
+                                                        <h4 className={styles.noticeTitle}>Bestätigung & Jugendschutz</h4>
+                                                        <p className={styles.copy}>
                                                             Du benötigst die Bestätigung eines Erziehungsberechtigten, bevor du dich bewerben kannst.
                                                         </p>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            <form onSubmit={handleSubmit} className="space-y-4">
+                                            <form onSubmit={handleSubmit} className={styles.form}>
                                                 {canApply && (
                                                     <div>
-                                                        <label htmlFor="message" className="block text-sm font-medium text-slate-300 mb-2">
-                                                            Deine Nachricht (Optional)
+                                                        <label htmlFor="message" className={styles.label}>
+                                                            Deine Nachricht (optional)
                                                         </label>
                                                         <textarea
                                                             id="message"
                                                             rows={5}
-                                                            className="job-application-textarea w-full rounded-xl border p-3 placeholder-slate-500 focus:ring-1 transition-all text-sm resize-none"
-                                                            placeholder="Hallo, ich habe Interesse an dem Job weil..."
+                                                            className={styles.textarea}
+                                                            placeholder="Hallo, ich würde gerne helfen …"
                                                             value={message}
                                                             onChange={(e) => setMessage(e.target.value)}
                                                         />
-                                                        <p className="mt-2 text-xs text-slate-500">
-                                                            Stelle dich kurz vor und schreibe, warum du der/die Richtige für den Job bist.
+                                                        <p className={styles.hint}>
+                                                            Deine Bewerbung reserviert den Job für dich. Den Termin stimmt ihr danach im Chat ab.
                                                         </p>
                                                     </div>
                                                 )}
 
                                                 {error && (
-                                                    <p className="text-sm text-red-400 bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                                    <p className={styles.error} role="alert">
                                                         {error}
                                                     </p>
                                                 )}
 
                                                 <div className="pt-2">
-                                                    <ButtonPrimary
+                                                    <button
                                                         type="submit"
                                                         disabled={loading}
-                                                        className="w-full flex items-center justify-center"
-                                                        onClick={(e: any) => {
+                                                        className={styles.submit}
+                                                        onClick={(e) => {
                                                             if (!canApply) {
                                                                 e.preventDefault();
                                                                 setShowGuardianModal(true);
@@ -218,10 +202,10 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                                         {loading ? "Wird gespeichert..." : (
                                                             <>
                                                                 {canApply ? <Send size={16} className="mr-2" /> : <Lock size={16} className="mr-2" />}
-                                                                {canApply ? (isWaitlistMode ? "Auf Warteliste setzen" : "Bewerbung abschicken") : "Bestätigung starten"}
+                                                                {canApply ? "Bewerben und reservieren" : "Bestätigung starten"}
                                                             </>
                                                         )}
-                                                    </ButtonPrimary>
+                                                    </button>
                                                 </div>
                                             </form>
                                         </>

@@ -1,0 +1,191 @@
+/* Onboarding optics: clear rims, inner reflections and one blue accent. */
+html:has(.app-shell), body:has(.app-shell) { background: #edf2f8; }
+html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
+.app-shell, .app-portal-surface {
+  --app-ink: #182534;
+  --app-muted: #596a7c;
+  --app-ground: #edf2f8;
+  --app-accent: #0863c9;
+  --app-accent-ink: #064eac;
+  --app-accent-soft: rgb(62 142 234 / .12);
+  --app-panel-fill: rgb(255 255 255 / .62);
+  --app-panel-rule: rgb(40 72 105 / .10);
+  --app-canvas: radial-gradient(ellipse 70% 58% at 88% 0%, rgb(158 198 239 / .30), transparent 75%), radial-gradient(ellipse 65% 50% at 4% 68%, rgb(202 221 239 / .48), transparent 80%), linear-gradient(155deg, #f3f6f9, #e9f0f7 70%, #f0f4f8);
+  --app-ease: cubic-bezier(.22, 1, .36, 1);
+  --app-content-top: calc(136px + env(safe-area-inset-top, 0px));
+  --app-bottom-clearance: 0px;
+  --chrome-nav-active: var(--app-accent-ink);
+  --chrome-nav-active-strong: var(--app-accent-ink);
+}
+.app-shell {
+  color: var(--app-ink);
+  background: var(--app-canvas);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+.dark :is(.app-shell, .app-portal-surface) {
+  --app-ink: #eef4fb;
+  --app-muted: #a3b3c6;
+  --app-ground: #0c121c;
+  --app-accent: #80baff;
+  --app-accent-ink: #c2e0ff;
+  --app-accent-soft: rgb(75 151 241 / .15);
+  --app-panel-fill: rgb(26 38 54 / .64);
+  --app-panel-rule: rgb(196 218 247 / .11);
+  --app-canvas: radial-gradient(ellipse 85% 70% at 90% 0%, rgb(41 86 130 / .26), transparent 75%), radial-gradient(ellipse 70% 65% at 0% 75%, rgb(28 58 88 / .19), transparent 80%), linear-gradient(155deg, #111a26, #0b111b 75%, #0e1621);
+}
+.app-header-region { display: contents; }
+.app-navigation-content { display: contents; }
+.app-header-shell { position: fixed; z-index: 50; inset: 24px 0 auto; padding: env(safe-area-inset-top, 0px) 0 0; pointer-events: none; }
+.app-header-inner { --app-header-control-size: 52px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 24px; width: 100%; max-width: 78rem; margin-inline: auto; padding-inline: 24px; }
+.app-header-inner > * { min-width: 0; pointer-events: auto; }
+.app-header-brand { justify-self: start; }
+.app-header-actions { justify-self: end; }
+.app-header-mobile-nav { display: none; }
+.app-header-scrim { position: fixed; z-index: 40; inset: 0 0 auto; height: calc(112px + env(safe-area-inset-top, 0px)); background: linear-gradient(color-mix(in srgb, var(--app-ground) 48%, transparent), color-mix(in srgb, var(--app-ground) 18%, transparent) 65%, transparent); pointer-events: none; }
+.app-shell .app-shell-main { padding-top: var(--app-content-top); }
+.app-shell :is(a, button) { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.app-shell :is(.app-brand-link, .app-nav-link, .app-mobile-dock-item, .jobs-view-tab, .app-glass-control):focus-visible { outline: 2px solid var(--app-accent); outline-offset: 4px; }
+.app-shell :is(.app-header-shell, .jobs-home-toolbar) :is(a, button):active { scale: 1; }
+.app-shell .app-glass-control {
+  position: relative; isolation: isolate; border: 1px solid var(--app-panel-rule); border-radius: 999px; color: var(--app-ink);
+  background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow);
+  -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter);
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+.app-shell .app-glass-control::before, .app-shell .app-glass-selection::before {
+  content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.app-shell .app-glass-control::after { content: ""; position: absolute; inset: 2px; z-index: -1; border-radius: inherit; pointer-events: none; box-shadow: var(--app-glass-inner-shadow); background: radial-gradient(130px circle at var(--glass-x, 50%) var(--glass-y, 0%), var(--app-glass-highlight), transparent 78%); opacity: 0; transition: opacity 200ms ease; }
+.app-brand-link { position: relative; display: inline-flex; align-items: center; gap: 12px; max-width: 100%; color: var(--app-ink); text-decoration: none; border-radius: 999px; }
+.app-shell .app-logo-orb { display: grid; width: var(--app-header-control-size, 52px); height: var(--app-header-control-size, 52px); flex: 0 0 var(--app-header-control-size, 52px); place-items: center; }
+.app-logo-orb img { display: block; width: 32px; height: 20px; object-fit: contain; }
+.app-logo-orb img { filter: brightness(0); }
+.dark .app-logo-orb img { filter: brightness(0) invert(1); }
+.app-brand-name { font-size: 24px; font-weight: 600; line-height: 1; letter-spacing: -.045em; }
+.app-brand-copy { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
+.app-brand-location { max-width: 20ch; overflow: hidden; color: var(--app-muted); font-size: 11px; font-weight: 400; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.app-glass-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 2px; width: 450px; height: var(--app-header-control-size, 52px); padding: 3px; }
+.app-nav-link { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; height: calc(var(--app-header-control-size, 52px) - 8px); min-height: 40px; padding: 0 17px; border-radius: 999px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.2; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease; }
+.app-nav-link > :not(.app-glass-selection) { position: relative; z-index: 1; }
+.app-nav-link[data-active="true"] { color: var(--app-accent-ink); }
+.app-glass-selection { position: absolute; z-index: 0; inset: 0; overflow: hidden; border-radius: inherit; background: var(--app-glass-selected); box-shadow: var(--app-glass-shadow); }
+@media (hover: hover) {
+  .app-nav-link:hover { color: var(--app-accent-ink); background-color: var(--app-accent-soft); }
+  .app-shell .app-glass-control:hover::after { opacity: 1; }
+}
+/* Notification data and actions keep their existing contracts. */
+.app-shell .notifications-popover-root .notifications-trigger,
+.app-shell .notifications-popover-root .notifications-trigger:is(:hover, .is-open),
+.app-shell .notifications-popover-root:has(.notifications-panel) .notifications-trigger {
+  width: var(--app-header-control-size, 52px); height: var(--app-header-control-size, 52px); flex-shrink: 0; border: 1px solid var(--app-panel-rule) !important; border-radius: 999px; color: var(--app-ink) !important;
+  background: var(--app-glass-fill) !important; box-shadow: var(--app-glass-shadow) !important; -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter);
+}
+.app-shell .notifications-trigger svg { width: 19px; height: 19px; stroke-width: 1.6; color: inherit; }
+.app-shell .notifications-panel { color: var(--app-ink); background: var(--app-menu-fill) !important; border-radius: 28px !important; box-shadow: var(--app-glass-shadow), 0 16px 48px rgb(0 0 0 / .15) !important; -webkit-backdrop-filter: blur(28px) saturate(1.3); backdrop-filter: blur(28px) saturate(1.3); }
+.app-shell .notifications-panel::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.app-shell .notifications-panel :is(.notifications-panel-title, .notification-title) { color: var(--app-ink) !important; font-weight: 500; }
+.app-shell .notifications-panel :is(.notifications-panel-count, .notification-body, .notification-date, .notifications-empty) { color: var(--app-muted) !important; }
+.app-shell .notifications-panel :is(.notifications-panel-header, .notifications-panel-footer) { border-color: var(--app-panel-rule) !important; }
+.app-shell .notifications-view-all { color: var(--app-accent-ink) !important; }
+.app-shell :is(.notification-unread-dot, .notification-card-dot) { background: var(--app-accent) !important; }
+.app-shell .notification-unread-dot { box-shadow: 0 0 0 2px var(--app-ground) !important; }
+/* A single readable toolbar, shared at every width. */
+.app-shell .jobs-home-surface, .app-shell .provider-home-surface { width: 100%; max-width: 78rem; margin-inline: auto; padding: 0 24px 48px; }
+.app-shell .jobs-home-heading { margin-bottom: 32px; }
+.app-shell .jobs-home-heading h1 { margin: 0; color: var(--app-ink); font-size: clamp(32px, 3.3vw, 44px); font-weight: 500; line-height: 1.15; letter-spacing: -.045em; text-wrap: balance; }
+.app-shell .jobs-home-heading p { margin-top: 10px; color: var(--app-muted); font-size: 14px; line-height: 1.6; }
+.app-shell .jobs-home-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.app-shell .jobs-discovery-toolbar { gap: 24px; margin-bottom: 24px; }
+.app-shell .jobs-discovery-toolbar > .jobs-home-heading { min-width: 0; margin-bottom: 0; }
+.app-shell .jobs-view-tabs { display: inline-flex; align-items: center; gap: 2px; padding: 5px; min-width: 0; }
+.app-shell .jobs-view-tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: transparent; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+.app-shell .jobs-view-tab > :not(.app-glass-selection) { position: relative; z-index: 1; }
+.app-shell .jobs-view-tab[aria-selected="true"] { color: var(--app-accent-ink); }
+.app-shell .jobs-view-count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--app-muted); }
+.app-shell .jobs-toolbar-filter { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 48px; min-height: 48px; padding: 0 18px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.app-shell .jobs-toolbar-filter svg { width: 18px; height: 18px; stroke-width: 1.6; }
+.app-shell .jobs-results { min-height: 180px; }
+.app-shell .app-primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--app-accent-ink); background: var(--app-glass-selected); }
+.app-shell .jobs-tab-panel[data-enter="true"] { animation: app-content-enter 160ms var(--app-ease); }
+@keyframes app-content-enter { from { opacity: .5; translate: 0 4px; } to { opacity: 1; translate: 0; } }
+.app-shell .jobs-empty-state { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.app-shell .jobs-empty-copy { padding-block: 40px; }
+.app-shell .jobs-empty-icon { border: 0 !important; color: var(--app-muted) !important; background: transparent !important; box-shadow: none !important; }
+.app-shell .jobs-empty-title { color: var(--app-ink) !important; font-size: 18px; font-weight: 500; }
+.app-shell .jobs-empty-message { color: var(--app-muted) !important; }
+.job-filter-panel { --job-filter-accent: #075fbf; --job-filter-accent-hover: #034d9d; --job-filter-accent-soft: #e2efff; --job-filter-accent-border: #a6c9ef; --job-filter-chip-selected: #075fbf; }
+.dark .job-filter-panel { --job-filter-accent: #8ac2ff; --job-filter-accent-hover: #b7dcff; --job-filter-accent-soft: #213b59; --job-filter-accent-border: #456c95; --job-filter-chip-selected: #8ac2ff; }
+.job-filter-cta, .job-filter-segment-input:checked + .job-filter-segment { color: #fff; }
+.dark .job-filter-cta, .dark .job-filter-segment-input:checked + .job-filter-segment { color: #181818; }
+.app-shell .app-mobile-dock-shell { display: none; }
+@media (max-width: 1050px) {
+  .app-header-inner { grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; }
+  .app-header-desktop-nav { justify-self: center; }
+  .app-brand-name { display: none; }
+  .app-glass-nav { width: 414px; }
+  .app-nav-link { padding-inline: 13px; gap: 7px; font-size: 13px; }
+}
+@media (min-width: 768px) and (max-width: 1050px) {
+  .app-brand-copy { display: contents; }
+  .app-brand-location { position: absolute; top: calc(100% + 5px); left: 0; max-width: 116px; font-size: 10px; }
+}
+@media (max-width: 767px) {
+  .app-header-shell { top: 16px; }
+  .app-header-inner { --app-header-control-size: 48px; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding-inline: 20px; }
+  .app-header-desktop-nav { display: none; }
+  .app-header-mobile-nav { grid-column: 1 / -1; display: flex; justify-content: center; }
+  .app-header-actions { grid-column: 2; grid-row: 1; }
+  .app-shell { --app-content-top: calc(168px + env(safe-area-inset-top, 0px)); }
+  .app-header-scrim { height: 160px; }
+  .app-brand-name { display: inline; font-size: 22px; }
+  .app-glass-nav { width: 100%; }
+  .app-nav-link { padding-inline: 10px; font-size: 13px; }
+  .app-shell .jobs-home-surface, .app-shell .provider-home-surface { padding-inline: 20px; }
+  .app-shell .jobs-home-heading { margin-bottom: 26px; }
+  .app-shell .jobs-home-toolbar { gap: 10px; margin-bottom: 28px; }
+  .app-shell .jobs-discovery-toolbar { gap: 16px; margin-bottom: 20px; }
+  .app-shell .jobs-view-tabs { flex: 1; padding: 4px; gap: 0; }
+  .app-shell .jobs-view-tab { flex: 1; min-height: 44px; padding-inline: 10px; gap: 5px; font-size: 12px; }
+  .app-shell .jobs-toolbar-filter { padding-inline: 0; flex: 0 0 48px; }
+  .app-shell .jobs-toolbar-filter > span:not(.jobs-view-count) { display: none; }
+  .app-shell .jobs-view-count { font-size: 10px; }
+}
+@media (max-width: 380px) {
+  .app-header-inner { padding-inline: 16px; gap: 12px; }
+  .app-brand-link { gap: 9px; }
+  .app-brand-name { font-size: 20px; }
+  .app-shell .jobs-home-surface, .app-shell .provider-home-surface { padding-inline: 16px; }
+  .app-shell .jobs-view-tab { padding-inline: 8px; font-size: 11px; }
+  .app-nav-link { font-size: 12px; padding-inline: 8px; gap: 6px; }
+}
+@media (max-width: 450px) { .app-nav-link svg { display: none; } }
+@media (pointer: coarse) and (max-width: 767px), (pointer: coarse) and (max-width: 1024px) and (max-height: 600px) {
+  .app-header-region[data-mobile-nav="bottom"] :is(.app-header-desktop-nav, .app-header-mobile-nav) { display: none; }
+  .app-shell:has(.app-header-region[data-mobile-nav="bottom"]) { --app-content-top: calc(112px + env(safe-area-inset-top, 0px)); --app-bottom-clearance: calc(94px + env(safe-area-inset-bottom, 0px)); }
+  .app-header-region[data-mobile-nav="bottom"] .app-header-scrim { height: 104px; }
+  .app-shell .app-mobile-dock-shell { position: fixed; z-index: 50; inset-inline: 0; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: block; }
+  .app-shell .app-mobile-dock-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(380px, 100%); margin-inline: auto; padding: 5px; gap: 2px; border-radius: 999px; color: var(--app-muted); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
+  .app-shell .app-mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; height: 48px; border-radius: 999px; color: var(--app-muted); transition: color 160ms ease; }
+  .app-shell .app-mobile-dock-item.is-active { color: var(--app-accent-ink); }
+  .app-shell .app-mobile-dock-active { position: absolute; inset: 0; border-radius: inherit; background: var(--app-glass-selected); box-shadow: var(--app-glass-shadow); scale: 1; }
+  .app-shell .app-mobile-dock-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; gap: 4px; }
+  .app-shell .app-mobile-dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 500; }
+  .app-shell .app-shell-main { padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .app-shell .app-glass-control { background: var(--app-ground); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app-shell { --app-glass-fill: var(--app-ground); --app-glass-filter: none; --app-menu-fill: var(--app-ground); --app-panel-fill: var(--app-ground); }
+}
+@media (prefers-contrast: more) {
+  .app-shell { --app-panel-rule: color-mix(in srgb, var(--app-ink) 40%, transparent); --app-muted: var(--app-ink); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.app-nav-link, .jobs-tab-panel, .app-mobile-dock-active) { animation: none; transition: none; }
+  .app-shell .jobs-tab-panel[data-enter="true"] { animation: none; }
+  .app-shell .app-glass-control::after { transition: none; opacity: 0; }
+}

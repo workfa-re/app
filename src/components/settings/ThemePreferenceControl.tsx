@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Monitor, Moon, Sun } from "lucide-react";
+import { Loader2, Monitor, Moon, Sun } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { normalizeThemePreference, type ThemePreference } from "@/lib/theme-preference";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import styles from "./Settings.module.css";
 
 type ThemePreferenceControlProps = {
     initialPreference: ThemePreference;
@@ -82,8 +83,8 @@ export function ThemePreferenceControl({ initialPreference }: ThemePreferenceCon
     };
 
     return (
-        <div className="space-y-2">
-            <div className="theme-mode-grid">
+        <div className={styles.control}>
+            <div className={styles.themeChoices} role="group" aria-label="Farbmodus">
                 {options.map((option) => {
                     const active = preference === option.value;
                     const saving = pendingPreference === option.value || (isPending && active);
@@ -97,26 +98,17 @@ export function ThemePreferenceControl({ initialPreference }: ThemePreferenceCon
                             disabled={Boolean(pendingPreference)}
                             aria-pressed={active}
                             data-active={active}
-                            className="theme-mode-option disabled:cursor-not-allowed disabled:opacity-70"
+                            className={styles.themeOption}
                         >
-                            <Icon size={15} aria-hidden="true" />
-                            <span className="theme-mode-option-label">{option.label}</span>
-                            {active && (
-                                <span className="theme-mode-option-check">
-                                    {saving ? (
-                                        <Loader2 size={11} className="animate-spin" />
-                                    ) : (
-                                        <Check size={11} strokeWidth={3} />
-                                    )}
-                                </span>
-                            )}
+                            {saving ? <Loader2 size={15} className={styles.spinner} aria-hidden="true" /> : <Icon size={15} aria-hidden="true" />}
+                            <span className={styles.optionLabel}>{option.label}</span>
                         </button>
                     );
                 })}
             </div>
 
             {error && (
-                <p className="mobile-nav-error rounded-xl border px-3 py-2 text-xs font-medium">
+                <p role="alert" className={styles.controlError}>
                     {error}
                 </p>
             )}
