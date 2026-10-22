@@ -2,18 +2,22 @@ import type { Metadata, Viewport } from "next";
 import { BRAND_NAME, BRAND_DESCRIPTION } from "@/lib/constants";
 import { requireDemoEnvironment } from "@/lib/demo/environment";
 import { DemoEmbedBridge, type DemoEmbedRole } from "@/components/demo/DemoEmbedBridge";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import Script from "next/script";
 import { cookies } from "next/headers";
 import { DEMO_THEME_COOKIE, resolveDemoTheme } from "@/lib/demo/theme";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { OnboardingThemeBootstrap } from "@/components/onboarding/OnboardingThemeToggle";
 import { getCurrentSessionAndProfile } from "@/lib/auth";
 import { normalizeThemePreference, type ThemePreference } from "@/lib/theme-preference";
 import "./globals.css";
 import "./jobs-polish.css";
 import "./activity-polish.css";
+import "./onboarding-design.css";
+import "./onboarding-theme.css";
+import "./legal-design.css";
 
-const fontSans = Plus_Jakarta_Sans({
+const fontSans = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
@@ -27,20 +31,20 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/workfare-favicon-32.png?v=bridge-transparent-1",
+        url: "/workfare-favicon-32.png?v=bridge-original-clear-2",
         sizes: "32x32",
         type: "image/png",
       },
       {
-        url: "/workfare-icon-192.png?v=bridge-transparent-1",
+        url: "/workfare-icon-192.png?v=bridge-original-clear-2",
         sizes: "192x192",
         type: "image/png",
       },
     ],
-    shortcut: "/workfare-favicon-32.png?v=bridge-transparent-1",
+    shortcut: "/workfare-favicon-32.png?v=bridge-original-clear-2",
     apple: [
       {
-        url: "/workfare-apple-touch-icon.png?v=bridge-transparent-1",
+        url: "/workfare-apple-touch-icon.png?v=bridge-original-clear-2",
         sizes: "180x180",
         type: "image/png",
       },
@@ -110,6 +114,7 @@ export default async function RootLayout({
   return (
     <html lang="de" className={`${isDemo ? themePreference : "dark"} bg-background`} suppressHydrationWarning>
       <head>
+        <OnboardingThemeBootstrap />
         <Script
           id="theme-bootstrap"
           strategy="beforeInteractive"

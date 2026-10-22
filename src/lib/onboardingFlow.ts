@@ -11,6 +11,18 @@ export type OnboardingStep =
   | "contact"
   | "summary";
 
+export function getOnboardingEntryStep({ forcedStep, initialMode, draftStep }: {
+  forcedStep?: OnboardingStep | null;
+  initialMode?: "signup" | "signin" | null;
+  draftStep?: OnboardingStep;
+}): OnboardingStep {
+  if (forcedStep) return forcedStep;
+  if (initialMode === "signin") return "auth";
+  if (initialMode === "signup") return "location";
+  if (!draftStep || draftStep === "mode") return "welcome";
+  return draftStep;
+}
+
 export function mustChooseOnboardingRole(forcedStep: OnboardingStep | null | undefined, isJustVerified: boolean) {
   return forcedStep === "role" || forcedStep === "email-confirm" || isJustVerified;
 }

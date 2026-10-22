@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
 import { useRouter } from "next/navigation";
-import { LogoBadge } from "@/components/ui/LogoBadge";
+import { OnboardingFrame, OnboardingHeading } from "@/components/onboarding/OnboardingFrame";
 
 export default function UpdatePasswordPage() {
     const [password, setPassword] = useState("");
@@ -24,59 +24,49 @@ export default function UpdatePasswordPage() {
             // Redirect to home/dashboard after success
             router.push("/app-home");
             router.refresh();
-        } catch (err: any) {
-            setError(err.message || "Fehler beim Aktualisieren des Passworts.");
+        } catch (err: unknown) {
+            setError(err instanceof Error && err.message ? err.message : "Fehler beim Aktualisieren des Passworts.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4">
-            <div className="w-full max-w-md space-y-8">
-                <div className="flex justify-center">
-                    <LogoBadge size="lg" />
-                </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-xl">
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-white">Neues Passwort</h1>
-                        <p className="text-slate-400 mt-2">
-                            Bitte lege ein neues Passwort für deinen Account fest.
-                        </p>
+        <OnboardingFrame step="auth" mode="signin" onBack={loading ? undefined : () => router.push("/")}>
+            <div className="onboarding-step-panel">
+                <OnboardingHeading
+                    title="Neues Passwort"
+                    subtitle="Bitte lege ein neues Passwort für deinen Account fest."
+                />
+                <form onSubmit={handleSubmit} className="space-y-6" aria-busy={loading}>
+                    <div className="onboarding-field">
+                        <label htmlFor="password">Neues Passwort</label>
+                        <input
+                            id="password"
+                            name="password"
+                            autoComplete="new-password"
+                            type="password"
+                            required
+                            minLength={6}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Mindestens 6 Zeichen"
+                        />
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                                Neues Passwort
-                            </label>
-                            <input
-                                id="password"
-                                name="password"
-                                autoComplete="new-password"
-                                type="password"
-                                required
-                                minLength={6}
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
-                                placeholder="Mindestens 6 Zeichen"
-                            />
+                    {error && (
+                        <div className="onboarding-inline-feedback" data-tone="danger" role="alert">
+                            {error}
                         </div>
+                    )}
 
-                        {error && (
-                            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
-                                {error}
-                            </div>
-                        )}
-
-                        <ButtonPrimary type="submit" disabled={loading} className="w-full py-3">
+                    <div className="onboarding-auth-actions">
+                        <ButtonPrimary type="submit" disabled={loading} className="onboarding-primary w-full">
                             {loading ? "Speichern..." : "Passwort speichern"}
                         </ButtonPrimary>
-                    </form>
-                </div>
+                    </div>
+                </form>
             </div>
-        </div>
+        </OnboardingFrame>
     );
 }

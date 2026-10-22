@@ -2,7 +2,6 @@ import { getAuthState } from "@/lib/auth";
 import { getDefaultAppHomePath } from "@/lib/app-shell";
 import { redirect } from "next/navigation";
 import AuthBridge from "@/components/AuthBridge";
-import { MiniFooter } from "@/components/layout/MiniFooter";
 import { getSafeInternalRedirect } from "@/lib/safe-redirect";
 
 export default async function LandingPage({
@@ -10,8 +9,7 @@ export default async function LandingPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const resolvedParams: any = await searchParams;
+  const resolvedParams = await searchParams;
   const authState = await getAuthState();
   const redirectTo = getSafeInternalRedirect(resolvedParams.redirectTo) ?? undefined;
   const authMode = typeof resolvedParams.authMode === "string" && (resolvedParams.authMode === "signup" || resolvedParams.authMode === "signin")
@@ -33,9 +31,7 @@ export default async function LandingPage({
 
   // Ohne Session zeigt der Client-Wizard ggf. einen lokal gespeicherten Pending-Onboarding-Stand.
   return (
-    <div className="landing-auth-shell min-h-dvh bg-[#07090f]">
-      <AuthBridge authState={authState} redirectTo={redirectTo} initialMode={authMode} />
-      <MiniFooter />
-    </div>
+    <AuthBridge authState={authState} redirectTo={redirectTo} initialMode={authMode}
+      initialError={resolvedParams.error === "auth_code_error" ? "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an, um einen neuen Code anzufordern." : null} />
   );
 }

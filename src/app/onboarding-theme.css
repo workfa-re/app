@@ -1,0 +1,239 @@
+/* Imported after onboarding-design.css. Every color remains local to onboarding. */
+:is(.onboarding-canvas, .onboarding-experience) {
+  --onboarding-color-scheme: dark;
+  --onboarding-canvas-bg: #111111;
+  --onboarding-bg: #050505;
+  --onboarding-ink: #fafafa;
+  --onboarding-copy: #bcbcbc;
+  --onboarding-muted: #a5a5a5;
+  --onboarding-faint: #949494;
+  --onboarding-rule: rgb(255 255 255 / .12);
+  --onboarding-control-bg: rgb(255 255 255 / .04);
+  --onboarding-control-border: rgb(255 255 255 / .20);
+  --onboarding-control-focus: #b0b0b0;
+  --onboarding-control-focus-bg: rgb(255 255 255 / .055);
+  --onboarding-focus: #d6d6d6;
+  --onboarding-link: #c7c7c7;
+  --onboarding-link-hover: #fff;
+  --onboarding-error: #e0e0e0;
+  --onboarding-row-hover: rgb(255 255 255 / .07);
+  --onboarding-selection-bg: #242424;
+  --onboarding-selection-border: #999999;
+  --onboarding-overlay: rgb(20 20 20 / .88);
+  --onboarding-overlay-shadow: 0 18px 44px #0005;
+  --onboarding-backdrop: rgb(4 4 4 / .72);
+  --onboarding-glass-border: rgb(255 255 255 / .08);
+  --onboarding-glass-ink: #fff;
+  --onboarding-primary-ink: #080808;
+  --onboarding-primary-fill: linear-gradient(135deg, rgb(255 255 255 / .94), rgb(255 255 255 / .64) 46%, rgb(255 255 255 / .84));
+  --onboarding-primary-shadow: inset 0 2px 2px -1px rgb(255 255 255 / .9), inset 0 -2px 4px -2px rgb(255 255 255 / .55), 0 3px 12px rgb(0 0 0 / .16);
+  --onboarding-logo-filter: none;
+  --onboarding-film-filter: brightness(.64) contrast(1.06) saturate(.9);
+  --onboarding-film-outline: rgb(255 255 255 / .1);
+  --onboarding-sun-opacity: 0;
+  --onboarding-moon-opacity: 1;
+  --onboarding-info-bg: #1a1a1a; --onboarding-info-border: #515151; --onboarding-info-title: #fafafa; --onboarding-info-copy: #d3d3d3; --onboarding-info-accent: #cdcdcd;
+  --onboarding-danger-bg: #171717; --onboarding-danger-border: #505050; --onboarding-danger-title: #ededed; --onboarding-danger-copy: #d1d1d1; --onboarding-danger-accent: #bfbfbf;
+  --onboarding-warning-bg: #1e1e1e; --onboarding-warning-border: #626262; --onboarding-warning-title: #f0f0f0; --onboarding-warning-copy: #d7d7d7; --onboarding-warning-accent: #d0d0d0;
+  --onboarding-success-bg: #1f1f1f; --onboarding-success-border: #686868; --onboarding-success-title: #f7f7f7; --onboarding-success-copy: #dddddd; --onboarding-success-accent: #cccccc;
+  --glass-highlight: rgb(255 255 255 / .13);
+}
+
+html[data-onboarding-theme="light"] :is(.onboarding-canvas, .onboarding-experience) {
+  --onboarding-color-scheme: light;
+  --onboarding-canvas-bg: #ededed;
+  --onboarding-bg: #fcfcfc;
+  --onboarding-ink: #171717;
+  --onboarding-copy: #505050;
+  --onboarding-muted: #595959;
+  --onboarding-faint: #626262;
+  --onboarding-rule: rgb(35 35 35 / .15);
+  --onboarding-control-bg: #fff;
+  --onboarding-control-border: #858585;
+  --onboarding-control-focus: #555555;
+  --onboarding-control-focus-bg: #fff;
+  --onboarding-focus: #555555;
+  --onboarding-link: #363636;
+  --onboarding-link-hover: #111111;
+  --onboarding-error: #373737;
+  --onboarding-row-hover: rgb(35 35 35 / .055);
+  --onboarding-selection-bg: #eeeeee;
+  --onboarding-selection-border: #777777;
+  --onboarding-overlay: #ffffff;
+  --onboarding-overlay-shadow: 0 18px 48px rgb(35 35 35 / .16), 0 1px 3px rgb(35 35 35 / .07);
+  --onboarding-backdrop: rgb(45 45 45 / .28);
+  --onboarding-glass-border: rgb(35 35 35 / .18);
+  --onboarding-glass-ink: #171717;
+  --onboarding-primary-ink: #fff;
+  --onboarding-primary-fill: linear-gradient(135deg, rgb(0 0 0 / .90), rgb(0 0 0 / .76) 46%, rgb(0 0 0 / .86));
+  --onboarding-primary-shadow: inset 0 1px 1px rgb(255 255 255 / .30), inset 0 -1px 2px rgb(0 0 0 / .16), 0 3px 10px rgb(35 35 35 / .16);
+  --onboarding-logo-filter: brightness(0);
+  --onboarding-film-filter: brightness(1.05) contrast(1) saturate(1);
+  --onboarding-film-outline: rgb(0 0 0 / .1);
+  --onboarding-sun-opacity: 1;
+  --onboarding-moon-opacity: 0;
+  --onboarding-info-bg: #f2f2f2; --onboarding-info-border: #a2a2a2; --onboarding-info-title: #353535; --onboarding-info-copy: #4e4e4e; --onboarding-info-accent: #4f4f4f;
+  --onboarding-danger-bg: #f3f3f3; --onboarding-danger-border: #878787; --onboarding-danger-title: #353535; --onboarding-danger-copy: #464646; --onboarding-danger-accent: #404040;
+  --onboarding-warning-bg: #f7f7f7; --onboarding-warning-border: #8c8c8c; --onboarding-warning-title: #454545; --onboarding-warning-copy: #545454; --onboarding-warning-accent: #545454;
+  --onboarding-success-bg: #f4f4f4; --onboarding-success-border: #979797; --onboarding-success-title: #404040; --onboarding-success-copy: #545454; --onboarding-success-accent: #4e4e4e;
+  --glass-surface-fill: radial-gradient(100% 65% at 100% 100%, rgb(255 255 255 / .88), transparent 65%), linear-gradient(135deg, rgb(255 255 255 / .78), rgb(255 255 255 / .32) 42%, rgb(255 255 255 / .64));
+  --glass-surface-shadow: inset 0 2px 2px -1px rgb(255 255 255 / .96), inset 0 -2px 3px -2px rgb(35 35 35 / .18), 0 2px 6px rgb(35 35 35 / .08);
+  --glass-surface-filter: blur(1.5px) brightness(1.01);
+  --glass-surface-rim: linear-gradient(135deg, rgb(255 255 255 / .98), rgb(35 35 35 / .12) 24%, transparent 45%, rgb(35 35 35 / .06) 65%, rgb(255 255 255 / .92));
+  --glass-surface-inner-shadow: inset 1px 1px 2px rgb(255 255 255 / .92), inset -1px -1px 2px rgb(35 35 35 / .04);
+  --glass-surface-fallback: #f8f8f8;
+  --glass-highlight: rgb(0 0 0 / .08);
+}
+
+/* Native system colors also work before hydration and with JavaScript disabled. */
+@media (prefers-color-scheme: light) {
+  html:not([data-onboarding-theme="dark"]):not([data-onboarding-theme="light"]) :is(.onboarding-canvas, .onboarding-experience) {
+    --onboarding-color-scheme: light;
+    --onboarding-canvas-bg: #ededed;
+    --onboarding-bg: #fcfcfc;
+    --onboarding-ink: #171717;
+    --onboarding-copy: #505050;
+    --onboarding-muted: #595959;
+    --onboarding-faint: #626262;
+    --onboarding-rule: rgb(35 35 35 / .15);
+    --onboarding-control-bg: #fff;
+    --onboarding-control-border: #858585;
+    --onboarding-control-focus: #555555;
+    --onboarding-control-focus-bg: #fff;
+    --onboarding-focus: #555555;
+    --onboarding-link: #363636;
+    --onboarding-link-hover: #111111;
+    --onboarding-error: #373737;
+    --onboarding-row-hover: rgb(35 35 35 / .055);
+    --onboarding-selection-bg: #eeeeee;
+    --onboarding-selection-border: #777777;
+    --onboarding-overlay: #ffffff;
+    --onboarding-overlay-shadow: 0 18px 48px rgb(35 35 35 / .16), 0 1px 3px rgb(35 35 35 / .07);
+    --onboarding-backdrop: rgb(45 45 45 / .28);
+    --onboarding-glass-border: rgb(35 35 35 / .18);
+    --onboarding-glass-ink: #171717;
+    --onboarding-primary-ink: #fff;
+    --onboarding-primary-fill: linear-gradient(135deg, rgb(0 0 0 / .90), rgb(0 0 0 / .76) 46%, rgb(0 0 0 / .86));
+    --onboarding-primary-shadow: inset 0 1px 1px rgb(255 255 255 / .30), inset 0 -1px 2px rgb(0 0 0 / .16), 0 3px 10px rgb(35 35 35 / .16);
+    --onboarding-logo-filter: brightness(0);
+    --onboarding-film-filter: brightness(1.05) contrast(1) saturate(1);
+    --onboarding-film-outline: rgb(0 0 0 / .1);
+    --onboarding-sun-opacity: 1;
+    --onboarding-moon-opacity: 0;
+    --onboarding-info-bg: #f2f2f2; --onboarding-info-border: #a2a2a2; --onboarding-info-title: #353535; --onboarding-info-copy: #4e4e4e; --onboarding-info-accent: #4f4f4f;
+    --onboarding-danger-bg: #f3f3f3; --onboarding-danger-border: #878787; --onboarding-danger-title: #353535; --onboarding-danger-copy: #464646; --onboarding-danger-accent: #404040;
+    --onboarding-warning-bg: #f7f7f7; --onboarding-warning-border: #8c8c8c; --onboarding-warning-title: #454545; --onboarding-warning-copy: #545454; --onboarding-warning-accent: #545454;
+    --onboarding-success-bg: #f4f4f4; --onboarding-success-border: #979797; --onboarding-success-title: #404040; --onboarding-success-copy: #545454; --onboarding-success-accent: #4e4e4e;
+    --glass-surface-fill: radial-gradient(100% 65% at 100% 100%, rgb(255 255 255 / .88), transparent 65%), linear-gradient(135deg, rgb(255 255 255 / .78), rgb(255 255 255 / .32) 42%, rgb(255 255 255 / .64));
+    --glass-surface-shadow: inset 0 2px 2px -1px rgb(255 255 255 / .96), inset 0 -2px 3px -2px rgb(35 35 35 / .18), 0 2px 6px rgb(35 35 35 / .08);
+    --glass-surface-filter: blur(1.5px) brightness(1.01);
+    --glass-surface-rim: linear-gradient(135deg, rgb(255 255 255 / .98), rgb(35 35 35 / .12) 24%, transparent 45%, rgb(35 35 35 / .06) 65%, rgb(255 255 255 / .92));
+    --glass-surface-inner-shadow: inset 1px 1px 2px rgb(255 255 255 / .92), inset -1px -1px 2px rgb(35 35 35 / .04);
+    --glass-surface-fallback: #f8f8f8;
+    --glass-highlight: rgb(0 0 0 / .08);
+  }
+}
+
+.onboarding-canvas { background: var(--onboarding-canvas-bg); }
+.onboarding-experience {
+  --text-strong: var(--onboarding-ink); --text-muted: var(--onboarding-copy); --text-faint: var(--onboarding-faint);
+  --surface-solid: var(--onboarding-control-bg); --surface-sunken: var(--onboarding-bg); --surface-overlay: var(--onboarding-overlay);
+  --border-subtle: var(--onboarding-rule); --brand: var(--onboarding-link); --brand-border: var(--onboarding-selection-border); --brand-soft: var(--onboarding-selection-bg);
+  color-scheme: var(--onboarding-color-scheme); color: var(--onboarding-ink); background: var(--onboarding-bg);
+}
+.onboarding-experience .onboarding-brand { color: var(--onboarding-ink); }
+.onboarding-experience .onboarding-brand-mark { filter: var(--onboarding-logo-filter); }
+.onboarding-experience .onboarding-film-stage { filter: var(--onboarding-film-filter); transition: filter 450ms var(--onboarding-ease); }
+.onboarding-experience .onboarding-film { outline: 1px solid var(--onboarding-film-outline); outline-offset: -1px; }
+
+.onboarding-experience :is(.onboarding-primary, .onboarding-secondary, .onboarding-brand-symbol, .onboarding-help-button, .onboarding-back-button, .onboarding-password-toggle, .onboarding-icon-button, .onboarding-film-toggle, .onboarding-location-primary, .onboarding-location-back, .onboarding-feedback-action, button[class*="bg-blue-600"], button[class*="border-white/30"]) { color: var(--onboarding-glass-ink) !important; border-color: var(--onboarding-glass-border) !important; }
+.onboarding-experience :is(.onboarding-primary, .onboarding-location-primary, .onboarding-feedback-action-primary, button[class*="bg-blue-600"]) { color: var(--onboarding-primary-ink) !important; background: var(--onboarding-primary-fill) !important; box-shadow: var(--onboarding-primary-shadow) !important; }
+.onboarding-experience :is(.onboarding-primary, .onboarding-location-primary, .onboarding-feedback-action-primary) :where(span, svg) { color: inherit; }
+.onboarding-experience :is(.onboarding-field > label, .onboarding-field-label, .onboarding-location-label) { color: var(--onboarding-ink); }
+.onboarding-experience :is(input, textarea, select):focus, html.light .onboarding-experience :is(input, textarea, select):focus { border-color: var(--onboarding-control-focus) !important; background: var(--onboarding-control-focus-bg) !important; }
+.onboarding-experience :is(input, textarea, select)[aria-invalid="true"] { border-color: var(--onboarding-error) !important; }
+.onboarding-experience input:-webkit-autofill { -webkit-text-fill-color: var(--onboarding-ink); -webkit-box-shadow: 0 0 0 1000px var(--onboarding-control-bg) inset !important; }
+.onboarding-experience :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--onboarding-link); }
+.onboarding-experience .onboarding-waitlist-form select { color-scheme: var(--onboarding-color-scheme); }
+.onboarding-experience .onboarding-waitlist-form option { color: var(--onboarding-ink); background-color: var(--onboarding-bg); }
+.onboarding-experience .onboarding-select-control { position: relative; }
+.onboarding-experience .onboarding-waitlist-form .onboarding-select-control select { display: block; appearance: none; -webkit-appearance: none; padding-right: 52px; }
+.onboarding-experience .onboarding-select-chevron { position: absolute; right: 18px; top: 50%; translate: 0 -50%; color: var(--onboarding-ink); pointer-events: none; }
+.onboarding-experience .onboarding-select-control select:disabled + .onboarding-select-chevron { opacity: .55; }
+.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action) { color: var(--onboarding-link); text-decoration-color: var(--onboarding-control-border); }
+.onboarding-experience :is(.onboarding-link, .onboarding-parent-link, .onboarding-text-button, .onboarding-location-support, .onboarding-inline-feedback-action):hover { color: var(--onboarding-link-hover); text-decoration-color: currentColor; }
+.onboarding-experience :is(.onboarding-location-error, .onboarding-date-error) { color: var(--onboarding-error); }
+
+html .onboarding-experience .onboarding-choice { border-color: var(--onboarding-control-border) !important; background: var(--onboarding-control-bg) !important; }
+html .onboarding-experience .onboarding-choice:hover { border-color: var(--onboarding-selection-border) !important; background: var(--onboarding-row-hover) !important; }
+html .onboarding-experience .onboarding-choice[aria-pressed="true"] { border-color: var(--onboarding-selection-border) !important; background: var(--onboarding-selection-bg) !important; }
+html .onboarding-experience .onboarding-choice-title { color: var(--onboarding-ink); }
+html .onboarding-experience .onboarding-choice-text { color: var(--onboarding-copy); }
+.onboarding-experience .onboarding-choice-icon { color: var(--onboarding-copy); }
+.onboarding-experience .onboarding-choice-check { border-color: var(--onboarding-control-border); }
+.onboarding-experience .onboarding-choice[aria-pressed="true"] .onboarding-choice-check { background: var(--onboarding-link); border-color: var(--onboarding-link); color: var(--onboarding-bg); }
+.onboarding-experience .onboarding-date-control:focus-within { border-color: var(--onboarding-control-focus) !important; }
+
+.onboarding-experience :is(.location-search-icon, .location-search-clear) { color: var(--onboarding-muted) !important; }
+.onboarding-experience .location-search-menu, html.light .onboarding-experience .location-search-menu { background: var(--onboarding-overlay) !important; border-color: var(--onboarding-control-border) !important; box-shadow: var(--onboarding-overlay-shadow) !important; }
+.onboarding-experience .location-search-result:is(:hover, :focus, [aria-selected="true"]) { background: var(--onboarding-row-hover) !important; }
+.onboarding-experience .location-search-result-title { color: var(--onboarding-ink) !important; }
+.onboarding-experience .location-search-result-accent { color: var(--onboarding-link) !important; }
+.onboarding-experience :is(.location-search-result-subtitle, .location-search-menu-footer, .location-search-result-check) { color: var(--onboarding-copy) !important; border-color: var(--onboarding-rule) !important; }
+.onboarding-experience .location-search-result-icon { color: var(--onboarding-link) !important; background: var(--onboarding-selection-bg) !important; }
+.onboarding-experience .location-search-menu-footer { background: var(--onboarding-control-bg) !important; }
+
+html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedback-card) {
+  --feedback-bg: var(--onboarding-info-bg); --feedback-border: var(--onboarding-info-border); --feedback-title: var(--onboarding-info-title); --feedback-copy: var(--onboarding-info-copy); --feedback-accent: var(--onboarding-info-accent);
+  --feedback-accent-strong: var(--onboarding-link); --feedback-accent-foreground: var(--onboarding-bg); --feedback-secondary-bg: transparent; --feedback-secondary-border: var(--onboarding-control-border); --feedback-secondary-text: var(--onboarding-ink);
+}
+html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedback-card)[data-tone="danger"] { --feedback-bg: var(--onboarding-danger-bg); --feedback-border: var(--onboarding-danger-border); --feedback-title: var(--onboarding-danger-title); --feedback-copy: var(--onboarding-danger-copy); --feedback-accent: var(--onboarding-danger-accent); }
+html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedback-card)[data-tone="warning"] { --feedback-bg: var(--onboarding-warning-bg); --feedback-border: var(--onboarding-warning-border); --feedback-title: var(--onboarding-warning-title); --feedback-copy: var(--onboarding-warning-copy); --feedback-accent: var(--onboarding-warning-accent); }
+html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedback-card)[data-tone="success"] { --feedback-bg: var(--onboarding-success-bg); --feedback-border: var(--onboarding-success-border); --feedback-title: var(--onboarding-success-title); --feedback-copy: var(--onboarding-success-copy); --feedback-accent: var(--onboarding-success-accent); }
+.onboarding-experience .onboarding-summary-row dd { color: var(--onboarding-ink); }
+
+.onboarding-experience :is(.onboarding-help-dialog, .onboarding-help-popover) { color: var(--onboarding-ink); border-color: var(--onboarding-rule); background: var(--onboarding-overlay); box-shadow: var(--onboarding-overlay-shadow); }
+.onboarding-experience .onboarding-help-dialog::backdrop { background: var(--onboarding-backdrop); }
+.onboarding-experience .onboarding-help-popover::backdrop { background: transparent; }
+.onboarding-experience :is(.onboarding-help-sections summary, .onboarding-legal-links a) { color: var(--onboarding-ink); }
+.onboarding-experience .onboarding-help-contact { color: var(--onboarding-link); }
+.onboarding-experience .onboarding-support-action { color: var(--onboarding-ink); }
+.onboarding-experience .onboarding-support-action:is(:hover, :focus-visible):not(:disabled) { background: var(--onboarding-row-hover); }
+.onboarding-experience .onboarding-support-action small { color: var(--onboarding-faint); }
+.onboarding-experience .onboarding-guardian-help > p { color: var(--onboarding-copy); }
+.onboarding-experience .onboarding-legal > :is(button, a) { color: var(--onboarding-muted); }
+
+/* Older wizard fields still carry utility colors; semantic controls take precedence. */
+.onboarding-experience :where(.text-white, .text-slate-100, .text-slate-200) { color: var(--onboarding-ink) !important; }
+.onboarding-experience :where(.text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600) { color: var(--onboarding-copy) !important; }
+.onboarding-experience :where([class*="text-blue-"], [class*="text-cyan-"]) { color: var(--onboarding-link) !important; }
+.onboarding-experience :is(.onboarding-primary, .onboarding-location-primary, .onboarding-feedback-action-primary, button[class*="bg-blue-600"], button[class*="bg-green-"]) :where(span, svg) { color: inherit !important; }
+.onboarding-experience :where(label) { color: var(--onboarding-ink); }
+.onboarding-experience ::selection { background: var(--onboarding-selection-bg); color: var(--onboarding-ink); }
+
+/* A stable pair of icons also shows the correct system appearance before hydration. */
+.onboarding-experience .onboarding-theme-toggle {
+  position: relative; isolation: isolate; display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; overflow: hidden;
+  border: 1px solid var(--onboarding-glass-border); border-radius: 50%; background: var(--glass-surface-fill); color: var(--onboarding-glass-ink); box-shadow: var(--glass-surface-shadow);
+  -webkit-backdrop-filter: var(--glass-surface-filter); backdrop-filter: var(--glass-surface-filter); transition: box-shadow 180ms ease;
+}
+.onboarding-experience .onboarding-theme-toggle::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--glass-surface-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.onboarding-experience .onboarding-theme-toggle::after { content: ""; position: absolute; inset: 2px; border-radius: inherit; pointer-events: none; box-shadow: var(--glass-surface-inner-shadow); background: radial-gradient(120px circle at var(--glass-x, 50%) var(--glass-y, 0%), var(--glass-highlight), transparent 75%); opacity: 0; transition: opacity 180ms ease; }
+.onboarding-experience .onboarding-theme-toggle svg { grid-area: 1 / 1; width: 20px; height: 20px; }
+.onboarding-experience .onboarding-theme-sun { opacity: var(--onboarding-sun-opacity); }
+.onboarding-experience .onboarding-theme-moon { opacity: var(--onboarding-moon-opacity); }
+@media (hover: hover) and (pointer: fine) {
+  .onboarding-experience .onboarding-theme-toggle:hover::after { opacity: 1; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .onboarding-experience .onboarding-theme-toggle { background: var(--glass-surface-fallback); }
+}
+
+.onboarding-experience button[class*="bg-green-"] { color: var(--onboarding-primary-ink) !important; background: var(--onboarding-primary-fill) !important; border-color: var(--onboarding-glass-border) !important; box-shadow: var(--onboarding-primary-shadow) !important; }
+.onboarding-experience :where([class*="text-emerald-"], [class*="text-green-"], [class*="text-rose-"], [class*="text-red-"], [class*="text-amber-"]) { color: var(--onboarding-copy) !important; }
+
+/* The help surface keeps a clear rim and lets a little ambient light through. */
+.onboarding-experience .onboarding-help-popover {
+  background: linear-gradient(135deg, rgb(255 255 255 / .06), transparent 55%), color-mix(in srgb, var(--onboarding-overlay) 90%, transparent);
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / .30), var(--onboarding-overlay-shadow);
+}

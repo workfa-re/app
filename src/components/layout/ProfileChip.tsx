@@ -252,7 +252,7 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
                                 className="app-profile-menu-item group flex items-center gap-3 rounded-[0.625rem] px-3 py-2 text-sm text-slate-300 outline-none transition-[background-color,color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600"
                             >
                                 <Shield size={16} className="app-profile-menu-item-icon" />
-                                <span>Trust Center</span>
+                                <span>Rechtliches</span>
                             </Link>
 
                             <div className="app-profile-menu-divider my-1 h-px bg-white/5" />

@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("@supabase/ssr", () => ({ createServerClient: state.createServerClient }));
-vi.mock("next/font/google", () => ({ Plus_Jakarta_Sans: () => ({ variable: "test-font" }) }));
+vi.mock("next/font/google", () => ({ Inter: () => ({ variable: "test-font" }) }));
 vi.mock("next/script", () => ({ default: state.script }));
 vi.mock("next/headers", () => ({ cookies: state.cookies }));
 vi.mock("@/lib/auth", () => ({ getCurrentSessionAndProfile: state.getCurrentSessionAndProfile }));

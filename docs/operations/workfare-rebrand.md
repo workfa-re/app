@@ -1,9 +1,6 @@
 # Platform rebranding to Workfare
 
-Current icon choice: the original blue bridge on transparency. The white
-wordmark-icon experiment below has been superseded by the final follow-up.
-
-Status: 2026-09-16. The platform source is rebranded. The application deployment
+Initial status: 2026-09-16. The platform source is rebranded. The application deployment
 is a separate step from the local commit. The production Supabase email changes
 listed below were saved directly in its dashboard.
 
@@ -14,7 +11,7 @@ listed below were saved directly in its dashboard.
 | Public brand constants used the previous name and contact domain | `src/lib/constants.ts` defines Workfare, its description and separate contact, support and privacy addresses at `workfare.team`. |
 | Root page metadata, installed-app labels and browser icon URLs carried the previous name | Root metadata and `public/manifest.webmanifest` use Workfare; icon URLs use Workfare filenames with a new cache version. |
 | The old wordmark asset contained the previous brand name | `public/brand/workfare-wordmark.png` uses the supplied Workfare logo; the obsolete wordmark file is removed. |
-| Bridge marks and PWA icons had legacy filenames | Assets now have Workfare names. The initial rename preserved the bridge. The follow-up below replaces every bridge asset with the original Workfare wordmark on white. |
+| Bridge marks and PWA icons had legacy filenames | Assets now have Workfare names. The existing bridge artwork and light/dark variants are preserved. `ThemedLogoImage.tsx` points to the renamed files. |
 | Onboarding, age checks, verification, waiting-list and guardian pages named the previous brand | Text, logo descriptions and support links use Workfare. Account and consent behavior stays unchanged. |
 | Header, footer, loading label, account settings and notification descriptions used the old brand | These surfaces now identify Workfare, including accessible image/loading labels. |
 | Job trust labels, staff labels and payment placeholder copy used the old name | Job details, staff badges and the payment placeholder use Workfare. No payment capability is introduced. |
@@ -67,7 +64,7 @@ listed below were saved directly in its dashboard.
 - `npm run lint`: passed.
 - `npm run build`: passed with TypeScript and production route generation.
 - Production preview inspected at 1440×900 and 390×844; visible public branding
-  is Workfare and the established layout is retained (the icon is superseded by the follow-up below).
+  is Workfare and the established layout/bridge icon are retained.
 - Thirteen public entry, legal, onboarding and guardian routes checked for
   response, title and visible legacy branding; manifest/icon references checked.
 - Supabase: signup and invitation templates inspected, sender name saved and
@@ -77,60 +74,36 @@ listed below were saved directly in its dashboard.
 - An authenticated browser walkthrough was not performed: the local demo
   database was unavailable. This is not claimed as covered by the UI check.
 
-## Follow-up: one white Workfare logo
+## Logo correction: original presentation, transparent artwork
 
-The supplied `Logo_wf.png` remains byte-identical in
-`public/brand/workfare-wordmark.png`. All exported icons use that artwork,
-proportionally fitted to a white square without changing its lettering or colors.
-No generated alternative logo is used.
-
-| Before | After |
-| --- | --- |
-| Blue bridge images in `public/brand` | Both light and dark bridge files are deleted. |
-| Blue bridge favicon in `src/app/favicon.ico` | White Workfare favicon with 16, 32, 48 and 256 pixel frames. |
-| Blue 32, 180, 192 and 512 pixel icons | White Workfare exports for browser, Apple and installed-app use. |
-| Two theme-dependent logo images | One `BrandLogoImage` and a shared `BRAND_ICON_PATH`; the same original mark appears in both themes. |
-| Circular clipping and enlargement tailored to the bridge | Logo containers use rounded squares, full artwork and no enlargement/cropping. |
-| Theme-specific display/hiding rules and a reflection over the badge | Obsolete logo rules and the badge reflection are removed; the logo background stays white. |
-| Old icon cache version in metadata and manifest | The new `wordmark-1` version points clients to the updated artwork. |
-| Blue logo in README and contributor/support documents | These documents now show the white Workfare app icon. |
-
-Cloudflare loads the platform's `/favicon.ico` for its challenge page; see
-[Cloudflare favicon customization](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/additional-configuration/).
-After deployment, verify that URL and the versioned icons return the new files.
-Google refreshes favicons after recrawling; an immediate replacement in existing
-search results cannot be guaranteed. See
-[Google's favicon documentation](https://developers.google.com/search/docs/appearance/favicon-in-search).
-
-Follow-up verification: lint and production build passed. Desktop (1440×900)
-and mobile (390×844) display the complete white Workfare mark. All five public
-icon URLs return the exact new files; both removed bridge URLs return 404.
-The optimized component image returns 200. Every exported PNG and ICO frame
-was checked for correct dimensions, opaque grayscale pixels and nonempty artwork.
-The original wordmark remains byte-identical to the supplied file.
-
-## Final icon choice: the blue bridge without a dark background
-
-The user's final choice restores the blue bridge. The artwork is taken from the
-previous transparent light-variant asset in commit 7bff0c8. Only export padding
-and border artefacts are removed; the bridge geometry and color are preserved.
-The dark circular logo file is not restored. The original Workfare wordmark
-remains available separately.
+The logo presentation is restored from commit 7bff0c8. The two later logo
+experiments are superseded. The original transparent light-variant artwork is
+reused byte-for-byte in both themes, retaining its original canvas and padding.
+The file with the baked-in navy disc is not restored.
 
 | Before | After |
 | --- | --- |
-| White wordmark square in platform logo slots | One transparent blue bridge, shared by all logo components through BrandLogoImage. |
-| White blocks, shadows and rounded-square framing | Transparent logo containers and the previous circular outline shape, with no dedicated filled background. |
-| White wordmark favicon and 192/512 app icons | Transparent blue bridge exports and favicon.ico frames at 16, 32, 48 and 256 pixels. |
-| White wordmark Apple touch icon | Blue bridge on a plain white Apple icon; no dark background. |
-| Metadata/manifest cache version wordmark-1 | Version bridge-transparent-1, with transparent app icons declared as purpose any. |
-| README and contributor documents linked the app icon | The same links now resolve to the blue bridge artwork. |
+| Enlarged bridge and changed logo framing from the last two commits | Original component dimensions, circular glass frames, spacing, theme styles and animations are restored. |
+| Re-exported and cropped bridge source | Original transparent bridge asset; ThemedLogoImage uses it in both themes. The experiment-only BrandLogoImage and workfare-bridge.png are removed. |
+| Original dark logo asset with a navy disc | The dark-background asset stays deleted; document images also use the original transparent mark. |
+| Oversized favicon/app exports | Browser, Apple and app icons retain the original canvas proportions and use transparency, with cache version bridge-original-clear-2. |
 
-Cloudflare receives the new bridge through the existing /favicon.ico endpoint.
-No challenge rule or security setting is changed.
+The Workfare name, wordmark, domains and application behavior are preserved.
+Cloudflare continues to load the platform favicon; challenge settings are untouched.
 
-Final bridge verification: lint and production build passed. Desktop at 1440×900
-and mobile at 390×844 show the bridge without a filled logo plate. All icon URLs,
-including /favicon.ico, return the exact updated files, and the optimized
-component image returns 200. Transparent PNG exports and all four ICO frames
-were checked for transparency and visible blue artwork.
+Verification for the correction: lint and production build passed. The original
+component and CSS files match 7bff0c8 byte-for-byte; the source image also matches
+the original transparent asset. The public entry flow was inspected at 1440×900
+and 390×844. PNG/ICO exports have transparent corners and no navy pixels.
+
+## Complete onboarding rebrand: 2026-10-22
+
+The public entry, account forms and legal navigation have since been redesigned
+as one complete onboarding experience. The transparent bridge artwork remains;
+the onboarding has its own compact glass-framed mark. Inter is the shared font.
+The release also introduces neutral light/dark modes, a theme-aware bridge film,
+consistent controls and profile review, and a direct `/legal` overview.
+
+See [the complete onboarding release and next steps](../releases/2026-10-22-onboarding-rebrand.md)
+for the full scope, validation boundaries and follow-up plan. Earlier verification
+counts in this document describe their original release, not the October checks.

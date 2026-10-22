@@ -5,7 +5,7 @@ import { currentBrandLabel } from "@/lib/brand-compat";
 import Link from "next/link";
 import { BRAND_NAME } from "@/lib/constants";
 import type { Market } from "@/lib/types";
-import { BrandLogoImage } from "@/components/ui/BrandLogoImage";
+import { ThemedLogoImage } from "@/components/ui/ThemedLogoImage";
 
 export function LeftBrandChip({ market }: { market: Market | null }) {
     return (
@@ -16,12 +16,12 @@ export function LeftBrandChip({ market }: { market: Market | null }) {
         >
             <div className="app-brand-logo-ring relative h-10 w-10 shrink-0 rounded-full border p-[1px]">
                 <div className="app-brand-logo-badge h-full w-full overflow-hidden rounded-full">
-                    <BrandLogoImage
+                    <ThemedLogoImage
                         alt={`${BRAND_NAME} Logo`}
                         width={44}
                         height={44}
                         priority
-                        className="app-brand-logo-image h-full w-full object-contain object-center"
+                        className="app-brand-logo-image h-full w-full scale-[1.22] object-cover object-center"
                     />
                 </div>
             </div>

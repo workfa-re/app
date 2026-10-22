@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
+  agentRules: false,
   async headers() {
     const demoEnabled = process.env.WORKFARE_DEMO_ENABLED === "true";
     const publicDemoEnabled = process.env.NEXT_PUBLIC_WORKFARE_DEMO_ENABLED === "true";

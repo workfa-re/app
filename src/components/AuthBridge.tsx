@@ -7,11 +7,12 @@ type AuthBridgeProps = {
   authState: AuthState;
   redirectTo?: string;
   initialMode?: "signup" | "signin" | null;
+  initialError?: string | null;
 };
 
-export default function AuthBridge({ authState, redirectTo, initialMode }: AuthBridgeProps) {
+export default function AuthBridge({ authState, redirectTo, initialMode, initialError }: AuthBridgeProps) {
   if (authState.state === "no-session") {
-    return <OnboardingWizard initialProfile={null} redirectTo={redirectTo} initialMode={initialMode} reserveFooterSpace />;
+    return <OnboardingWizard initialProfile={null} redirectTo={redirectTo} initialMode={initialMode} initialError={initialError} />;
   }
 
   if (authState.state === "email-unconfirmed") {

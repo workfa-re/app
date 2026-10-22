@@ -2,6 +2,7 @@ import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { getAuthState } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getSafeInternalRedirect } from "@/lib/safe-redirect";
+import type { OnboardingStep } from "@/lib/onboardingFlow";
 
 // server component
 export default async function OnboardingPage(props: {
@@ -43,7 +44,7 @@ export default async function OnboardingPage(props: {
 
   // If just verified, force the step to email-confirm (which will show success state)
   // OR if the user is incomplete, force them to the role/profile step to prevent "Welcome/Login" loop.
-  let forcedStep: string | undefined = authState.state === "email-unconfirmed" ? "email-confirm" : undefined;
+  let forcedStep: OnboardingStep | undefined = authState.state === "email-unconfirmed" ? "email-confirm" : undefined;
 
   if (authState.state === "incomplete-profile" && !forcedStep) {
     forcedStep = "role";
@@ -66,12 +67,13 @@ export default async function OnboardingPage(props: {
   return (
     <OnboardingWizard
       initialProfile={wizardProfile}
-      forcedStep={forcedStep as any}
+      forcedStep={forcedStep}
       initialEmail={initialEmail}
       initialRegion={initialRegion}
       redirectTo={redirectTo}
       initialMode={initialMode}
       isJustVerified={isJustVerified}
+      initialError={searchParams.error === "auth_code_error" ? "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an, um einen neuen Code anzufordern." : null}
     />
   );
 }

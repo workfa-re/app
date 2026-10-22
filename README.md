@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/workfare-icon-512.png" width="96" alt="Workfare" />
+  <img src="public/brand/workfare-mark-light.png" width="96" alt="Workfare" />
   <h1>Workfare</h1>
   <p>Plattform für sichere Taschengeldjobs und Alltagshilfe.</p>
 </div>
@@ -14,7 +14,7 @@
 
 Welcome to the **Workfare Web Platform**.
 
-Workfare is a high-end platform connecting job seekers (14-18 years old) with private individuals and companies for everyday tasks and pocket-money jobs. This repository specifically houses our **Web Application**—a highly optimized, PWA-ready Next.js 16 environment that delivers a native, app-like experience directly in the browser. *(Note: Our native iOS and Android applications are maintained in separate, dedicated repositories).*
+Workfare is a high-end platform connecting job seekers (14-20 years old) with private individuals and companies for everyday tasks and pocket-money jobs. This repository specifically houses our **Web Application**—a highly optimized, PWA-ready Next.js 16 environment that delivers a native, app-like experience directly in the browser. *(Note: Our native iOS and Android applications are maintained in separate, dedicated repositories).*
 
 Our engineering philosophy prioritizes three pillars: **Uncompromising Security**, **Cinematic UX/UI**, and **Scalable Architecture**.
 
@@ -166,6 +166,7 @@ Our PostgreSQL Database (managed via Supabase) operates under strict Row Level S
 
 ## 📚 Engineering Documentation
 
+- **[Complete onboarding rebrand](./docs/releases/2026-10-22-onboarding-rebrand.md):** Public entry, account flows, cinematic glass design, light/dark modes, legal pages, validation and next steps.
 - **[Major platform foundation release](./docs/releases/2026-07-15-platform-foundation.md):** Complete, human-readable change record from `c9aa5b0`, including product impact, breaking changes, validation and deployment requirements.
 - **[Activities domain architecture](./docs/architecture/activities-domain.md):** Job, application, queue, conversation, appointment, Realtime and authorization contracts.
 - **[Database rollout runbook](./docs/operations/database-rollout.md):** Migration-ledger verification, deployment gates, smoke tests and rollback strategy.
