@@ -4,9 +4,9 @@
     position: fixed; z-index: 90; inset: 12px; display: flex; flex-direction: column;
     width: auto; max-width: 480px; max-height: calc(100dvh - 24px); margin-left: auto;
     overflow: hidden; border: 1px solid var(--app-panel-rule); border-radius: 28px;
-    color: var(--app-ink); background: var(--app-menu-fill, var(--app-ground));
-    box-shadow: var(--app-glass-shadow), 0 20px 70px rgb(0 0 0 / .18);
-    -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter);
+    color: var(--app-ink); background: var(--app-overlay-fill, var(--app-menu-fill));
+    box-shadow: var(--app-surface-shadow), 0 20px 70px rgb(0 0 0 / .18);
+    -webkit-backdrop-filter: var(--app-surface-filter); backdrop-filter: var(--app-surface-filter);
     font-family: var(--font-sans), Inter, sans-serif; -webkit-font-smoothing: antialiased;
 }
 .backdrop.backdrop.backdrop { position: fixed; z-index: 89; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0; background: rgb(0 0 0 / .22); cursor: default; }
@@ -16,7 +16,8 @@
 .searchToggle.searchToggle { color: var(--app-muted); background: transparent; box-shadow: none; }
 .heading svg { width: 18px; height: 18px; stroke-width: 1.6; }
 .body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 24px; scrollbar-width: thin; scrollbar-color: var(--app-panel-rule) transparent; }
-.personCard { padding: 18px; border: 1px solid var(--app-panel-rule); border-radius: 22px; background: var(--app-panel-fill); box-shadow: var(--app-glass-inner-shadow); }
+.personCard { position: relative; padding: 18px; border: 1px solid transparent; border-radius: 22px; background: var(--app-surface-fill); box-shadow: var(--app-surface-shadow); }
+.rail::before, .personCard::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-surface-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .identity { display: flex; align-items: center; min-width: 0; gap: 13px; }
 .avatar { display: grid; flex: 0 0 58px; width: 58px; height: 58px; place-items: center; overflow: hidden; border-radius: 50%; color: var(--app-ink); background: var(--app-content-selection); font-size: 18px; font-weight: 500; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; outline: 1px solid rgb(0 0 0 / .1); outline-offset: -1px; border-radius: inherit; }

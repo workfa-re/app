@@ -175,9 +175,6 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                                             value={message}
                                                             onChange={(e) => setMessage(e.target.value)}
                                                         />
-                                                        <p className={styles.hint}>
-                                                            Deine Bewerbung reserviert den Job für dich. Den Termin stimmt ihr danach im Chat ab.
-                                                        </p>
                                                     </div>
                                                 )}
 

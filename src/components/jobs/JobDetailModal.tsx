@@ -74,7 +74,7 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
     return <>
         <Transition appear show={isOpen} as={Fragment} afterLeave={onClosed}>
             <Dialog as="div" className={styles.root + " app-portal-surface relative z-50"} onClose={onClose}>
-                <Transition.Child as={Fragment} enter="transition-opacity duration-200 motion-reduce:duration-0" enterFrom="opacity-0" enterTo="opacity-100" leave="transition-opacity duration-150 motion-reduce:duration-0" leaveFrom="opacity-100" leaveTo="opacity-0"><div className={styles.backdrop} /></Transition.Child>
+                <div className={styles.backdrop} />
                 <div className={styles.viewport}>
                     <Transition.Child as={Fragment} enter="transition-[opacity,transform] duration-220 motion-reduce:transition-none" enterFrom="opacity-0 translate-y-2 motion-reduce:translate-y-0" enterTo="opacity-100 translate-y-0" leave="transition-[opacity,transform] duration-150 motion-reduce:transition-none" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-1 motion-reduce:translate-y-0">
                         <Dialog.Panel className={styles.sheet}>

@@ -1,48 +1,92 @@
-/* Neutral canvas; only the edges and transparency describe the glass. */
+/* Neutral ground; reflections belong to the glass, never to a glowing canvas. */
 html:has(.app-shell), body:has(.app-shell) { background: #f4f4f4; }
 :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) {
   --app-ground: #f4f4f4;
   --app-canvas: #f4f4f4;
   --app-ink: #191919;
   --app-muted: #626262;
-  --app-panel-rule: rgb(0 0 0 / .07);
-  --app-menu-fill: rgb(250 250 250 / .96);
+  --app-panel-fill: rgb(255 255 255 / .52);
+  --app-panel-rule: rgb(0 0 0 / .065);
+  --app-menu-fill: rgb(250 250 250 / .90);
   --app-content-selection: rgb(0 0 0 / .035);
   --app-content-hover: rgb(0 0 0 / .02);
-  --app-glass-rim: linear-gradient(135deg, rgb(255 255 255 / .98), rgb(0 0 0 / .06) 28%, transparent 48%, rgb(255 255 255 / .8));
+  --app-glass-rim: linear-gradient(135deg, rgb(255 255 255 / .98), rgb(0 0 0 / .055) 28%, transparent 48%, rgb(255 255 255 / .8));
   --app-glass-inner-shadow: inset 1px 1px 2px rgb(255 255 255 / .9), inset -1px -1px 2px rgb(0 0 0 / .025);
-  --app-glass-shadow: inset 0 1px 2px rgb(255 255 255 / .9), 0 2px 6px rgb(0 0 0 / .06), 0 8px 22px rgb(0 0 0 / .025);
-  --app-glass-selected: rgb(0 0 0 / .045);
-  --app-glass-selected-rim: rgb(255 255 255 / .9);
+  --app-glass-shadow: inset 0 1px 2px rgb(255 255 255 / .9), inset 0 -1px 1px rgb(0 0 0 / .035), 0 2px 6px rgb(0 0 0 / .06), 0 8px 22px rgb(0 0 0 / .025);
+  --app-glass-shadow-hover: inset 0 1px 2px rgb(255 255 255 / .98), inset 0 -1px 1px rgb(0 0 0 / .035), 0 3px 8px rgb(0 0 0 / .07), 0 10px 24px rgb(0 0 0 / .035);
+  --app-glass-filter: blur(14px) saturate(1.15);
+  --app-glass-selected: linear-gradient(145deg, rgb(255 255 255 / .52), rgb(255 255 255 / .04) 48%, rgb(255 255 255 / .22)), rgb(0 0 0 / .045);
+  --app-glass-selected-rim: linear-gradient(135deg, #fff, rgb(255 255 255 / .12) 44%, rgb(255 255 255 / .85));
+  --app-surface-fill: linear-gradient(145deg, rgb(255 255 255 / .52), rgb(255 255 255 / .12) 42%, rgb(255 255 255 / .26)), rgb(255 255 255 / .42);
+  --app-surface-rim: linear-gradient(140deg, rgb(255 255 255 / .96), rgb(0 0 0 / .045) 32%, rgb(255 255 255 / .12) 58%, rgb(255 255 255 / .76));
+  --app-surface-shadow: inset 0 1px 1px rgb(255 255 255 / .88), inset 0 -1px 1px rgb(0 0 0 / .025), 0 2px 5px rgb(0 0 0 / .025), 0 14px 36px -14px rgb(0 0 0 / .10);
+  --app-surface-shadow-hover: inset 0 1px 1px rgb(255 255 255 / .98), inset 0 -1px 1px rgb(0 0 0 / .035), 0 3px 7px rgb(0 0 0 / .035), 0 18px 40px -14px rgb(0 0 0 / .14);
+  --app-surface-filter: blur(20px) saturate(1.12);
+  --app-overlay-fill: linear-gradient(145deg, rgb(255 255 255 / .34), rgb(255 255 255 / .03) 46%, rgb(255 255 255 / .14)), var(--app-menu-fill);
 }
-html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #080808; }
+/* Dark glass is a clear ink tint. Light belongs on the rim, not in a gray fill. */
+html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #080b10; }
 .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) {
-  --app-ground: #080808;
-  --app-ink: #f4f4f4;
-  --app-muted: #aaa;
-  --app-panel-fill: rgb(255 255 255 / .012);
-  --app-panel-rule: rgb(255 255 255 / .085);
-  --app-menu-fill: rgb(13 13 13 / .96);
-  --app-canvas: #080808;
-  --app-content-selection: rgb(255 255 255 / .045);
-  --app-content-hover: rgb(255 255 255 / .025);
-  --app-glass-fill: rgb(255 255 255 / .028);
-  --app-glass-rim: linear-gradient(135deg, rgb(255 255 255 / .14), transparent 45%, rgb(255 255 255 / .06));
-  --app-glass-inner-shadow: inset 0 1px 1px rgb(255 255 255 / .035);
-  --app-glass-shadow: inset 0 1px 1px rgb(255 255 255 / .04), 0 4px 16px rgb(0 0 0 / .12);
-  --app-glass-filter: blur(16px);
-  --app-glass-highlight: rgb(255 255 255 / .055);
-  --app-glass-selected: rgb(255 255 255 / .055);
-  --app-glass-selected-rim: rgb(255 255 255 / .12);
+  --app-ground: #080b10;
+  --app-canvas: #080b10;
+  --app-ink: #f2f4f7;
+  --app-muted: #a6afb9;
+  --app-panel-fill: rgb(10 15 22 / .64);
+  --app-panel-rule: rgb(216 231 255 / .065);
+  --app-menu-fill: rgb(9 14 21 / .94);
+  --app-content-selection: rgb(85 132 193 / .085);
+  --app-content-hover: rgb(166 202 255 / .035);
+  --app-glass-fill: rgb(16 25 37 / .42);
+  --app-glass-rim: linear-gradient(135deg, rgb(221 235 255 / .21), rgb(221 235 255 / .025) 25%, transparent 48%, rgb(221 235 255 / .085));
+  --app-glass-inner-shadow: none;
+  --app-glass-shadow: inset 0 1px 0 rgb(223 237 255 / .055), 0 2px 4px rgb(0 0 0 / .20), 0 7px 18px rgb(0 0 0 / .12);
+  --app-glass-shadow-hover: inset 0 1px 0 rgb(223 237 255 / .09), 0 2px 6px rgb(0 0 0 / .24), 0 9px 22px rgb(0 0 0 / .14);
+  --app-glass-filter: blur(18px) saturate(1.12);
+  --app-glass-highlight: rgb(181 213 255 / .045);
+  --app-glass-selection-sheen: transparent;
+  --app-glass-selected: rgb(31 73 127 / .22);
+  --app-glass-selected-rim: linear-gradient(135deg, rgb(198 224 255 / .25), rgb(198 224 255 / .025) 45%, rgb(198 224 255 / .10));
+  --app-glass-tinted-fill: rgb(15 69 139 / .64);
+  --app-glass-tinted-ink: #f3f7ff;
+  --app-surface-fill: rgb(11 17 25 / .60);
+  --app-surface-rim: linear-gradient(140deg, rgb(216 233 255 / .15), rgb(216 233 255 / .018) 28%, transparent 58%, rgb(216 233 255 / .065));
+  --app-surface-inner-shadow: none;
+  --app-surface-shadow: inset 0 1px 0 rgb(219 235 255 / .025), 0 10px 28px -10px rgb(0 0 0 / .24);
+  --app-surface-shadow-hover: inset 0 1px 0 rgb(219 235 255 / .045), 0 14px 32px -10px rgb(0 0 0 / .30);
+  --app-surface-filter: blur(24px) saturate(1.12);
+  --app-overlay-fill: rgb(9 14 21 / .94);
 }
 
-/* Settings are grouped through spacing rather than nested gray boxes. */
-.app-shell :is(#appearance, #navigation, #konto) { border-color: transparent; background: transparent; box-shadow: none; padding-inline: 0; }
-.app-shell #konto { border-top: 1px solid var(--app-panel-rule); border-radius: 0; padding-top: 32px; }
-
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface),
+  .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) {
+    --app-surface-fill: var(--app-ground);
+    --app-overlay-fill: var(--app-ground);
+    --app-menu-fill: var(--app-ground);
+    --app-glass-fill: var(--app-ground);
+  }
+}
 @media (prefers-reduced-transparency: reduce) {
-  .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) { --app-panel-fill: #0b0b0b; --app-menu-fill: #0d0d0d; --app-glass-fill: #0d0d0d; --app-glass-filter: none; }
+  :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface),
+  .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) {
+    --app-panel-fill: var(--app-ground);
+    --app-menu-fill: var(--app-ground);
+    --app-glass-fill: var(--app-ground);
+    --app-glass-selected: color-mix(in srgb, var(--app-ink) 10%, var(--app-ground));
+    --app-glass-tinted-fill: var(--workfare-blue);
+    --app-glass-filter: none;
+    --app-surface-fill: var(--app-ground);
+    --app-overlay-fill: var(--app-ground);
+    --app-surface-filter: none;
+  }
 }
 @media (prefers-contrast: more) {
-  .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) { --app-muted: #f1f1f1; --app-panel-rule: rgb(255 255 255 / .45); --app-glass-rim: var(--app-ink); --app-glass-selected-rim: var(--app-ink); }
+  :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface),
+  .dark :is(.app-shell.app-shell, .app-portal-surface.app-portal-surface) {
+    --app-muted: var(--app-ink);
+    --app-panel-rule: color-mix(in srgb, var(--app-ink) 44%, transparent);
+    --app-surface-rim: var(--app-ink);
+    --app-glass-rim: var(--app-ink);
+    --app-glass-selected-rim: var(--app-ink);
+  }
 }

@@ -1,32 +1,38 @@
 .root { position: relative; z-index: 80; font-family: var(--font-sans), Inter, sans-serif; color: var(--app-ink); }
 .root *, .root *::before, .root *::after { box-sizing: border-box; }
-.backdrop { position: fixed; inset: 0; background: rgb(4 12 23 / .35); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / .29); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .viewport { position: fixed; inset: 0; overflow-y: auto; overscroll-behavior: contain; }
 .positioner { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 24px; }
-.panel { position: relative; width: 100%; max-width: 500px; padding: 40px; border: 1px solid var(--app-panel-rule); border-radius: 28px; background: var(--app-ground); color: var(--app-ink); box-shadow: 0 20px 90px rgb(2 12 28 / .2); text-align: left; }
+.panel { position: relative; width: 100%; max-width: 500px; padding: 40px; border: 1px solid var(--app-panel-rule); border-radius: 28px; isolation: isolate; background: var(--app-overlay-fill, var(--app-menu-fill)); color: var(--app-ink); box-shadow: var(--app-surface-shadow, var(--app-glass-shadow)), 0 24px 90px rgb(0 0 0 / .22); -webkit-backdrop-filter: var(--app-surface-filter, var(--app-glass-filter)); backdrop-filter: var(--app-surface-filter, var(--app-glass-filter)); text-align: left; }
 .closePosition { position: absolute; top: 14px; right: 14px; }
-.close { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--app-panel-rule); border-radius: 50%; background: var(--app-glass-fill); color: var(--app-muted); box-shadow: var(--app-glass-shadow); cursor: pointer; }
+.close { position: relative; isolation: isolate; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--app-panel-rule); border-radius: 50%; background: var(--app-glass-fill); color: var(--app-muted); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); cursor: pointer; transition: filter 180ms ease; }
 .title { margin: 12px 32px 8px 0; color: var(--app-ink); font-size: 28px; font-weight: 500; line-height: 1.2; letter-spacing: -.04em; text-wrap: balance; }
 .jobTitle { margin: 0 0 28px; color: var(--app-muted); font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
 .form { display: grid; gap: 20px; }
 .label { display: block; margin-bottom: 10px; color: var(--app-ink); font-size: 14px; font-weight: 500; }
-.textarea { display: block; width: 100%; min-height: 144px; padding: 15px 16px; resize: vertical; border: 1px solid var(--app-panel-rule); border-radius: 18px; background: var(--app-panel-fill); color: var(--app-ink); font: inherit; font-size: 16px; line-height: 1.65; }
+.textarea { display: block; width: 100%; min-height: 144px; padding: 15px 16px; resize: vertical; border: 1px solid var(--app-panel-rule); border-radius: 18px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); color: var(--app-ink); font: inherit; font-size: 16px; line-height: 1.65; }
 .textarea::placeholder { color: var(--app-muted); opacity: .8; }
-.hint, .copy { margin: 8px 0 0; color: var(--app-muted); font-size: 12px; font-weight: 400; line-height: 1.65; }
+.copy { margin: 8px 0 0; color: var(--app-muted); font-size: 12px; font-weight: 400; line-height: 1.65; }
 .copy { margin: 0; font-size: 14px; }
-.notice { display: flex; gap: 12px; margin-bottom: 24px; padding: 16px; border: 1px solid var(--app-panel-rule); border-radius: 18px; background: var(--app-content-selection); }
+.notice { position: relative; display: flex; gap: 12px; margin-bottom: 24px; padding: 16px; border: 1px solid var(--app-panel-rule); border-radius: 18px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
 .noticeIcon { flex: 0 0 auto; margin-top: 2px; color: var(--app-accent-ink); }
 .noticeTitle { margin: 0 0 5px; color: var(--app-ink); font-size: 14px; font-weight: 500; line-height: 1.5; }
-.submit { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; gap: 8px; padding: 13px 20px; border: 1px solid var(--app-panel-rule); border-radius: 999px; background: var(--app-glass-tinted-fill); color: var(--app-glass-tinted-ink); box-shadow: var(--app-glass-shadow); font: inherit; font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; transition: filter 180ms ease; }
+.submit { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; gap: 8px; padding: 13px 20px; border: 1px solid var(--app-panel-rule); border-radius: 999px; background: var(--app-glass-tinted-fill); color: var(--app-glass-tinted-ink); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); font: inherit; font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; transition: filter 180ms ease; }
 .submit svg { margin: 0; }
-.submit:not(:disabled):hover { filter: brightness(1.06); }
+.submit:not(:disabled):hover, .close:not(:disabled):hover { filter: brightness(1.06); }
 .root :is(a, button, textarea):focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }
 .root button:active { scale: 1; }
 .root button:disabled { opacity: .5; cursor: default; }
 .error { margin: 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, #ce4759 25%, transparent); border-radius: 14px; color: var(--danger, #bd3449); font-size: 13px; line-height: 1.6; }
 .success { display: flex; flex-direction: column; align-items: center; gap: 12px; padding-block: 24px; text-align: center; }
 .success .title { margin: 0; }
-.successMark { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--app-content-selection); color: var(--app-accent-ink); }
+.successMark { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--app-glass-selected); color: var(--app-accent-ink); box-shadow: var(--app-glass-shadow); }
 @media (max-width: 600px) { .positioner { padding: 14px; } .panel { padding: 30px 24px; border-radius: 26px; } .title { font-size: 26px; } }
 @media (prefers-reduced-motion: reduce) { .root *, .root *::before, .root *::after { animation: none !important; transition: none !important; } }
 @media (prefers-reduced-transparency: reduce) { .backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+
+.panel::before, .close::before, .submit::before, .notice::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.panel::before { background: var(--app-surface-rim, var(--app-glass-rim)); }
+.submit::before { background: var(--app-glass-selected-rim, var(--app-glass-rim)); }
+@media (prefers-reduced-transparency: reduce) { .panel, .textarea, .close, .submit, .notice, .successMark { background: var(--app-ground, Canvas); -webkit-backdrop-filter: none; backdrop-filter: none; } .submit { color: var(--app-ink); } }
+@media (forced-colors: active) { .panel, .textarea, .close, .submit, .notice, .successMark, .error { border: 1px solid CanvasText; background: Canvas; color: CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; } .panel::before, .close::before, .submit::before, .notice::before { display: none; } }

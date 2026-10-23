@@ -29,14 +29,14 @@ export default function JobLocationMap({ latitude, longitude }: { latitude: numb
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme === "light";
     const center = useMemo<[number, number]>(() => [latitude, longitude], [latitude, longitude]);
-    const color = light ? "#365c4e" : "#adc9be";
+    const color = light ? "#0754b8" : "#7eafe8";
 
     return <MapContainer center={center} zoom={13} minZoom={10} maxZoom={16}
         scrollWheelZoom={false} zoomControl={false} doubleClickZoom={false}
-        className={`${styles.canvas} ${light ? "is-light" : "is-dark"}`}>
+        className={styles.canvas}>
         <TileLayer attribution={attribution} url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <Circle center={center} radius={800} pathOptions={{ color, weight: 1, opacity: .45, fillColor: color, fillOpacity: light ? .09 : .12 }} />
-        <CircleMarker center={center} radius={7} pathOptions={{ color: light ? "#ffffff" : "#101814", weight: 3, fillColor: color, fillOpacity: 1 }} />
+        <CircleMarker center={center} radius={7} pathOptions={{ color: light ? "#ffffff" : "#0b1017", weight: 3, fillColor: color, fillOpacity: 1 }} />
         <MapControls center={center} />
     </MapContainer>;
 }

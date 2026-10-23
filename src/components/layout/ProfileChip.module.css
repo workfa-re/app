@@ -5,9 +5,9 @@
     --profile-hover: var(--app-accent-soft, rgb(62 142 234 / .12));
     --profile-pressed: var(--app-accent-pressed, var(--app-accent-soft));
     --profile-avatar: var(--app-accent-soft);
-    --profile-fill: var(--app-menu-fill);
-    --profile-rim: var(--app-glass-rim);
-    --profile-shadow: var(--app-glass-shadow), 0 18px 48px rgb(23 48 78 / .16), 0 3px 8px rgb(23 48 78 / .05);
+    --profile-fill: var(--app-overlay-fill, var(--app-menu-fill));
+    --profile-rim: var(--app-surface-rim, var(--app-glass-rim));
+    --profile-shadow: var(--app-surface-shadow, var(--app-glass-shadow)), 0 18px 48px rgb(0 0 0 / .12);
     position: relative;
     flex: 0 0 auto;
     color: var(--profile-ink);
@@ -43,11 +43,11 @@
 
 .trigger[aria-expanded="true"] {
     border-color: var(--profile-rule);
-    background: var(--profile-hover);
+    background: var(--app-glass-selected);
     box-shadow: var(--app-glass-shadow), 0 0 0 3px var(--app-accent-soft);
 }
 
-.trigger:active { background: var(--profile-pressed); }
+.trigger:active { background: var(--app-glass-selected); }
 .trigger:focus-visible { outline: 2px solid var(--profile-ink); outline-offset: 3px; }
 
 .avatar,
@@ -94,11 +94,11 @@
     isolation: isolate;
     border: 1px solid var(--profile-rule);
     border-radius: 28px;
-    background: linear-gradient(135deg, rgb(255 255 255 / .055), transparent 55%), var(--profile-fill);
+    background: var(--profile-fill);
     color: var(--profile-ink);
     box-shadow: var(--profile-shadow);
-    -webkit-backdrop-filter: blur(28px) saturate(1.3);
-    backdrop-filter: blur(28px) saturate(1.3);
+    -webkit-backdrop-filter: var(--app-surface-filter);
+    backdrop-filter: var(--app-surface-filter);
     transform-origin: calc(100% - 44px) top;
 }
 
@@ -107,6 +107,7 @@
     background: linear-gradient(120deg, transparent 20%, rgb(255 255 255 / .18) 48%, transparent 72%);
     animation: menuLight 560ms ease-out both;
 }
+:global(.dark) .menu::after { display: none; }
 @keyframes menuLight { from { opacity: .7; translate: -16% -4%; } to { opacity: 0; translate: 16% 4%; } }
 
 .menu::before {
@@ -168,7 +169,7 @@
 .skeletonName { width: 76px; height: 10px; border-radius: 5px; background: var(--profile-avatar); }
 
 @media (hover: hover) {
-    .trigger:hover { border-color: var(--profile-rule); background: var(--profile-hover); }
+    .trigger:hover { border-color: var(--profile-rule); background: var(--app-glass-fill); }
     .item:hover { background: var(--profile-hover); }
 }
 

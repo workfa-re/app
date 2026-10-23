@@ -1,8 +1,9 @@
 .tools { display: grid; gap: 14px; min-width: 0; }
 .buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .action, .quiet, .retry, .close { font: inherit; cursor: pointer; color: var(--app-ink); }
-.action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 9px 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--app-glass-selected-rim); border-radius: 14px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); backdrop-filter: var(--app-glass-filter); transition: background .18s; }
-.action:hover { background: var(--app-glass-highlight); }
+.action { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 9px 12px; font-size: 12px; font-weight: 600; border: 1px solid transparent; border-radius: 14px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); transition: box-shadow 180ms ease; }
+.action::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+@media (hover: hover) { .action:hover { box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); } }
 .action svg { width: 14px; height: 14px; }
 .quiet, .retry { min-height: 42px; background: transparent; border: 0; font-size: 12px; padding: 9px 10px; color: var(--app-muted); }
 .retry { text-decoration: underline; text-underline-offset: 3px; }

@@ -1,9 +1,17 @@
-.canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; background: #e8eee6; font-family: inherit; }
-.canvas:global(.is-dark) { background: #141916; }
-.canvas:global(.is-dark) :global(.leaflet-tile-pane) { filter: invert(.92) hue-rotate(180deg) saturate(.5); }
-.controls { position: absolute; z-index: 500; right: 14px; bottom: 34px; display: flex; flex-direction: column; padding: 3px; border-radius: 16px; background: var(--app-menu-fill, rgb(255 255 255 / .95)); box-shadow: 0 3px 15px rgb(0 0 0 / .13); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
+.canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; background: #edf0f1; font-family: inherit; }
+.canvas :global(.leaflet-tile-pane) { filter: saturate(.4); }
+:global(.dark) .canvas { background: #0b1017; }
+:global(.dark) .canvas :global(.leaflet-tile-pane) { filter: grayscale(1) invert(.94) brightness(.82) contrast(.92); }
+.controls { position: absolute; z-index: 500; right: 14px; bottom: 34px; display: flex; flex-direction: column; padding: 3px; border-radius: 16px; isolation: isolate; background: var(--app-surface-fill, var(--app-menu-fill, rgb(255 255 255 / .95))); box-shadow: var(--app-glass-shadow), 0 3px 15px rgb(0 0 0 / .13); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
 .controls button { display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 0; border-radius: 12px; color: var(--app-ink, #17241d); background: transparent; cursor: pointer; }
-.controls button:hover { background: var(--app-content-hover, rgb(0 0 0 / .04)); }
+.controls button:hover { background: var(--app-glass-highlight, var(--app-content-hover, rgb(0 0 0 / .04))); }
 .controls button:focus-visible { outline: 2px solid var(--app-accent); outline-offset: -2px; }
 .canvas :global(.leaflet-control-attribution) { max-width: 100%; margin: 0; padding: 2px 6px; background: rgb(255 255 255 / .86); color: #303930; font-size: 9px; line-height: 1.6; }
 .canvas :global(.leaflet-control-attribution a) { color: #303930; }
+:global(.dark) .canvas :global(.leaflet-control-attribution) { background: rgb(9 14 21 / .9); color: #b8c1cc; }
+:global(.dark) .canvas :global(.leaflet-control-attribution a) { color: inherit; }
+
+.controls::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.controls button:active { scale: 1; }
+@media (prefers-reduced-transparency: reduce) { .controls { background: var(--app-ground, Canvas); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (forced-colors: active) { .controls { border: 1px solid CanvasText; background: Canvas; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; } .controls button { color: CanvasText; } .controls::before { display: none; } }
