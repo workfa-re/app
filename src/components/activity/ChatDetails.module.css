@@ -84,7 +84,6 @@
     .workspace.workspace.workspace[data-chat-tools][data-details-open="true"] { display: grid; grid-template-columns: minmax(0, 1fr) 360px; column-gap: 0; }
     .rail.rail.rail { position: relative; z-index: 20; inset: auto; width: 360px; height: 100%; max-height: 100%; max-width: none; margin: 0; border: 0; border-left: 1px solid var(--app-panel-rule); border-radius: 0; box-shadow: none; }
     .workspace[data-details-open="false"] .rail { position: absolute; inset: 0 0 0 auto; }
-    .workspace.workspace[data-details-open="true"] .conversation :global(.activity-chat-header-meta) { display: none; }
     .workspace.workspace[data-details-open="true"] .conversation :global(.activity-schedule-button) { width: 44px; padding: 0; }
     .workspace[data-details-open="true"] .conversation :global(.activity-schedule-button span) { display: none; }
     .backdrop.backdrop.backdrop { display: none; }

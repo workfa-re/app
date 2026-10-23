@@ -8,6 +8,11 @@ import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "framer-
 import {
     ArrowRight,
     Briefcase,
+    CheckCheck,
+    CircleCheck,
+    CircleDashed,
+    CircleMinus,
+    Clock3,
     Filter,
     MessageSquare,
     Search,
@@ -204,6 +209,7 @@ export function getActivityInboxPresentation(app: any, role: ActivityRole) {
     const stage = getActivityStage(app, role);
     return {
         partner: getPartner(app, role),
+        stage,
         status: {
             ...status,
             label: stage.label,
@@ -809,6 +815,14 @@ export function ActivityCommandCenter({
     );
 }
 
+const INBOX_STAGE_ICONS = {
+    open: CircleDashed,
+    reserved: Clock3,
+    agreed: CircleCheck,
+    completed: CheckCheck,
+    closed: CircleMinus,
+};
+
 function ActivityInboxItem({
     app,
     role,
@@ -820,8 +834,9 @@ function ActivityInboxItem({
     selected: boolean;
     onSelect: (trigger: HTMLButtonElement) => void;
 }) {
-    const { partner, status, attention, preview, previewTimestamp } = getActivityInboxPresentation(app, role);
+    const { partner, stage, status, attention, preview, previewTimestamp } = getActivityInboxPresentation(app, role);
     const activityTime = formatConversationTime(previewTimestamp);
+    const StatusIcon = INBOX_STAGE_ICONS[stage.key];
 
     return (
         <button
@@ -840,32 +855,32 @@ function ActivityInboxItem({
             <span className="activity-inbox-body">
                 <span className="activity-inbox-title-row">
                     <strong>{partner.subtitle}</strong>
+                    <time className="activity-inbox-time" dateTime={previewTimestamp}>{activityTime}</time>
                 </span>
                 <span className="activity-inbox-context-row">
                     <span className="activity-inbox-job">{partner.name}</span>
-                    <span className="activity-inbox-status" data-tone={status.tone}>
-                        <span aria-hidden="true" />
-                        {status.label}
+                    <span className="activity-inbox-status" data-tone={status.tone} data-stage={stage.key}
+                        role="img" aria-label={status.label} title={status.label}>
+                        <StatusIcon size={14} strokeWidth={1.7} aria-hidden="true" />
                     </span>
                 </span>
-                <span className="activity-inbox-preview">{preview}</span>
+                <span className="activity-inbox-preview-row">
+                    <span className="activity-inbox-preview">{preview}</span>
+                    {attention.unreadCount > 0 ? (
+                        <span className="activity-inbox-unread">
+                            <span aria-hidden="true">{attention.unreadCount > 99 ? "99+" : attention.unreadCount}</span>
+                            <span className="sr-only">
+                                {attention.unreadCount} {attention.unreadCount === 1 ? "ungelesene Nachricht" : "ungelesene Nachrichten"}
+                            </span>
+                        </span>
+                    ) : null}
+                </span>
                 {attention.pendingReopenCount > 0 ? (
                     <span className="activity-inbox-meta-row">
                         <span className="activity-inbox-request">
                             {attention.pendingReopenCount === 1
                                 ? "Öffnungsanfrage offen"
                                 : `${attention.pendingReopenCount} Öffnungsanfragen offen`}
-                        </span>
-                    </span>
-                ) : null}
-            </span>
-            <span className="activity-inbox-tail">
-                <time dateTime={previewTimestamp}>{activityTime}</time>
-                {attention.unreadCount > 0 ? (
-                    <span className="activity-inbox-unread">
-                        <span aria-hidden="true">{attention.unreadCount > 99 ? "99+" : attention.unreadCount}</span>
-                        <span className="sr-only">
-                            {attention.unreadCount} {attention.unreadCount === 1 ? "ungelesene Nachricht" : "ungelesene Nachrichten"}
                         </span>
                     </span>
                 ) : null}

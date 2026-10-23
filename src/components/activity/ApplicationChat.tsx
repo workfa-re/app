@@ -7,6 +7,7 @@ import {
     ArrowLeft,
     CalendarDays,
     CheckCircle2,
+    Clock3,
     Flag,
     Info,
     MessageCircleWarning,
@@ -28,7 +29,6 @@ import {
     buildActivityTimeline,
     formatChatDateLabel,
     formatClosureReason,
-    getActivityStatusMeta,
     getActivityStage,
     getProfileInitials,
     resolveReopenApplicationPatch,
@@ -556,7 +556,6 @@ export function ApplicationChat({
         : headerProfile?.full_name || "Bewerber";
     const jobTitle = liveApplication?.job?.title || "Job-Angebot";
     const status = liveApplication?.status;
-    const statusMeta = getActivityStatusMeta(status, liveApplication?.close_action);
     const historicalRequest = status === "waitlisted" || liveApplication?.close_action === "waitlist_retired";
     const conversationState = historicalRequest ? "closed" : liveApplication?.conversation_state ?? "open";
     const stage = getActivityStage({ ...liveApplication, conversation_state: conversationState }, currentUserRole);
@@ -605,6 +604,18 @@ export function ApplicationChat({
         && Boolean(onRequestReopen);
     const appointments = (liveApplication?.appointments ?? liveApplication?.engagement?.appointments ?? []) as any[];
     const scheduleLabel = formatSchedule(liveApplication?.scheduled_for || liveApplication?.agreement?.starts_at);
+    const ended = stage.key === "closed" || stage.key === "completed";
+    const stateTitle = stage.key === "agreed" && scheduleLabel
+        ? liveApplication?.job?.job_kind === "recurring" ? "Zusammenarbeit aktiv" : "Termin vereinbart"
+        : stage.label;
+    const closureReason = liveApplication.closed_reason?.trim();
+    const hasClosureReason = closureReason && closureReason.length >= 3 && !/^\d+$/.test(closureReason);
+    const stateNote = ended
+        ? historicalRequest ? stage.hint : hasClosureReason ? formatClosureReason(closureReason) : null
+        : stage.key === "reserved" ? "Termin abstimmen" : null;
+    const StateIcon = ended
+        ? stage.key === "completed" ? CheckCircle2 : MessageCircleWarning
+        : stage.key === "agreed" ? CalendarDays : stage.key === "reserved" ? Clock3 : Info;
     const closeDetailsForTool = () => {
         if (compactDetails) setDetailsOpen(false);
     };
@@ -1045,20 +1056,17 @@ export function ApplicationChat({
                     </span>
                 </div>
 
-                <div className="activity-chat-header-meta">
-                    <span className="activity-chat-status" data-tone={statusMeta.tone}>
-                        <span aria-hidden="true" />
-                        {stage.label}
-                    </span>
-                    {!readOnly && realtimeState === "delayed" && <span
+                {!readOnly && realtimeState === "delayed" ? (
+                    <span
                         className="activity-realtime-state"
                         data-state="delayed"
+                        aria-label="Live-Verbindung verzögert"
                         title="Live-Verbindung verzögert"
                     >
-                        <WifiOff size={13} />
+                        <WifiOff size={13} aria-hidden="true" />
                         <span>Verzögert</span>
-                    </span>}
-                </div>
+                    </span>
+                ) : null}
 
                 <div className="activity-chat-actions">
                     {headerAction ? (
@@ -1080,30 +1088,18 @@ export function ApplicationChat({
                 </div>
             </header>
 
-            {canCloseApplication && status !== "accepted" && <div className="activity-reservation-control">
-                <span>Reserviert · Termin abstimmen</span>
-                <button type="button" aria-label={currentUserRole === "provider" ? "Bewerbung ablehnen und Job freigeben" : "Bewerbung zurückziehen"} onClick={() => { setActionReason(""); setActionError(null); setActionOpen(true); }}>{currentUserRole === "provider" ? "Job freigeben" : "Zurückziehen"}</button>
-            </div>}
-
-            {conversationState === "closed" ? (
-                <div className="activity-chat-notice" data-tone="closed">
-                    <MessageCircleWarning size={18} />
-                    <div>
-                        <strong>{historicalRequest ? "Beendete Anfrage" : "Gespräch geschlossen"}</strong>
-                        <span>{historicalRequest ? stage.hint : formatClosureReason(liveApplication.closed_reason)}</span>
-                    </div>
-                </div>
-            ) : null}
-
-            {status === "accepted" && scheduleLabel ? (
-                <div className="activity-chat-notice" data-tone="success">
-                    <CheckCircle2 size={18} />
-                    <div>
-                        <strong>{liveApplication?.job?.job_kind === "recurring" ? "Zusammenarbeit aktiv" : "Termin verbindlich vereinbart"}</strong>
+            <section className="activity-chat-statebar" aria-label="Auftragsstatus" data-tone={ended ? "closed" : stage.key === "agreed" ? "success" : stage.key === "reserved" ? "brand" : "muted"}>
+                <StateIcon className="activity-chat-state-icon" size={17} aria-hidden="true" />
+                <div className="activity-chat-state-copy" role="status">
+                    <strong>{stateTitle}</strong>
+                    {!ended && stage.key === "agreed" && scheduleLabel ? (
                         <time dateTime={liveApplication.scheduled_for || liveApplication.agreement?.starts_at}>{scheduleLabel}</time>
-                    </div>
+                    ) : stateNote ? <span>{stateNote}</span> : null}
                 </div>
-            ) : null}
+                {canCloseApplication && stage.key === "reserved" ? (
+                    <button type="button" className="activity-chat-state-action" aria-label={currentUserRole === "provider" ? "Bewerbung ablehnen und Job freigeben" : "Bewerbung zurückziehen"} onClick={() => { setActionReason(""); setActionError(null); setActionOpen(true); }}>{currentUserRole === "provider" ? "Job freigeben" : "Zurückziehen"}</button>
+                ) : null}
+            </section>
 
             <div
                 ref={messagesViewportRef}

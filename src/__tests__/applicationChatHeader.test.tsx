@@ -10,8 +10,8 @@ vi.mock("@/components/activity/ChatAppointments", () => ({ ChatAppointments: () 
 
 type ChatProps = ComponentProps<typeof ApplicationChat>;
 
-function renderHeader(application: Record<string, unknown> = {}, props: Partial<ChatProps> = {}) {
-    const html = renderToStaticMarkup(<ApplicationChat
+function renderChat(application: Record<string, unknown> = {}, props: Partial<ChatProps> = {}) {
+    return renderToStaticMarkup(<ApplicationChat
         application={{
             id: "application-a",
             status: "negotiating",
@@ -28,7 +28,10 @@ function renderHeader(application: Record<string, unknown> = {}, props: Partial<
         onSendMessage={vi.fn()}
         {...props}
     />);
-    const header = html.match(/<header\b[\s\S]*?<\/header>/)?.[0];
+}
+
+function renderHeader(application: Record<string, unknown> = {}, props: Partial<ChatProps> = {}) {
+    const header = renderChat(application, props).match(/<header\b[\s\S]*?<\/header>/)?.[0];
     expect(header).toBeDefined();
     return header!;
 }
@@ -84,5 +87,83 @@ describe("provider next step in the chat header", () => {
         expect(renderHeader({}, { onSchedule: undefined })).not.toContain('class="activity-schedule-button"');
         expect(renderHeader({ status: "accepted", engagement: { status: "active" } }, { onComplete: undefined }))
             .not.toContain('class="activity-schedule-button"');
+    });
+});
+
+describe("one integrated order status below the chat header", () => {
+    function statusBar(html: string) {
+        const bar = html.match(/<section class="activity-chat-statebar"[\s\S]*?<\/section>/)?.[0];
+        expect(bar).toBeDefined();
+        return bar!;
+    }
+
+    it("separates the agreed appointment from messages without repeating a header badge", () => {
+        const html = renderChat({ status: "accepted", scheduled_for: "2026-10-25T14:00:00Z", engagement: { status: "active" } });
+        const bar = statusBar(html);
+        expect(bar).toContain('aria-label="Auftragsstatus"');
+        expect(bar).toContain("Termin vereinbart");
+        expect(bar).toContain('<time dateTime="2026-10-25T14:00:00Z">');
+        expect(html.indexOf(bar)).toBeGreaterThan(html.indexOf("</header>"));
+        expect(html.indexOf(bar)).toBeLessThan(html.indexOf('role="log"'));
+        expect(html).not.toContain('class="activity-chat-notice"');
+        expect(html).not.toContain('class="activity-chat-status"');
+    });
+
+    it("shows the real reservation even when release actions are unavailable", () => {
+        for (const props of [{}, { readOnly: true }, { currentUserRole: "seeker" as const }]) {
+            const bar = statusBar(renderChat({}, props));
+            expect(bar).toContain("Reserviert");
+            expect(bar).toContain("Termin abstimmen");
+            expect(bar).not.toContain('class="activity-chat-state-action"');
+        }
+    });
+
+    it("keeps the reservation release action available for the correct role", () => {
+        expect(statusBar(renderChat({}, { onReject: vi.fn() })))
+            .toContain('aria-label="Bewerbung ablehnen und Job freigeben"');
+        expect(statusBar(renderChat({}, { currentUserRole: "seeker", onWithdraw: vi.fn() })))
+            .toContain('aria-label="Bewerbung zurückziehen"');
+        expect(statusBar(renderChat({}, { readOnly: true, onReject: vi.fn() })))
+            .not.toContain('class="activity-chat-state-action"');
+    });
+
+    it("does not invent an appointment when an agreed job has no valid date", () => {
+        for (const scheduled_for of [null, "not-a-date"]) {
+            const bar = statusBar(renderChat({ status: "accepted", scheduled_for }));
+            expect(bar).toContain("Vereinbart");
+            expect(bar).not.toContain("<time");
+            expect(bar).not.toContain("Termin abstimmen");
+        }
+    });
+
+    it("keeps recurring collaboration and its date concise", () => {
+        const bar = statusBar(renderChat({ status: "accepted", scheduled_for: "2026-10-25T14:00:00Z", job: { title: "Gartenpflege", job_kind: "recurring" } }));
+        expect(bar).toContain("Zusammenarbeit aktiv");
+        expect(bar.match(/<time\b/g)).toHaveLength(1);
+    });
+
+    it("does not fill ended chats with legacy closure placeholders", () => {
+        for (const closed_reason of [null, "", "1161", "ok"]) {
+            const bar = statusBar(renderChat({ status: "cancelled", conversation_state: "closed", closed_reason }));
+            expect(bar).not.toContain("ältere Schließung");
+            expect(bar).not.toContain("Grund:");
+        }
+    });
+
+    it.each([
+        { status: "accepted", conversation_state: "closed" },
+        { status: "accepted", is_primary: false },
+        { status: "completed", conversation_state: "closed" },
+        { status: "waitlisted" },
+    ])("does not show an active appointment for ended work: %j", application => {
+        const html = renderChat({ ...application, scheduled_for: "2026-10-25T14:00:00Z", closed_reason: "Gemeinsam beendet" });
+        const bar = statusBar(html);
+        expect(html.match(/class="activity-chat-statebar"/g)).toHaveLength(1);
+        expect(bar).toContain('data-tone="closed"');
+        expect(bar).not.toContain("<time");
+        expect(bar).not.toContain("Termin vereinbart");
+        expect(bar).not.toContain('class="activity-chat-state-action"');
+        expect(bar).toContain(application.status === "waitlisted" ? "Beendete Anfrage" : "Grund: Gemeinsam beendet");
+        if (application.status === "completed") expect(bar).toContain("Abgeschlossen");
     });
 });

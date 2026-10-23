@@ -98,13 +98,38 @@ describe("direct conversation inbox", () => {
         expect(rows).toHaveLength(1);
         expect(rows[0]).toContain("Rasen mähen");
         expect(rows[0]).toContain(role === "provider" ? "Anna Schneider" : "Garten &amp; Nachbarschaft");
-        expect(rows[0]).toContain("Reserviert");
+        expect(rows[0]).toMatch(/role="img" aria-label="Reserviert"/);
+        expect(rows[0].replace(/<[^>]*>/g, "")).not.toContain("Reserviert");
         expect(rows[0]).toContain("Passt dir Samstag?");
         expect(rows[0]).toContain("2 ungelesene Nachrichten");
         expect(rows[0]).not.toContain("aria-expanded");
         expect(html).not.toContain("private-seeker@example.test");
         expect(html).not.toContain("private-provider@example.test");
         expect(route.refresh).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ["negotiating", "open", "Reserviert"],
+        ["accepted", "open", "Vereinbart"],
+        ["completed", "closed", "Abgeschlossen"],
+        ["rejected", "closed", "Abgelehnt"],
+        ["withdrawn", "closed", "Zurückgezogen"],
+    ] as const)("keeps %s available as an accessible status icon without repeating a visible status label", (status, conversationState, label) => {
+        route.search = conversationState === "closed" ? "view=archive" : "";
+        const rows = conversationButtons(renderInbox([{
+            ...conversation,
+            status,
+            conversation_state: conversationState,
+            is_primary: conversationState === "open",
+            unread_count: 0,
+        }]));
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toContain(`role="img" aria-label="${label}"`);
+        expect(rows[0]).toContain('aria-hidden="true"');
+        expect(rows[0].replace(/<[^>]*>/g, "")).not.toContain(label);
+        expect(rows[0]).toContain("Anna Schneider");
+        expect(rows[0]).toContain("Passt dir Samstag?");
+        expect(rows[0]).not.toContain("ungelesene Nachricht");
     });
 
     it("keeps separate archived conversations for the same job and labels reopening separately from unread messages", () => {
