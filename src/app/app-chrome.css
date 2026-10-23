@@ -1,16 +1,16 @@
 /* Onboarding optics: clear rims, inner reflections and one blue accent. */
-html:has(.app-shell), body:has(.app-shell) { background: #edf2f8; }
-html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
+html:has(.app-shell), body:has(.app-shell) { background: #f4f4f4; }
+html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #090909; }
 .app-shell, .app-portal-surface {
   --app-ink: #182534;
   --app-muted: #596a7c;
-  --app-ground: #edf2f8;
+  --app-ground: #f4f4f4;
   --app-accent: #0863c9;
   --app-accent-ink: #064eac;
   --app-accent-soft: rgb(62 142 234 / .12);
   --app-panel-fill: rgb(255 255 255 / .62);
   --app-panel-rule: rgb(40 72 105 / .10);
-  --app-canvas: radial-gradient(ellipse 70% 58% at 88% 0%, rgb(158 198 239 / .30), transparent 75%), radial-gradient(ellipse 65% 50% at 4% 68%, rgb(202 221 239 / .48), transparent 80%), linear-gradient(155deg, #f3f6f9, #e9f0f7 70%, #f0f4f8);
+  --app-canvas: #f4f4f4;
   --app-ease: cubic-bezier(.22, 1, .36, 1);
   --app-content-top: calc(136px + env(safe-area-inset-top, 0px));
   --app-bottom-clearance: 0px;
@@ -27,13 +27,13 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
 .dark :is(.app-shell, .app-portal-surface) {
   --app-ink: #eef4fb;
   --app-muted: #a3b3c6;
-  --app-ground: #0c121c;
+  --app-ground: #090909;
   --app-accent: #80baff;
   --app-accent-ink: #c2e0ff;
   --app-accent-soft: rgb(75 151 241 / .15);
   --app-panel-fill: rgb(26 38 54 / .64);
   --app-panel-rule: rgb(196 218 247 / .11);
-  --app-canvas: radial-gradient(ellipse 85% 70% at 90% 0%, rgb(41 86 130 / .26), transparent 75%), radial-gradient(ellipse 70% 65% at 0% 75%, rgb(28 58 88 / .19), transparent 80%), linear-gradient(155deg, #111a26, #0b111b 75%, #0e1621);
+  --app-canvas: #090909;
 }
 .app-header-region { display: contents; }
 .app-navigation-content { display: contents; }

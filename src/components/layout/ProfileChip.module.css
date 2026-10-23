@@ -77,7 +77,7 @@
     right: 0;
     width: min(320px, calc(100vw - 32px));
     border-radius: 28px;
-    box-shadow: 0 18px 48px rgb(23 48 78 / .16), 0 3px 8px rgb(23 48 78 / .06);
+    box-shadow: 0 18px 48px rgb(0 0 0 / .16), 0 3px 8px rgb(0 0 0 / .06);
 }
 :global(.dark) .menuShell { box-shadow: 0 20px 48px rgb(0 0 0 / .30), 0 3px 8px rgb(0 0 0 / .12); }
 
