@@ -139,7 +139,7 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-header-mobile-nav { grid-column: 1 / -1; display: flex; justify-content: center; }
   .app-header-actions { grid-column: 2; grid-row: 1; }
   .app-shell { --app-content-top: calc(168px + env(safe-area-inset-top, 0px)); }
-  .app-header-scrim { height: 160px; }
+  .app-header-scrim { height: calc(160px + env(safe-area-inset-top, 0px)); }
   .app-brand-name { display: inline; font-size: 22px; }
   .app-glass-nav { width: 100%; }
   .app-nav-link { padding-inline: 10px; font-size: 13px; }
@@ -152,6 +152,15 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-shell .jobs-toolbar-filter { padding-inline: 0; flex: 0 0 48px; }
   .app-shell .jobs-toolbar-filter > span:not(.jobs-view-count) { display: none; }
   .app-shell .jobs-view-count { font-size: 10px; }
+}
+@media (max-width: 767px), (pointer: coarse) and (max-width: 1024px) and (max-height: 600px) {
+  /* Keep scrolling text out of the fixed controls; soften only the lower edge. */
+  .app-header-scrim {
+    background: color-mix(in srgb, var(--app-ground) 94%, transparent);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    -webkit-mask-image: linear-gradient(#000 0 84%, transparent);
+    mask-image: linear-gradient(#000 0 84%, transparent);
+  }
 }
 @media (max-width: 380px) {
   .app-header-inner { padding-inline: 16px; gap: 12px; }
@@ -171,7 +180,7 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
     --app-content-top: calc(112px + env(safe-area-inset-top, 0px));
     --app-bottom-clearance: calc(var(--app-mobile-dock-panel-height) + var(--app-mobile-dock-edge-gap) + var(--app-mobile-dock-content-clearance) + env(safe-area-inset-bottom, 0px));
   }
-  .app-header-region[data-mobile-nav="bottom"] .app-header-scrim { height: 104px; }
+  .app-header-region[data-mobile-nav="bottom"] .app-header-scrim { height: calc(104px + env(safe-area-inset-top, 0px)); }
   .app-shell .app-mobile-dock-shell { position: fixed; z-index: 50; inset-inline: 0; bottom: calc(var(--app-mobile-dock-edge-gap) + env(safe-area-inset-bottom, 0px)); display: block; }
   .app-shell .app-mobile-dock-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(380px, 100%); margin-inline: auto; padding: 5px; gap: 2px; border-radius: 999px; color: var(--app-muted); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
   .app-shell .app-mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; height: 48px; border-radius: 999px; color: var(--app-muted); transition: color 160ms ease; }
@@ -202,6 +211,14 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .app-shell { --app-glass-fill: var(--app-ground); --app-glass-filter: none; --app-menu-fill: var(--app-ground); --app-panel-fill: var(--app-ground); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 767px), (pointer: coarse) and (max-width: 1024px) and (max-height: 600px) {
+    .app-header-scrim { background: var(--app-ground); }
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (max-width: 767px), (prefers-reduced-transparency: reduce) and (pointer: coarse) and (max-width: 1024px) and (max-height: 600px) {
+  .app-header-scrim { background: var(--app-ground); -webkit-backdrop-filter: none; backdrop-filter: none; -webkit-mask-image: none; mask-image: none; }
 }
 @media (prefers-contrast: more) {
   .app-shell { --app-panel-rule: color-mix(in srgb, var(--app-ink) 40%, transparent); --app-muted: var(--app-ink); }

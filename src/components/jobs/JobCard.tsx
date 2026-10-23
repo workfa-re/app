@@ -61,8 +61,8 @@ export const JobCard = memo(function JobCard({ job, isApplied, isLocked, hideSta
                         {providerStatus && statusLabel && <span className={styles.category}>{statusLabel}</span>}
                     </div>}
                     <h3 className={styles.title}>{job.title}</h3>
-                    {job.description && <p className={styles.description}>{job.description}</p>}
                 </div>
+                {job.description && <p className={styles.description}>{job.description}</p>}
                 <div className={styles.facts}>
                     <p className={styles.compensation}><span className={compensation.amount ? styles.amount : styles.agreed}>{compensation.amount || "Vergütung offen"}</span>{compensation.amount && <span className={styles.unit}>{compensation.unit}</span>}</p>
                     <div className={styles.location}>
