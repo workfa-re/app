@@ -95,6 +95,28 @@ describe("public profile dialog", () => {
             expect(html).not.toContain(text);
     });
 
+    it("labels an unsaved public preview while keeping private draft fields out", () => {
+        const draft = {
+            id: "draft-seeker", account_type: "job_seeker", full_name: "Alex Beispiel",
+            city: "Bonn", bio: "Mein neuer öffentlicher Profiltext.", skills: "Gartenarbeit",
+            email: "DRAFT_PRIVATE_EMAIL@example.invalid", birthdate: "2008-02-03",
+            street: "DRAFT_PRIVATE_STREET", house_number: "DRAFT_PRIVATE_NUMBER", zip: "DRAFT_PRIVATE_ZIP",
+            availability_note: "DRAFT_PRIVATE_AVAILABILITY", guardian_status: "DRAFT_PRIVATE_GUARDIAN",
+        } as VisibleProfile;
+        const html = renderToStaticMarkup(<UserProfileModal isOpen isDraft onClose={close} profile={draft} />);
+        expect(html).toContain("Profilvorschau · Ungespeicherter Entwurf");
+        expect(html).toContain("Bonn");
+        expect(html).toContain("Mein neuer öffentlicher Profiltext.");
+        expect(html).toContain("Gartenarbeit");
+        for (const text of [
+            "DRAFT_PRIVATE_EMAIL@example.invalid", "2008-02-03", "DRAFT_PRIVATE_STREET",
+            "DRAFT_PRIVATE_NUMBER", "DRAFT_PRIVATE_ZIP", "DRAFT_PRIVATE_AVAILABILITY", "DRAFT_PRIVATE_GUARDIAN",
+        ]) expect(html).not.toContain(text);
+
+        const saved = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={draft} />);
+        expect(saved).not.toContain("Ungespeicherter Entwurf");
+    });
+
     it("renders no profile when absent or closed", () => {
         expect(renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={null} />)).toBe("");
         expect(renderToStaticMarkup(<UserProfileModal isOpen={false} onClose={close} profile={provider} />)).toBe("");

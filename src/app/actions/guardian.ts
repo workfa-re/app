@@ -48,94 +48,84 @@ export async function createGuardianInvitation() {
     }
 }
 
-export async function getGuardians() {
-    const supabase = await supabaseServer();
-    const { data: { user } } = await supabase.auth.getUser();
+export type LinkedAccount = {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    linked_at: string | null;
+};
 
-    if (!user) return { error: "Nicht authentifiziert" };
+type LinkedAccountsResult = { ok: true; accounts: LinkedAccount[] } | { ok: false; error: string };
 
+function record(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function nullableText(value: unknown) {
+    return typeof value === "string" ? value.trim() || null : null;
+}
+
+function normalizeLinkedAccounts(rows: unknown, counterpartColumn: "guardian_id" | "child_id", currentUserId: string): LinkedAccount[] {
+    const accounts = new Map<string, LinkedAccount>();
+    for (const value of Array.isArray(rows) ? rows : []) {
+        const row = record(value);
+        const id = nullableText(row?.[counterpartColumn]);
+        if (!row || !id || id === currentUserId || accounts.has(id)) continue;
+        const joined = Array.isArray(row.linked_profile)
+            ? row.linked_profile.map(record).find(profile => profile?.id === id)
+            : record(row.linked_profile);
+        if (!joined || joined.id !== id) continue;
+        accounts.set(id, {
+            id,
+            full_name: nullableText(joined.full_name),
+            email: nullableText(joined.email),
+            linked_at: nullableText(row.created_at),
+        });
+    }
+    return [...accounts.values()];
+}
+
+async function getLinkedAccounts(direction: "guardians" | "wards"): Promise<LinkedAccountsResult> {
+    const loadError = direction === "guardians"
+        ? "Elternfreigaben konnten gerade nicht geladen werden. Bitte versuche es erneut."
+        : "Verknüpfte Kinder konnten gerade nicht geladen werden. Bitte versuche es erneut.";
     try {
-        // Cross-profile names stay behind the server-only service boundary.
-        // The child filter is always derived from the verified session above.
-        const adminClient = getSupabaseAdminClient();
-        const { data: guardians, error } = await adminClient
-            .from("guardian_invitations")
-            .select(`
-                redeemed_by,
-                updated_at,
-                guardian_profile:redeemed_by (
-                    full_name,
-                    email
-                )
-            `)
-            .eq("child_id", user.id)
-            .eq("status", "redeemed");
+        const supabase = await supabaseServer();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) return { ok: false, error: "Deine Sitzung konnte nicht geprüft werden. Bitte lade die Seite neu." };
+        if (!user) return { ok: false, error: "Nicht authentifiziert" };
 
+        const ownerColumn = direction === "guardians" ? "child_id" : "guardian_id";
+        const counterpartColumn = direction === "guardians" ? "guardian_id" : "child_id";
+        const selection = direction === "guardians"
+            ? "guardian_id, created_at, linked_profile:profiles!guardian_relationships_guardian_id_fkey(id, full_name, email)"
+            : "child_id, created_at, linked_profile:profiles!guardian_relationships_child_id_fkey(id, full_name, email)";
+        // Cross-profile fields remain server-only. The authenticated identity,
+        // never a caller-provided ID, scopes the active relationship query.
+        const { data, error } = await getSupabaseAdminClient()
+            .from("guardian_relationships")
+            .select(selection)
+            .eq(ownerColumn, user.id)
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .order(counterpartColumn, { ascending: true });
         if (error) {
-            console.error("Guardian lookup failed:", error.message);
-            return { guardians: [] };
+            console.error("Linked account lookup failed:", error.code);
+            return { ok: false, error: loadError };
         }
-
-        return {
-            guardians: (guardians ?? []).map((guardian: any) => {
-                const profile = Array.isArray(guardian.guardian_profile)
-                    ? guardian.guardian_profile[0]
-                    : guardian.guardian_profile;
-                return {
-                    id: guardian.redeemed_by,
-                    full_name: profile?.full_name || "Unbekannt",
-                    email: profile?.email || "",
-                    linked_at: guardian.updated_at,
-                };
-            }),
-        };
-    } catch (error) {
-        console.error("Guardian lookup unavailable:", error);
-        return { guardians: [] };
+        return { ok: true, accounts: normalizeLinkedAccounts(data, counterpartColumn, user.id) };
+    } catch {
+        console.error("Linked account lookup unavailable.");
+        return { ok: false, error: loadError };
     }
 }
 
+export async function getGuardians() {
+    const result = await getLinkedAccounts("guardians");
+    return result.ok ? { guardians: result.accounts } : { error: result.error };
+}
+
 export async function getWards() {
-    const supabase = await supabaseServer();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) return { error: "Nicht authentifiziert" };
-
-    try {
-        const adminClient = getSupabaseAdminClient();
-
-        // Fetch active relationships from the correct table
-        // We assume 'guardian_id' refers to the parent/provider and 'child_id' to the student
-        const { data: wards, error } = await adminClient
-            .from("guardian_relationships")
-            .select(`
-                child_id,
-                created_at,
-                child_profile:child_id (
-                    full_name,
-                    email
-                )
-            `)
-            .eq("guardian_id", user.id)
-            .eq("status", "active");
-
-        if (error) {
-            console.error("Error fetching wards:", error);
-            return { wards: [] };
-        }
-
-        if (!wards) return { wards: [] };
-
-        return {
-            wards: wards.map((w: any) => ({
-                id: w.child_id,
-                full_name: w.child_profile?.full_name || "Unbekannt",
-                email: w.child_profile?.email || "",
-                linked_at: w.created_at
-            }))
-        };
-    } catch (err) {
-        console.error("Admin client error:", err);
-        return { wards: [] };
-    }
+    const result = await getLinkedAccounts("wards");
+    return result.ok ? { wards: result.accounts } : { error: result.error };
 }

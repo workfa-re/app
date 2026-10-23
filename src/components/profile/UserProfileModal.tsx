@@ -2,10 +2,11 @@
 
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from "@headlessui/react";
 import { ArrowLeft, Building2, CalendarDays, MapPin, ShieldCheck, UserRound } from "lucide-react";
-import { Fragment, useId, useState, type MouseEvent } from "react";
+import { Fragment, useId, type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import { profileInitials, toPublicProfile, type VisibleProfile } from "./public-profile";
+import { toPublicProfile, type VisibleProfile } from "./public-profile";
 import styles from "./UserProfileModal.module.css";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 export type { VisibleProfile } from "./public-profile";
 
@@ -14,10 +15,11 @@ interface UserProfileModalProps {
     onClose: () => void;
     profile: VisibleProfile | null;
     isStaff?: boolean;
+    isDraft?: boolean;
     stats?: { jobsCompleted: number; rating: number };
 }
 
-export function UserProfileModal({ isOpen, onClose, profile, isStaff = false }: UserProfileModalProps) {
+export function UserProfileModal({ isOpen, onClose, profile, isStaff = false, isDraft = false }: UserProfileModalProps) {
     const sectionId = useId();
     if (!profile) return null;
     const visible = toPublicProfile(profile, isStaff);
@@ -33,7 +35,7 @@ export function UserProfileModal({ isOpen, onClose, profile, isStaff = false }: 
                     leave={styles.leave} leaveFrom={styles.enterTo} leaveTo={styles.leaveTo}>
                     <DialogPanel className={styles.page} data-presentation="page">
                         <header className={styles.topbar}>
-                            <span className={styles.pageLabel}>Profil</span>
+                            <span className={styles.pageLabel}>{isDraft ? "Profilvorschau · Ungespeicherter Entwurf" : "Profil"}</span>
                             <button type="button" className={styles.back} onClick={onClose} aria-label="Zurück – Profil schließen" data-autofocus>
                                 <ArrowLeft size={19} strokeWidth={1.6} aria-hidden="true" />
                                 <span>Zurück</span>
@@ -117,13 +119,4 @@ export function UserProfileCard({ profile, onClick, compact = false }: UserProfi
     return onClick
         ? <button type="button" onClick={onClick} className={styles.card} aria-label={`Profil von ${visible.displayName} öffnen`}>{body}</button>
         : <div className={styles.card}>{body}</div>;
-}
-
-function ProfileAvatar({ url, name, className }: { url: string | null; name: string; className: string }) {
-    const [failedUrl, setFailedUrl] = useState<string | null>(null);
-    return <span className={className} aria-hidden="true">
-        {url && failedUrl !== url
-            ? <img src={url} alt="" decoding="async" onError={() => setFailedUrl(url)} />
-            : <span>{profileInitials(name)}</span>}
-    </span>;
 }
