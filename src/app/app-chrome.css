@@ -98,6 +98,7 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
 .app-shell .jobs-home-heading h1 { margin: 0; color: var(--app-ink); font-size: clamp(32px, 3.3vw, 44px); font-weight: 500; line-height: 1.15; letter-spacing: -.045em; text-wrap: balance; }
 .app-shell .jobs-home-heading p { margin-top: 10px; color: var(--app-muted); font-size: 14px; line-height: 1.6; }
 .app-shell .jobs-home-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.app-shell .provider-home-surface .jobs-home-toolbar { margin-bottom: 0; }
 .app-shell .jobs-discovery-toolbar { gap: 24px; margin-bottom: 24px; }
 .app-shell .jobs-discovery-toolbar > .jobs-home-heading { min-width: 0; margin-bottom: 0; }
 .app-shell .jobs-view-tabs { display: inline-flex; align-items: center; gap: 2px; padding: 5px; min-width: 0; }
