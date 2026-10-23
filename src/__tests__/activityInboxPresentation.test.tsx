@@ -98,7 +98,7 @@ describe("direct conversation inbox", () => {
         expect(rows).toHaveLength(1);
         expect(rows[0]).toContain("Rasen mähen");
         expect(rows[0]).toContain(role === "provider" ? "Anna Schneider" : "Garten &amp; Nachbarschaft");
-        expect(rows[0]).toMatch(/role="img" aria-label="Reserviert"/);
+        expect(rows[0]).toMatch(/role="img" aria-label="Auftragsstatus: Reserviert"/);
         expect(rows[0].replace(/<[^>]*>/g, "")).not.toContain("Reserviert");
         expect(rows[0]).toContain("Passt dir Samstag?");
         expect(rows[0]).toContain("2 ungelesene Nachrichten");
@@ -124,7 +124,7 @@ describe("direct conversation inbox", () => {
             unread_count: 0,
         }]));
         expect(rows).toHaveLength(1);
-        expect(rows[0]).toContain(`role="img" aria-label="${label}"`);
+        expect(rows[0]).toContain(`role="img" aria-label="Auftragsstatus: ${label}"`);
         expect(rows[0]).toContain('aria-hidden="true"');
         expect(rows[0].replace(/<[^>]*>/g, "")).not.toContain(label);
         expect(rows[0]).toContain("Anna Schneider");

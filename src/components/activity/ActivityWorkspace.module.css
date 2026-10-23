@@ -75,7 +75,8 @@
 :global(.dark) :is(.experience.experience, .chat.chat)[data-ui] :is(:global(.activity-inbox-avatar img), :global(.activity-chat-avatar img)) { outline-color: rgb(255 255 255 / .1); }
 .experience.experience[data-ui] :global(.activity-inbox-body) { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
 .experience.experience[data-ui] :global(.activity-inbox-title-row) { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: 8px; }
-.experience.experience[data-ui] :global(.activity-inbox-title-row strong) { display: block; flex: 1; overflow: hidden; min-width: 0; color: var(--app-ink); font-size: 16px; font-weight: 500; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.experience.experience[data-ui] :global(.activity-inbox-title) { display: flex; flex: 1; align-items: center; min-width: 0; gap: 6px; }
+.experience.experience[data-ui] :global(.activity-inbox-title-row strong) { display: block; flex: 0 1 auto; overflow: hidden; min-width: 0; color: var(--app-ink); font-size: 16px; font-weight: 500; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .experience.experience[data-ui] :global(.activity-inbox-time) { flex: 0 0 auto; margin: 0; color: var(--app-muted); font-size: 11px; font-weight: 400; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .experience.experience[data-ui] :global(.activity-inbox-item[data-unread="true"] .activity-inbox-title-row strong) { font-weight: 600; }
 .experience.experience[data-ui] :global(.activity-inbox-context-row) { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; min-width: 0; gap: 6px; margin: 0; line-height: 1.5; }

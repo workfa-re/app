@@ -8,7 +8,7 @@ import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "framer-
 import {
     ArrowRight,
     Briefcase,
-    CheckCheck,
+    CalendarCheck2,
     CircleCheck,
     CircleDashed,
     CircleMinus,
@@ -818,8 +818,8 @@ export function ActivityCommandCenter({
 const INBOX_STAGE_ICONS = {
     open: CircleDashed,
     reserved: Clock3,
-    agreed: CircleCheck,
-    completed: CheckCheck,
+    agreed: CalendarCheck2,
+    completed: CircleCheck,
     closed: CircleMinus,
 };
 
@@ -854,15 +854,17 @@ function ActivityInboxItem({
             </span>
             <span className="activity-inbox-body">
                 <span className="activity-inbox-title-row">
-                    <strong>{partner.subtitle}</strong>
+                    <span className="activity-inbox-title">
+                        <strong>{partner.subtitle}</strong>
+                        <span className="activity-inbox-status" data-tone={status.tone} data-stage={stage.key}
+                            role="img" aria-label={`Auftragsstatus: ${status.label}`} title={`Auftragsstatus: ${status.label}`}>
+                            <StatusIcon size={14} strokeWidth={1.7} aria-hidden="true" />
+                        </span>
+                    </span>
                     <time className="activity-inbox-time" dateTime={previewTimestamp}>{activityTime}</time>
                 </span>
                 <span className="activity-inbox-context-row">
                     <span className="activity-inbox-job">{partner.name}</span>
-                    <span className="activity-inbox-status" data-tone={status.tone} data-stage={stage.key}
-                        role="img" aria-label={status.label} title={status.label}>
-                        <StatusIcon size={14} strokeWidth={1.7} aria-hidden="true" />
-                    </span>
                 </span>
                 <span className="activity-inbox-preview-row">
                     <span className="activity-inbox-preview">{preview}</span>
