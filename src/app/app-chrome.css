@@ -181,6 +181,15 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-shell .app-mobile-dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 500; }
   .app-shell .app-shell-main { padding-bottom: var(--app-bottom-clearance, 0px); }
 }
+@media (pointer: coarse) and (max-width: 767px) {
+  .app-shell:has(.app-header-region[data-mobile-nav="bottom"]):has(.activities-command-center[data-chat-open="true"]) {
+    /* Header inset (16px) + controls (48px) + one content gap (12px). */
+    --app-content-top: calc(76px + env(safe-area-inset-top, 0px));
+  }
+  .app-shell:has(.activities-command-center[data-chat-open="true"]) .app-header-region[data-mobile-nav="bottom"] .app-header-scrim {
+    height: var(--app-content-top);
+  }
+}
 @supports not (backdrop-filter: blur(1px)) {
   .app-shell .app-glass-control { background: var(--app-ground); }
 }
