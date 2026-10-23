@@ -1,12 +1,16 @@
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApplicationChat } from "@/components/activity/ApplicationChat";
 
 vi.mock("@/lib/supabaseClient", () => ({ supabaseBrowser: {} }));
 vi.mock("@/app/app-home/applications/actions", () => ({ markApplicationMessagesRead: vi.fn() }));
 vi.mock("@/components/profile/UserProfileModal", () => ({ UserProfileModal: () => null }));
 vi.mock("@/components/activity/ChatAppointments", () => ({ ChatAppointments: () => null }));
+const appointmentState = vi.hoisted(() => ({ requests: [] as Record<string, unknown>[], available: true, refresh: vi.fn() }));
+vi.mock("@/components/activity/useAppointmentRequests", () => ({ useAppointmentRequests: () => appointmentState }));
+
+beforeEach(() => { appointmentState.requests = []; });
 
 type ChatProps = ComponentProps<typeof ApplicationChat>;
 
@@ -87,6 +91,40 @@ describe("provider next step in the chat header", () => {
         expect(renderHeader({}, { onSchedule: undefined })).not.toContain('class="activity-schedule-button"');
         expect(renderHeader({ status: "accepted", engagement: { status: "active" } }, { onComplete: undefined }))
             .not.toContain('class="activity-schedule-button"');
+    });
+});
+
+describe("open appointment request shortcut", () => {
+    beforeEach(() => {
+        appointmentState.requests = [{ id: "request-a", status: "pending", requested_by: "seeker-a" }];
+    });
+
+    it("opens the provider's request directly beside Details while keeping completion available", () => {
+        const header = renderHeader({ status: "accepted", engagement: { status: "active" } });
+        expect(header).toContain('aria-label="Offene Terminanfrage prüfen"');
+        expect(header).toContain('aria-label="Zusammenarbeit abschließen"');
+        expect(header.indexOf('aria-label="Offene Terminanfrage prüfen"')).toBeLessThan(header.indexOf('aria-label="Jobdetails und Aktionen öffnen"'));
+        expect(header).toContain('aria-haspopup="dialog"');
+    });
+
+    it("lets seekers find their own outgoing proposal without offering provider decisions", () => {
+        const header = renderHeader({ status: "accepted", engagement: { status: "active" } }, { currentUserRole: "seeker" });
+        expect(header).toContain('aria-label="Deinen Terminvorschlag ansehen"');
+        expect(header).not.toContain('aria-label="Offene Terminanfrage prüfen"');
+        expect(header).not.toContain('aria-label="Zusammenarbeit abschließen"');
+    });
+
+    it.each([
+        { status: "completed", conversation_state: "closed" },
+        { status: "accepted", conversation_state: "closed" },
+        { status: "accepted", is_primary: false },
+        { status: "negotiating" },
+    ])("does not expose stale request actions after the collaboration changes: %j", application => {
+        expect(renderHeader({ ...application, engagement: { status: "active" } })).not.toContain('class="activity-appointment-shortcut"');
+    });
+
+    it("does not expose an appointment action in read-only mode", () => {
+        expect(renderHeader({ status: "accepted", engagement: { status: "active" } }, { readOnly: true })).not.toContain('class="activity-appointment-shortcut"');
     });
 });
 

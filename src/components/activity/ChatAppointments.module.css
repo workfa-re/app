@@ -20,12 +20,13 @@
 .request > strong { font-size: 14px; font-weight: 500; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .request .buttons > .action { flex: 1 1 auto; }
 .request > span:not(.eyebrow), .request p, .form p { margin: 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.eyebrow { color: var(--app-muted); font-size: 10px; font-weight: 600; }
+.eyebrow { color: var(--app-muted); font-size: 11px; font-weight: 500; }
+.request[data-status="accepted"] .eyebrow { color: var(--app-accent-ink); }
 .formTitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; }
 .formTitle strong { font-weight: 500; line-height: 1.5; text-wrap: balance; }
 .form label { display: grid; gap: 7px; font-size: 12px; font-weight: 500; }
 .optional { font-size: 11px; font-weight: 400; color: var(--app-muted); }
-.form :is(input,textarea,select) { box-sizing: border-box; font: inherit; color: var(--app-ink); width: 100%; min-width: 0; min-height: 46px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--app-panel-rule); background: var(--app-panel-fill); box-shadow: var(--app-glass-inner-shadow); color-scheme: inherit; font-variant-numeric: tabular-nums; }
+.form :is(input,textarea,select) { box-sizing: border-box; font: inherit; font-size: 16px; color: var(--app-ink); width: 100%; min-width: 0; min-height: 46px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--app-panel-rule); background: var(--app-panel-fill); box-shadow: var(--app-glass-inner-shadow); color-scheme: inherit; font-variant-numeric: tabular-nums; }
 .form textarea { resize: vertical; }
 .form > .buttons > .action { flex: 1 1 140px; border-radius: 12px; }
 .form > .buttons > .quiet { flex: 1 1 80px; }

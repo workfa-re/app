@@ -99,12 +99,14 @@
 .chat.chat[data-ui] :global(.activity-chat-person small) { display: block; color: var(--app-muted); font-size: 13px; line-height: 1.6; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat.chat[data-ui] :global(.activity-realtime-state) { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 0; border: 0; border-radius: 0; color: var(--app-muted); background: transparent; font-size: 12px; }
 .chat.chat[data-ui] :global(.activity-chat-actions) { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
-.chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button)) { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 44px; min-height: 44px; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: 999px; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); font-size: 13px; font-weight: 500; transition: box-shadow 180ms ease; }
-.chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button))::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button), :global(.activity-appointment-shortcut)) { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 44px; min-height: 44px; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: 999px; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); font-size: 13px; font-weight: 500; transition: box-shadow 180ms ease; }
+.chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button), :global(.activity-appointment-shortcut))::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .chat.chat[data-ui] :global(.activity-schedule-button) { width: auto; color: var(--app-accent-ink); background: var(--app-glass-selected); }
 .chat.chat[data-ui] :global(.activity-schedule-button)::before { background: var(--app-glass-selected-rim, var(--app-glass-rim)); }
 .chat.chat[data-ui] :global(.activity-schedule-button:disabled) { opacity: .5; cursor: default; }
 .chat.chat[data-ui] :global(.activity-schedule-button span) { display: inline; }
+.chat.chat[data-ui] :global(.activity-appointment-shortcut) { color: var(--app-accent-ink); }
+.chat.chat[data-ui] :global(.activity-appointment-shortcut[aria-expanded="true"]) { background: var(--app-glass-selected); }
 .chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-chat-back)) { width: 44px; padding: 0; }
 .chat.chat[data-ui] :global(.activity-chat-back) { display: none; }
 .chat.chat[data-ui] :global(.activity-chat-statebar) { position: relative; isolation: isolate; display: flex; flex: 0 0 auto; align-items: center; width: 100%; min-height: 52px; gap: 10px; margin: 0; padding: 8px 24px; border: 0; border-bottom: 1px solid var(--app-panel-rule); border-radius: 0; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: none; }
@@ -131,6 +133,13 @@
 .chat.chat[data-ui] :global(.activity-message-meta button) { position: relative; min-height: 24px; padding: 2px 5px; border: 0; background: transparent; color: var(--app-muted); font-size: 12px; border-radius: 6px; }
 .chat.chat[data-ui] :global(.activity-message-meta button)::after { content: ""; position: absolute; inset: -10px 0; }
 .chat.chat[data-ui] :global(.activity-system-message) { gap: 8px; padding: 10px 0; background: transparent; border: 0; color: var(--app-muted); font-size: 12px; line-height: 1.6; }
+.chat.chat[data-ui] :global(.activity-system-message-link) { position: relative; isolation: isolate; display: grid; grid-template-columns: 18px minmax(0, 1fr) 16px; align-items: center; width: 100%; min-height: 44px; gap: 3px 10px; padding: 12px 14px; border: 1px solid transparent; border-radius: 18px; font-family: inherit; text-align: left; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); cursor: pointer; transition: box-shadow 180ms ease; }
+.chat.chat[data-ui] :global(.activity-system-message-link)::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.chat.chat[data-ui] :global(.activity-system-message-link > span) { grid-column: 2; grid-row: 1; min-width: 0; color: var(--app-ink); overflow-wrap: anywhere; }
+.chat.chat[data-ui] :global(.activity-system-message-link > svg) { grid-column: 1; grid-row: 1 / 3; color: var(--app-accent-ink); }
+.chat.chat[data-ui] :global(.activity-system-message-link > svg:last-child) { grid-column: 3; }
+.chat.chat[data-ui] :global(.activity-system-message-link > time) { grid-column: 2; grid-row: 2; font-size: 11px; font-variant-numeric: tabular-nums; }
+.chat.chat[data-ui] :is(:global(.activity-system-message-link:focus-visible), :global(.activity-appointment-shortcut:focus-visible)) { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
 .chat.chat[data-ui] :global(.activity-chat-composer) { flex: 0 0 auto; margin: 0; padding: 12px 20px 14px; gap: 0; background: transparent !important; border: 0 !important; box-shadow: none; }
 .chat.chat[data-ui] :global(.activity-composer-box) { position: relative; display: flex; align-items: flex-end; width: 100%; min-height: 64px; gap: 10px; padding: 8px 8px 8px 20px; border: 0 !important; border-radius: 32px; background: var(--app-glass-fill) !important; box-shadow: var(--app-glass-shadow) !important; -webkit-backdrop-filter: var(--app-glass-filter, blur(16px)); backdrop-filter: var(--app-glass-filter, blur(16px)); }
 .chat.chat[data-ui] :global(.activity-composer-box:focus-within) { box-shadow: var(--app-glass-shadow), 0 0 0 2px var(--app-accent-soft) !important; }
@@ -197,8 +206,9 @@
 
 @media (hover: hover) and (pointer: fine) {
   .experience.experience[data-ui] :global(.activity-inbox-item:hover) { background: var(--app-content-hover) !important; }
-  .chat.chat[data-ui] :is(:global(.activity-icon-button:not(:disabled):hover), :global(.activity-details-button:not(:disabled):hover), :global(.activity-chat-back:not(:disabled):hover), :global(.activity-schedule-button:not(:disabled):hover)) { box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); }
+  .chat.chat[data-ui] :is(:global(.activity-icon-button:not(:disabled):hover), :global(.activity-details-button:not(:disabled):hover), :global(.activity-chat-back:not(:disabled):hover), :global(.activity-schedule-button:not(:disabled):hover), :global(.activity-appointment-shortcut:not(:disabled):hover)) { box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); }
   .chat.chat[data-ui] :global(.activity-chat-state-action:not(:disabled):hover) { box-shadow: var(--app-glass-shadow); }
+  .chat.chat[data-ui] :global(.activity-system-message-link:hover) { box-shadow: var(--app-glass-shadow); }
 }
 @media (max-width: 1100px) {
   .experience.experience[data-ui] :global(.activity-workspace) { grid-template-columns: 290px minmax(0, 1fr) !important; gap: 12px !important; }
@@ -240,9 +250,11 @@
   .experience.experience[data-ui] :global(.activity-inbox-item) { min-height: 94px; margin-bottom: 0; padding-block: 12px !important; }
   .experience.experience[data-ui] :global(.activity-inbox-body) { gap: 2px; }
   .experience.experience[data-ui] :global(.activity-job-filter) { max-width: 100%; font-size: 12px; }
-  .chat.chat[data-ui] :global(.activity-schedule-button) { display: inline-flex; width: 44px; height: 44px; padding: 0; }
-  .chat.chat[data-ui] :global(.activity-schedule-button span) { display: none; }
+  .chat.chat[data-ui] :is(:global(.activity-schedule-button), :global(.activity-appointment-shortcut)) { display: inline-flex; width: 44px; height: 44px; padding: 0; }
+  .chat.chat[data-ui] :is(:global(.activity-schedule-button span), :global(.activity-appointment-shortcut span)) { display: none; }
   .chat.chat[data-ui] :global(.activity-chat-header[data-has-primary-action="true"] .activity-chat-avatar) { display: none; }
+  .chat.chat[data-ui] :global(.activity-chat-header[data-compact-actions="true"] .activity-details-button) { width: 44px; height: 44px; padding: 0; }
+  .chat.chat[data-ui] :global(.activity-chat-header[data-compact-actions="true"] .activity-details-button span) { display: none; }
   .chat.chat[data-ui] :global(.activity-chat-state-copy) { display: block; }
   .chat.chat[data-ui] :is(:global(.activity-chat-state-copy > strong), :global(.activity-chat-state-copy > time), :global(.activity-chat-state-copy > span)) { display: block; }
   .chat.chat[data-ui] :global(.activity-realtime-state) { flex-basis: 16px; width: 16px; min-width: 0; }
@@ -305,10 +317,12 @@
   .experience.experience[data-ui] :is(:global(.activity-filter-selection), :global(.activity-filter-strip), :global(.activity-panel-search-toggle), :global(.activity-inbox-search), :global(.activity-inbox-avatar), :global(.activity-inbox-item))::before,
   .experience.experience[data-ui] :global(.activity-inbox-item)::after { display: none; }
   .experience.experience[data-ui] :is(:global(.activity-inbox-status), :global(.activity-inbox-request), :global(.activity-inbox-unread)) { color: CanvasText; }
-  .chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button)) { border-color: ButtonText; color: ButtonText; background: Canvas; box-shadow: none; }
-  .chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button))::before { display: none; }
+  .chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button), :global(.activity-appointment-shortcut)) { border-color: ButtonText; color: ButtonText; background: Canvas; box-shadow: none; }
+  .chat.chat[data-ui] :is(:global(.activity-icon-button), :global(.activity-details-button), :global(.activity-chat-back), :global(.activity-schedule-button), :global(.activity-appointment-shortcut))::before { display: none; }
   .chat.chat[data-ui] :global(.activity-chat-statebar) { border-color: CanvasText; color: CanvasText; background: Canvas; }
   .chat.chat[data-ui] :global(.activity-chat-state-action) { border-color: ButtonText; color: ButtonText; background: Canvas; box-shadow: none; }
+  .chat.chat[data-ui] :global(.activity-system-message-link) { border-color: ButtonText; color: ButtonText; background: Canvas; box-shadow: none; }
+  .chat.chat[data-ui] :global(.activity-system-message-link)::before { display: none; }
   .chat.chat[data-ui] :global(.activity-chat-statebar)::before, .chat.chat[data-ui] :global(.activity-chat-state-action)::before { display: none; }
 }
 

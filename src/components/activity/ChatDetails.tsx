@@ -19,6 +19,7 @@ type ChatDetailsProps = {
     statusLabel: string; stage?: ActivityStage; closureReason?: string | null; authorizedAddress?: string | null;
     appointments: ChatAppointment[]; scheduledFor?: string | null; scheduleNote?: string | null;
     appointmentActions?: ReactNode;
+    appointmentsOpen?: boolean; onAppointmentsOpen?: (open: boolean) => void;
     formatSchedule: (value?: string | null) => string | null;
     searchOpen: boolean; onSearchOpen: (open: boolean) => void; query: string; onQuery: (query: string) => void;
     messages: ActivityMessage[]; loading: boolean; hasOlder: boolean; loadingOlder: boolean; loadError?: string | null;
@@ -32,7 +33,7 @@ export function HighlightedChatText({ text, query }: { text: string; query: stri
 }
 
 export function ChatDetails(props: ChatDetailsProps) {
-    const { searchOpen, query, messages, job, jobTitle } = props;
+    const { searchOpen, appointmentsOpen, query, messages, job, jobTitle } = props;
     const searchRef = useRef<HTMLInputElement>(null);
     const searchButtonRef = useRef<HTMLButtonElement>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -52,19 +53,19 @@ export function ChatDetails(props: ChatDetailsProps) {
         let focusFrame = 0;
         const frame = requestAnimationFrame(() => { focusFrame = requestAnimationFrame(() => searchRef.current?.focus()); });
         return () => { cancelAnimationFrame(frame); cancelAnimationFrame(focusFrame); };
-    }, [searchOpen]);
+    }, [searchOpen, appointmentsOpen]);
 
     return <motion.aside ref={props.dialogRef} className={styles.rail} role="dialog" aria-modal={props.compact} aria-labelledby={headingId} tabIndex={-1}
         initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
         transition={{ type: "spring", duration: .3, bounce: 0 }}>
         <div className={styles.heading}>
-            {searchOpen && <button className={styles.back} type="button" aria-label="Zurück zu den Details" onClick={() => { props.onSearchOpen(false); requestAnimationFrame(() => searchButtonRef.current?.focus()); }}><ArrowLeft aria-hidden="true" /></button>}
-            <h2 id={headingId}>{searchOpen ? "Im Chat suchen" : "Details"}</h2>
-            {!searchOpen && <button ref={searchButtonRef} className={styles.searchToggle} type="button" onClick={() => props.onSearchOpen(true)} aria-label="Im Chat suchen" title="Im Chat suchen">
+            {(searchOpen || appointmentsOpen) && <button className={styles.back} type="button" aria-label="Zurück zu den Details" onClick={() => { props.onSearchOpen(false); props.onAppointmentsOpen?.(false); requestAnimationFrame(() => searchButtonRef.current?.focus()); }}><ArrowLeft aria-hidden="true" /></button>}
+            <h2 id={headingId}>{searchOpen ? "Im Chat suchen" : appointmentsOpen ? "Termine" : "Details"}</h2>
+            {!searchOpen && !appointmentsOpen && <button ref={searchButtonRef} className={styles.searchToggle} type="button" onClick={() => props.onSearchOpen(true)} aria-label="Im Chat suchen" title="Im Chat suchen">
                 <motion.span className={styles.searchLens} layoutId={`${headingId}-search-lens`} aria-hidden="true" transition={{ type: "spring", duration: reducedMotion ? 0 : .35, bounce: 0 }} />
                 <Search aria-hidden="true" />
             </button>}
-            <button className={styles.close} type="button" onClick={props.onClose} aria-label="Details schließen"><X aria-hidden="true" /></button>
+            <button className={styles.close} type="button" onClick={props.onClose} aria-label={appointmentsOpen ? "Termine schließen" : "Details schließen"}><X aria-hidden="true" /></button>
         </div>
         <div ref={bodyRef} className={styles.body}>
             {searchOpen ? <div key="search" className={styles.searchPane}>
@@ -85,6 +86,13 @@ export function ChatDetails(props: ChatDetailsProps) {
                     {props.hasOlder && <button type="button" className={styles.utility} onClick={props.onLoadOlder} disabled={props.loadingOlder}><Clock3 aria-hidden="true" />{props.loadingOlder ? "Ältere Nachrichten werden geladen …" : "Ältere Nachrichten laden"}</button>}
                     {props.loadError && <p className={styles.text} role="alert">{props.loadError}</p>}
                 </motion.div>
+            </div> : appointmentsOpen ? <div key="appointments" className={styles.appointmentPane}>
+                <p className={styles.appointmentContext}>{jobTitle}</p>
+                {props.appointmentActions}
+                {next && <section className={`${styles.section} ${styles.appointmentSection}`} aria-label="Vereinbarte Termine"><h3>Vereinbarte Termine</h3>
+                    <Appointment appointment={next} formatSchedule={props.formatSchedule} />
+                    {orderedAppointments.length > 1 && <details className={styles.history}><summary>Weitere Termine ({orderedAppointments.length - 1})</summary>{orderedAppointments.slice(1).map(appointment => <Appointment key={appointment.id} appointment={appointment} formatSchedule={props.formatSchedule} />)}</details>}
+                </section>}
             </div> : <div key="details">
                 <button type="button" className={styles.personCard} onClick={props.onOpenProfile}
                     disabled={!props.profile} aria-label={`Profil von ${personName} öffnen`} aria-haspopup="dialog">

@@ -22,6 +22,25 @@ export type AppointmentMutation = {
     note?: string;
 };
 
+export type AppointmentSystemMessageKind = "request" | "appointment";
+
+const appointmentSystemMessages = new Map<string, AppointmentSystemMessageKind>([
+    ["Ein weiterer Termin wurde angefragt.", "request"],
+    ["Eine Terminänderung wurde angefragt. Der bisherige Termin bleibt bis zur Bestätigung bestehen.", "request"],
+    ["Der Termin wurde verbindlich vereinbart.", "appointment"],
+    ["Ein weiterer Termin wurde verbindlich vereinbart.", "appointment"],
+    ["Der Termin wurde aktualisiert.", "appointment"],
+    ["Der Termin wurde abgesagt. Die Zusammenarbeit bleibt geöffnet.", "appointment"],
+    ["Der Terminvorschlag wurde abgelehnt. Der bisherige Termin bleibt bestehen.", "appointment"],
+    ["Der Terminvorschlag wurde zurückgezogen.", "appointment"],
+]);
+
+/** Only persisted system text identifies a scheduling event, never a user's chat. */
+export function getAppointmentSystemMessageKind(message: { kind?: string | null; content?: string | null }): AppointmentSystemMessageKind | null {
+    if (message.kind !== "system" || typeof message.content !== "string") return null;
+    return appointmentSystemMessages.get(message.content.replace(/\s+/g, " ").trim()) ?? null;
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function appointmentMutationError(input: AppointmentMutation, now = Date.now()) {
     if (!uuid.test(input.applicationId)) return "Der Vorgang ist nicht verfügbar.";

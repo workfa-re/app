@@ -42,6 +42,8 @@
 .section { padding: 24px 0 0; }
 .section h3 { margin: 0 0 12px; color: var(--app-ink); font-size: 13px; font-weight: 500; }
 .appointmentSection { min-width: 0; }
+.appointmentPane { min-width: 0; }
+.appointmentContext { margin: 0 0 16px; color: var(--app-muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .appointment { display: flex; align-items: flex-start; gap: 12px; padding: 15px 16px; border-radius: 18px; }
 .appointment > svg { flex: 0 0 19px; width: 19px; height: 21px; margin-top: 2px; color: var(--app-muted); stroke-width: 1.5; }
 .appointment > div { min-width: 0; }
@@ -84,8 +86,8 @@
     .workspace.workspace.workspace[data-chat-tools][data-details-open="true"] { display: grid; grid-template-columns: minmax(0, 1fr) 360px; column-gap: 0; }
     .rail.rail.rail { position: relative; z-index: 20; inset: auto; width: 360px; height: 100%; max-height: 100%; max-width: none; margin: 0; border: 0; border-left: 1px solid var(--app-panel-rule); border-radius: 0; box-shadow: none; }
     .workspace[data-details-open="false"] .rail { position: absolute; inset: 0 0 0 auto; }
-    .workspace.workspace[data-details-open="true"] .conversation :global(.activity-schedule-button) { width: 44px; padding: 0; }
-    .workspace[data-details-open="true"] .conversation :global(.activity-schedule-button span) { display: none; }
+    .workspace.workspace[data-details-open="true"] .conversation :is(:global(.activity-schedule-button), :global(.activity-appointment-shortcut)) { width: 44px; padding: 0; }
+    .workspace[data-details-open="true"] .conversation :is(:global(.activity-schedule-button span), :global(.activity-appointment-shortcut span)) { display: none; }
     .backdrop.backdrop.backdrop { display: none; }
     .heading { padding: 18px 18px 14px; }
     .heading h2 { font-size: 19px; }

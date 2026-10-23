@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { appointmentMutationError, type AppointmentMutation, type AppointmentRequest } from "@/lib/activity/appointments";
+import { appointmentMutationError, getAppointmentSystemMessageKind, type AppointmentMutation, type AppointmentRequest } from "@/lib/activity/appointments";
 
 type RpcPayload = {
     ok?: boolean;
@@ -190,6 +190,36 @@ export async function getAppointmentRequests(applicationId: string) {
         .eq("application_id", applicationId).eq("status", "pending").order("created_at", { ascending: false }).limit(1);
     if (error) return { error: "Terminanfragen konnten nicht geladen werden.", available: false } as const;
     return { requests: (data ?? []) as AppointmentRequest[], available: true } as const;
+}
+
+export async function getAppointmentRequestForMessage(applicationId: string, messageId: string) {
+    const unavailable = { available: false, request: null, error: "Die Terminanfrage konnte nicht geladen werden." } as const;
+    const identifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!identifier.test(applicationId) || !identifier.test(messageId)) return unavailable;
+
+    try {
+        const client = await supabaseServer();
+        const messageResult = await client.from("messages")
+            .select("id, application_id, sender_id, content, created_at, kind, deleted_at")
+            .eq("application_id", applicationId).eq("id", messageId).eq("kind", "system").limit(1);
+        if (messageResult.error) return unavailable;
+        const message = messageResult.data?.[0];
+        if (!message || message.deleted_at || !message.sender_id || !message.created_at || getAppointmentSystemMessageKind(message) !== "request") {
+            return { available: true, request: null } as const;
+        }
+
+        // The RPC creates both records with PostgreSQL's transaction timestamp.
+        // Compare in SQL to retain microseconds; never substitute the latest request.
+        const requestResult = await client.from("job_appointment_requests")
+            .select("id, application_id, appointment_id, requested_by, starts_at, ends_at, timezone, note, status, created_at, responded_at")
+            .eq("application_id", applicationId).eq("requested_by", message.sender_id)
+            .eq("created_at", message.created_at).limit(2);
+        if (requestResult.error) return unavailable;
+        const request = requestResult.data?.length === 1 ? requestResult.data[0] as AppointmentRequest : null;
+        return { available: true, request } as const;
+    } catch {
+        return unavailable;
+    }
 }
 
 export async function manageJobAppointment(input: AppointmentMutation) {
