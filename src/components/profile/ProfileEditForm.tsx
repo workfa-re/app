@@ -154,14 +154,16 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                     <ProfileAvatar url={profile.avatar_url ?? null} name={name} className={styles.avatar} />
                     <div className={styles.identityCopy}>
                         <h2 className={styles.name}>{name}</h2>
-                        <p className={styles.role}>{role}</p>
-                        {visibleCity && <p className={styles.identityMeta}><MapPin aria-hidden="true" />{visibleCity}</p>}
+                        <div className={styles.identitySubline}>
+                            <p className={styles.role}>{role}</p>
+                            {isStaff && <StaffBadge className={styles.staffBadge} />}
+                        </div>
+                        <div className={styles.identityFacts}>
+                            {visibleCity && <p className={styles.identityMeta}><MapPin aria-hidden="true" /><span>{visibleCity}</span></p>}
+                            {isProvider && isVerified && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>Adresse geprüft</span></p>}
+                            {!isProvider && guardiansList.length > 0 && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>Elternfreigabe aktiv</span></p>}
+                        </div>
                     </div>
-                </div>
-                <div className={styles.identityTrust}>
-                    {isStaff && <StaffBadge />}
-                    {isProvider && isVerified && <span><ShieldCheck aria-hidden="true" />Adresse geprüft</span>}
-                    {!isProvider && guardiansList.length > 0 && <span><ShieldCheck aria-hidden="true" />Elternfreigabe aktiv</span>}
                 </div>
                 <button type="button" className={cn(styles.button, styles.preview)} onClick={() => setShowPreview(true)}><Eye aria-hidden="true" />Öffentliche Vorschau</button>
             </aside>
