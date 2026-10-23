@@ -47,6 +47,11 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
     }, [isAvailable, isOpen]);
 
     useEffect(() => {
+        setIsProfileModalOpen(false);
+        setSelectedProfile(null);
+    }, [isOpen, job?.id]);
+
+    useEffect(() => {
         if (!isOpen) return;
         const frame = requestAnimationFrame(() => endPerfMark("job-detail-open"));
         return () => cancelAnimationFrame(frame);
@@ -139,6 +144,6 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
         </Transition>
         <JobApplicationModal isOpen={isApplicationModalOpen && isAvailable} onClose={() => setIsApplicationModalOpen(false)} jobTitle={job.title} jobId={job.id} canApply={canApply} guardianStatus={guardianStatus} />
         <VerificationRequiredModal isOpen={isVerificationModalOpen} onClose={() => setIsVerificationModalOpen(false)} guardianStatus={guardianStatus as GuardianStatus} />
-        <UserProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} profile={selectedProfile} isStaff={Boolean(job.creator?.is_staff)} presentation="sheet" />
+        <UserProfileModal isOpen={isProfileModalOpen && isOpen} onClose={() => setIsProfileModalOpen(false)} profile={selectedProfile} isStaff={Boolean(job.creator?.is_staff)} />
     </>;
 }

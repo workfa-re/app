@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from "@headlessui/react";
-import { ArrowLeft, Building2, CalendarDays, MapPin, ShieldCheck, UserRound, X } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, MapPin, ShieldCheck, UserRound } from "lucide-react";
 import { Fragment, useId, useState, type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
 import { profileInitials, toPublicProfile, type VisibleProfile } from "./public-profile";
@@ -15,87 +15,77 @@ interface UserProfileModalProps {
     profile: VisibleProfile | null;
     isStaff?: boolean;
     stats?: { jobsCompleted: number; rating: number };
-    presentation?: "page" | "sheet";
 }
 
-export function UserProfileModal({ isOpen, onClose, profile, isStaff = false, presentation = "page" }: UserProfileModalProps) {
+export function UserProfileModal({ isOpen, onClose, profile, isStaff = false }: UserProfileModalProps) {
     const sectionId = useId();
     if (!profile) return null;
     const visible = toPublicProfile(profile, isStaff);
     const isProvider = visible.role === "job_provider";
-    const compact = presentation === "sheet";
     const hasFacts = Boolean(visible.location || visible.memberSince || visible.ageYears !== null);
     const hasSections = Boolean(visible.bio || visible.skills.length || visible.interests.length);
 
     return (
         <Transition appear show={isOpen} as={Fragment}>
             <Dialog as="div" className={cn("app-portal-surface", styles.dialog)} onClose={onClose}>
-                {compact && <TransitionChild as={Fragment}
-                    enter={styles.fade} enterFrom={styles.transparent} enterTo={styles.opaque}
-                    leave={styles.fade} leaveFrom={styles.opaque} leaveTo={styles.transparent}>
-                    <div className={styles.backdrop} aria-hidden="true" />
-                </TransitionChild>}
-                <div className={compact ? styles.viewport : undefined}>
-                    <TransitionChild as={Fragment}
-                        enter={styles.enter} enterFrom={styles.enterFrom} enterTo={styles.enterTo}
-                        leave={styles.leave} leaveFrom={styles.enterTo} leaveTo={styles.leaveTo}>
-                        <DialogPanel className={cn(styles.page, compact && styles.sheet)} data-presentation={presentation}>
-                            <header className={styles.topbar}>
-                                {!compact && <button type="button" className={styles.back} onClick={onClose} data-autofocus>
-                                    <ArrowLeft size={19} strokeWidth={1.6} aria-hidden="true" />
-                                    <span>Zurück</span>
-                                </button>}
-                                <span className={styles.pageLabel}>Profil</span>
-                                <button type="button" className={styles.close} onClick={onClose} aria-label="Profil schließen" data-autofocus={compact || undefined}>
-                                    <X size={21} strokeWidth={1.6} aria-hidden="true" />
-                                </button>
-                            </header>
+                <TransitionChild as={Fragment}
+                    enter={styles.enter} enterFrom={styles.enterFrom} enterTo={styles.enterTo}
+                    leave={styles.leave} leaveFrom={styles.enterTo} leaveTo={styles.leaveTo}>
+                    <DialogPanel className={styles.page} data-presentation="page">
+                        <header className={styles.topbar}>
+                            <span className={styles.pageLabel}>Profil</span>
+                            <button type="button" className={styles.back} onClick={onClose} aria-label="Zurück – Profil schließen" data-autofocus>
+                                <ArrowLeft size={19} strokeWidth={1.6} aria-hidden="true" />
+                                <span>Zurück</span>
+                            </button>
+                        </header>
 
-                            <div className={styles.content} data-has-sections={hasSections}>
-                                <section className={styles.identity} aria-label="Profilübersicht">
-                                    <div className={styles.identityHeader}>
-                                        <ProfileAvatar url={visible.avatarUrl} name={visible.displayName} className={styles.avatar} />
-                                        <div className={styles.identityCopy}>
-                                            <DialogTitle as="h1" className={styles.name}>{visible.displayName}</DialogTitle>
-                                            {visible.personName && <p className={styles.personName}>{visible.personName}</p>}
+                        <div className={styles.content} data-has-sections={hasSections}>
+                            <section className={styles.identity} aria-label="Profilübersicht">
+                                <div className={styles.identityHeader}>
+                                    <ProfileAvatar url={visible.avatarUrl} name={visible.displayName} className={styles.avatar} />
+                                    <div className={styles.identityCopy}>
+                                        <DialogTitle as="h1" className={styles.name}>{visible.displayName}</DialogTitle>
+                                        {visible.personName && <p className={styles.personName}>{visible.personName}</p>}
+                                        <div className={styles.badges}>
                                             <p className={styles.role}>
                                                 {isProvider ? <Building2 size={17} aria-hidden="true" /> : <UserRound size={17} aria-hidden="true" />}
                                                 {visible.roleLabel}
                                             </p>
+                                            {visible.isStaff && <p className={styles.trust}><ShieldCheck size={16} aria-hidden="true" />Offizielles Workfare-Team</p>}
+                                            {visible.isVerifiedProvider && <p className={styles.trust}><ShieldCheck size={16} aria-hidden="true" />Adresse geprüft</p>}
                                         </div>
                                     </div>
-                                    {hasFacts && <dl className={styles.identityFacts}>
-                                        {visible.location && <div>
-                                            <dt><MapPin size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Ort</span></dt>
-                                            <dd>{visible.location}</dd>
-                                        </div>}
-                                        {visible.memberSince && <div>
-                                            <dt><CalendarDays size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Mitglied seit</span></dt>
-                                            <dd>Dabei seit {visible.memberSince}</dd>
-                                        </div>}
-                                        {visible.ageYears !== null && <div>
-                                            <dt><UserRound size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Alter</span></dt>
-                                            <dd>{visible.ageYears} Jahre</dd>
-                                        </div>}
-                                    </dl>}
-                                    {(visible.isStaff || visible.isVerifiedProvider) && <div className={styles.trust}>
-                                        {visible.isStaff && <p><ShieldCheck size={18} strokeWidth={1.6} aria-hidden="true" /><span>Offizielles Workfare-Team</span></p>}
-                                        {visible.isVerifiedProvider && <p><ShieldCheck size={18} strokeWidth={1.6} aria-hidden="true" /><span>Adresse geprüft</span></p>}
+                                </div>
+                                {hasFacts && <dl className={styles.identityFacts}>
+                                    {visible.location && <div>
+                                        <dt><MapPin size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Ort</span></dt>
+                                        <dd>{visible.location}</dd>
                                     </div>}
-                                </section>
+                                    {visible.memberSince && <div>
+                                        <dt><CalendarDays size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Mitglied seit</span></dt>
+                                        <dd>Dabei seit {visible.memberSince}</dd>
+                                    </div>}
+                                    {visible.ageYears !== null && <div>
+                                        <dt><UserRound size={17} strokeWidth={1.6} aria-hidden="true" /><span className={styles.srOnly}>Alter</span></dt>
+                                        <dd>{visible.ageYears} Jahre</dd>
+                                    </div>}
+                                </dl>}
+                            </section>
 
-                                {hasSections && <div className={styles.sections}>
-                                    {visible.bio && <section className={styles.section} aria-labelledby={`${sectionId}-about`}>
-                                        <h2 id={`${sectionId}-about`}>{isProvider ? "Über den Anbieter" : "Über mich"}</h2>
-                                        <p className={styles.bio}>{visible.bio}</p>
-                                    </section>}
+                            {hasSections && <div className={styles.sections}>
+                                {visible.bio && <section className={styles.section} aria-labelledby={`${sectionId}-about`}>
+                                    <h2 id={`${sectionId}-about`}>{isProvider ? "Über den Anbieter" : "Über mich"}</h2>
+                                    <p className={styles.bio}>{visible.bio}</p>
+                                </section>}
+                                {(visible.skills.length > 0 || visible.interests.length > 0) && <div className={styles.tagSections}>
                                     {visible.skills.length > 0 && <ProfileTags title="Fähigkeiten" values={visible.skills} id={`${sectionId}-skills`} />}
                                     {visible.interests.length > 0 && <ProfileTags title="Interessen" values={visible.interests} id={`${sectionId}-interests`} />}
                                 </div>}
-                            </div>
-                        </DialogPanel>
-                    </TransitionChild>
-                </div>
+                            </div>}
+                        </div>
+                    </DialogPanel>
+                </TransitionChild>
             </Dialog>
         </Transition>
     );

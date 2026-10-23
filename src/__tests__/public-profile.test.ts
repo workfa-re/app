@@ -67,4 +67,11 @@ describe("public profile presentation boundary", () => {
         expect(profileInitials("  Alex  Beispiel  ")).toBe("AB");
         expect(profileInitials("")).toBe("W");
     });
+
+    it("uses readable initials for company names and optional decorative symbols", () => {
+        expect(profileInitials("Garten & Nachbarschaft Rheinbach")).toBe("GN");
+        expect(profileInitials("🌿 Anna Schneider")).toBe("AS");
+        expect(profileInitials("Özlem Yılmaz")).toBe("ÖY");
+        expect(profileInitials("— & 🌿")).toBe("W");
+    });
 });

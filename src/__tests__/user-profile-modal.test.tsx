@@ -19,19 +19,19 @@ const provider: VisibleProfile = {
 const close = () => {};
 
 describe("public profile dialog", () => {
-    it("preserves the full-page default and offers an explicit compact presentation", () => {
-        const page = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={provider} />);
-        expect(page).toContain('data-presentation="page"');
-        expect(page).toContain("Zurück");
-
-        const sheet = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={provider} presentation="sheet" />);
-        expect(sheet).toContain('data-presentation="sheet"');
-        expect(sheet).toContain('aria-label="Profil schließen"');
-        expect(sheet).not.toContain("Zurück");
+    it("uses one full-page profile with a single named return control and profile heading", () => {
+        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={provider} />);
+        expect(html).toContain('data-presentation="page"');
+        expect(html).not.toContain('data-presentation="sheet"');
+        expect(html.match(/<h1\b/g)).toHaveLength(1);
+        expect(html).toMatch(/<h1\b[^>]*>Max Mustermann<\/h1>/);
+        expect(html.match(/<button\b/g)).toHaveLength(1);
+        expect(html).toContain('aria-label="Zurück – Profil schließen"');
+        expect(html).toContain("Zurück");
     });
 
     it("shows sparse provider facts without an empty biography or invented statistics", () => {
-        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={provider} presentation="sheet" stats={{ jobsCompleted: 128, rating: 4.9 }} />);
+        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={provider} stats={{ jobsCompleted: 128, rating: 4.9 }} />);
         expect(html).toContain("Max Mustermann");
         expect(html).toContain("Rheinbach, Deutschland");
         expect(html).toContain("Adresse geprüft");
@@ -44,15 +44,42 @@ describe("public profile dialog", () => {
     });
 
     it("omits empty metadata groups but keeps a genuine provider biography and contact name", () => {
-        const minimal = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ id: "minimal", full_name: "Max Mustermann" }} presentation="sheet" />);
+        const minimal = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ id: "minimal", full_name: "Max Mustermann" }} />);
         expect(minimal).not.toContain("<dl");
         expect(minimal).not.toContain("Dabei seit");
 
-        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ ...provider, company_name: "Werkstatt am Markt", bio: "Hilfe für unsere kleine Werkstatt." }} presentation="sheet" />);
+        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ ...provider, company_name: "Werkstatt am Markt", bio: "Hilfe für unsere kleine Werkstatt." }} />);
         expect(html).toContain("Werkstatt am Markt");
         expect(html).toContain("Max Mustermann");
         expect(html).toContain("Über den Anbieter");
         expect(html).toContain("Hilfe für unsere kleine Werkstatt.");
+    });
+
+    it("only shows address and team badges when backed by the corresponding profile flags", () => {
+        const pending = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ ...provider, provider_verification_status: "pending" }} />);
+        expect(pending).not.toContain("Adresse geprüft");
+        expect(pending).not.toContain("Offizielles Workfare-Team");
+
+        const staff = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ ...provider, is_staff: true }} />);
+        expect(staff).toContain("Offizielles Workfare-Team");
+        expect(staff).toContain("Adresse geprüft");
+        expect(staff).not.toContain("Identität geprüft");
+
+        const seeker = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{ ...provider, account_type: "job_seeker" }} />);
+        expect(seeker).not.toContain("Adresse geprüft");
+    });
+
+    it("preserves complete public text and displays normalized tags once", () => {
+        const name = "Alexandra Maria Beispiel mit einem langen öffentlichen Namen";
+        const bio = "Ich unterstütze Menschen in meiner Nachbarschaft.\n".repeat(12).trim();
+        const html = renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={{
+            id: "long-profile", account_type: "job_seeker", full_name: name, bio,
+            skills: " Gartenarbeit, , Fahrradreparatur, Gartenarbeit ", interests: " Musik, Musik, Natur ",
+        }} />);
+        expect(html).toMatch(new RegExp(`<h1\\b[^>]*>${name}<\\/h1>`));
+        expect(html).toContain(bio);
+        for (const tag of ["Gartenarbeit", "Fahrradreparatur", "Musik", "Natur"])
+            expect(html.match(new RegExp(`<li\\b[^>]*>${tag}<\\/li>`, "g"))).toHaveLength(1);
     });
 
     it("keeps rich seeker sections and excludes private preview data", () => {
@@ -70,6 +97,6 @@ describe("public profile dialog", () => {
 
     it("renders no profile when absent or closed", () => {
         expect(renderToStaticMarkup(<UserProfileModal isOpen onClose={close} profile={null} />)).toBe("");
-        expect(renderToStaticMarkup(<UserProfileModal isOpen={false} onClose={close} profile={provider} presentation="sheet" />)).toBe("");
+        expect(renderToStaticMarkup(<UserProfileModal isOpen={false} onClose={close} profile={provider} />)).toBe("");
     });
 });

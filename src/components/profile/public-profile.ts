@@ -73,8 +73,10 @@ function ageInYears(profile: VisibleProfile, now: Date) {
 }
 
 export function profileInitials(name: string) {
-    return name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
-        .map((part) => Array.from(part)[0]?.toUpperCase()).join("") || "W";
+    return name.trim().split(/\s+/)
+        .map((part) => part.match(/[\p{L}\p{N}]/u)?.[0])
+        .filter((letter): letter is string => Boolean(letter)).slice(0, 2)
+        .map((letter) => letter.toUpperCase()).join("") || "W";
 }
 
 /** A strict whitelist: never spread a full profile into the public presentation. */
