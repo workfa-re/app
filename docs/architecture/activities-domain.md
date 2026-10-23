@@ -195,23 +195,46 @@ release smoke-test item, not a durable-delivery guarantee.
 
 ## Reporting evidence
 
-Reports can target the counterpart, a non-system message or a reopen request.
-The reporting RPC verifies participation, target ownership, the reported user
-and the absence of a duplicate open report before insertion.
+Reporting starts in the conversation's Details panel. The report dialog offers
+three explicit scopes: `person` for the counterpart, `conversation` for the
+whole persisted conversation, and `message` for one selected item. Selectable
+items are the counterpart's persisted `application` or `chat` messages and
+their reopen requests. Own, system, temporary, failed and soft-deleted messages
+are not selectable. Reopen requests retain their own IDs and target type;
+they are not treated as chat messages.
+
+The server derives the counterpart from the application's participants and
+verifies participation, selected-item ownership and conversation membership.
+Exactly one message or reopen-request ID is required for `message` scope;
+neither may accompany the other scopes. Duplicate reports in `open` or
+`reviewing` state are rejected under a per-reporter/target transaction advisory
+lock. Person reports are deduplicated across conversations with that person;
+conversation reports use the application ID as their separate target.
 
 `evidence_snapshot` and `evidence_captured_at` preserve the moderation context
 at report time:
 
-- a message report captures that message's sender, kind, content and timestamp;
-- a reopen-request report captures requester, request text and timestamp;
-- a user report captures up to the latest 20 non-deleted conversation messages;
-- all snapshots include application, job, reporter and reported-user context.
+- `conversation` captures every persisted message and reopen request belonging
+  to the selected conversation, independently of client pagination. This private
+  evidence includes soft-deleted content with its deletion metadata and sets
+  `context_complete=true`;
+- `person` captures up to the latest 20 messages and 10 reopen requests as
+  bounded context, with `context_complete=false` and explicit `context_limits`;
+- `message` captures the selected message's sender, kind, content, creation and
+  edit timestamps, or the selected reopen request's requester, text, timestamps
+  and resolution metadata;
+- every version-2 snapshot records its scope, application, job, original
+  application text, reporter and reported-user context. Later source edits do
+  not rewrite captured evidence.
 
 Consumer roles cannot write or read the reports table directly. They create a
 report only through the validated RPC. Evidence is available to the separate
-administration backend through server-side service-role access. Administrative
-decisions should be appended to an audit log rather than rewriting the captured
-snapshot.
+administration backend through server-side service-role access. The reports
+row is the private audit: reporting creates no shared `application_events`
+entry, notification or conversation/job status change. A restrictive SELECT
+policy also hides historical `activity_report_created` events from consumer
+roles. Administrative decisions should be appended to an audit log rather than
+rewriting the captured snapshot.
 
 ## Administration and protected data
 

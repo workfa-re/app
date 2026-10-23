@@ -83,3 +83,21 @@ provider integration, retries and digest scheduling are still required.
 Workfare Pay is also not live and has no payment ledger or provider/compliance
 integration. Neither capability may infer delivery or financial state from
 notifications, chats or engagements.
+
+## Scoped reporting
+
+`20261023230227_scoped_activity_reports.sql` is the applied additive reporting
+migration (ledger MD5 `d28d1dc6365998746f73f98694834acd`, 11,349 UTF-8 bytes).
+It introduces explicit person/conversation/content targets, server-side evidence,
+private report events and serialized duplicate prevention while retaining the
+legacy RPC signature. It does not rewrite user data or send notifications.
+
+Run the isolated PostgreSQL checks with an external embedded-postgres runtime:
+
+```sh
+WORKFARE_EMBEDDED_PG_MODULE=/absolute/path/to/embedded-postgres/dist/index.js node scripts/database/test-reports.mjs
+```
+
+The test runner accepts no remote database URL. It covers all scopes, the original
+application message, full conversation evidence, privacy, legacy compatibility
+and concurrent duplicate prevention in its disposable local cluster.

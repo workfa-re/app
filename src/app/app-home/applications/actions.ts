@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { appointmentMutationError, getAppointmentSystemMessageKind, type AppointmentMutation, type AppointmentRequest } from "@/lib/activity/appointments";
+import type { ActivityReportInput, ReportScope } from "@/lib/activity/reporting";
 
 type RpcPayload = {
     ok?: boolean;
@@ -240,19 +241,28 @@ export async function manageJobAppointment(input: AppointmentMutation) {
     return { ...result, appointment: result.appointment && typeof result.appointment.id === "string" ? result.appointment : null };
 }
 
-export async function reportActivityItem(input: {
-    applicationId: string;
-    reasonCode: "harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other";
-    details?: string;
-    reportedUserId?: string | null;
-    messageId?: string | null;
-    reopenRequestId?: string | null;
-}) {
+export async function reportActivityItem(input: Omit<ActivityReportInput, "scope"> & { scope?: ReportScope }) {
+    const isUuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+    if (!input || !isUuid(input.applicationId)
+        || [input.reportedUserId, input.messageId, input.reopenRequestId].some(value => value != null && !isUuid(value))) {
+        return { error: "Das ausgewählte Gespräch oder der Inhalt ist ungültig." };
+    }
+    const scope = input.scope === undefined ? (input.messageId || input.reopenRequestId ? "message" : "person") : input.scope;
+    if (!["person", "conversation", "message"].includes(scope)) return { error: "Bitte wähle aus, was du melden möchtest." };
+    const selectedContents = Number(input.messageId != null) + Number(input.reopenRequestId != null);
+    if ((scope === "message" && selectedContents !== 1) || (scope !== "message" && selectedContents !== 0)) {
+        return { error: "Bitte wähle genau den Inhalt aus, den du melden möchtest." };
+    }
+    if (!["harassment", "fraud", "safety", "inappropriate", "spam", "other"].includes(input.reasonCode)) {
+        return { error: "Bitte wähle einen gültigen Meldegrund." };
+    }
+    if (input.details !== undefined && typeof input.details !== "string") return { error: "Die Beschreibung ist ungültig." };
     const details = input.details?.trim() ?? "";
     if (details.length > 1500) return { error: "Die Beschreibung darf höchstens 1.500 Zeichen lang sein." };
 
-    const result = await callActivityRpc("report_activity_item", {
+    const result = await callActivityRpc("report_activity_item_scoped", {
         p_application_id: input.applicationId,
+        p_scope: scope,
         p_reason_code: input.reasonCode,
         p_details: details || null,
         p_reported_user_id: input.reportedUserId ?? null,
@@ -260,6 +270,7 @@ export async function reportActivityItem(input: {
         p_reopen_request_id: input.reopenRequestId ?? null,
     }, "Die Meldung konnte nicht gesendet werden.");
     if ("error" in result) return result;
+    if (result.ok !== true || !isUuid(result.report_id)) return { error: "Die Meldung wurde nicht bestätigt. Bitte versuche es erneut." };
     revalidatePath("/app-home/activities");
     return result;
 }

@@ -1773,6 +1773,18 @@ export type Database = {
         }
         Returns: Json
       }
+      report_activity_item_scoped: {
+        Args: {
+          p_application_id: string
+          p_scope: string
+          p_reason_code: string
+          p_details?: string | null
+          p_reported_user_id?: string | null
+          p_message_id?: string | null
+          p_reopen_request_id?: string | null
+        }
+        Returns: Json
+      }
       request_conversation_reopen: {
         Args: { p_application_id: string; p_message: string }
         Returns: Json

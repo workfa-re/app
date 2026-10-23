@@ -1,0 +1,88 @@
+.layer { position: fixed; z-index: 110; inset: 0; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); color: var(--app-ink); font-family: var(--font-sans), Inter, sans-serif; -webkit-font-smoothing: antialiased; }
+.backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .25); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+.dialog { position: relative; isolation: isolate; width: 100%; max-width: 520px; max-height: 100%; min-height: 0; overflow: hidden; border: 1px solid transparent; border-radius: 30px; background: var(--app-overlay-fill, var(--app-ground)); box-shadow: var(--app-surface-shadow), 0 24px 80px rgb(0 0 0 / .18); -webkit-backdrop-filter: var(--app-surface-filter); backdrop-filter: var(--app-surface-filter); outline: none; }
+.dialog::before, .scope::before, .context::before, .selectedContent::before, .message::before, .button::before, .back::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.dialog::before { z-index: -1; background: var(--app-surface-rim); }
+.form { display: flex; flex-direction: column; max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); min-height: 0; }
+.header { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; padding: 24px 26px 20px; }
+.header > div { min-width: 0; }
+.header h2, .success h2 { margin: 0; font-size: 26px; font-weight: 500; line-height: 1.2; letter-spacing: -.04em; text-wrap: balance; }
+.header p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 6px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.back { position: relative; isolation: isolate; display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 50%; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); cursor: pointer; }
+.back svg { width: 19px; height: 19px; stroke-width: 1.6; }
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 26px 8px; scrollbar-width: thin; scrollbar-color: var(--app-panel-rule) transparent; }
+.fields { display: grid; gap: 18px; min-width: 0; padding: 0; margin: 0; border: 0; }
+.scopeGroup { min-width: 0; padding: 0; margin: 0; border: 0; }
+.scopeGroup legend { padding: 0; margin-bottom: 12px; color: var(--app-ink); font-size: 14px; font-weight: 500; line-height: 1.5; }
+.scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.scope { position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 82px; padding: 12px 6px; gap: 9px; border: 1px solid transparent; border-radius: 18px; color: var(--app-muted); background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); cursor: pointer; text-align: center; transition: box-shadow 180ms ease, color 180ms ease; }
+.scope input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.scope:has(input:focus-visible) { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+.scope:has(input:disabled) { cursor: default; }
+.scope svg { width: 20px; height: 20px; stroke-width: 1.6; }
+.scope span { font-size: 12px; font-weight: 500; line-height: 1.4; }
+.scope[data-selected="true"] { color: var(--app-accent-ink); background: var(--app-glass-selected); box-shadow: var(--app-glass-shadow); }
+.scope[data-selected="true"]::before { background: var(--app-glass-selected-rim); }
+.context, .selectedContent, .message { position: relative; isolation: isolate; border: 1px solid transparent; border-radius: 18px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
+.context { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.context > svg { width: 20px; height: 20px; flex: 0 0 20px; color: var(--app-muted); stroke-width: 1.6; }
+.context > div { min-width: 0; }
+.context strong { display: block; font-size: 14px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.context p, .hint { margin: 4px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; text-wrap: pretty; }
+.field { display: grid; gap: 9px; min-width: 0; }
+.field > label { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 14px; font-weight: 500; line-height: 1.5; }
+.field > label span { color: var(--app-muted); font-size: 12px; font-weight: 400; }
+.field :is(select, textarea), .search { width: 100%; min-width: 0; min-height: 48px; border: 1px solid var(--app-panel-rule); border-radius: 15px; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); font: inherit; font-size: 15px; line-height: 1.6; }
+.field select { appearance: none; padding: 12px 42px 12px 14px; }
+.selectWrap { position: relative; }
+.selectWrap > svg { position: absolute; pointer-events: none; right: 14px; top: 17px; width: 16px; height: 16px; color: var(--app-muted); stroke-width: 1.6; }
+.field select:invalid { color: var(--app-muted); }
+.field option { color: var(--app-ink); background: var(--app-ground); }
+.field textarea { resize: vertical; min-height: 96px; padding: 12px 14px; }
+.field textarea::placeholder, .search input::placeholder { color: var(--app-muted); }
+.counter { justify-self: end; color: var(--app-muted); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.footer { display: grid; flex: 0 0 auto; gap: 14px; padding: 18px 26px 24px; }
+.footer > p { margin: 0; color: var(--app-muted); font-size: 11px; line-height: 1.6; }
+.button { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; width: 100%; padding: 12px 18px; border: 1px solid transparent; border-radius: 999px; color: var(--app-accent-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); font: inherit; font-size: 14px; font-weight: 500; line-height: 1.5; cursor: pointer; transition: box-shadow 180ms ease; }
+.primary { background: var(--app-glass-selected); }
+.button svg { width: 17px; height: 17px; stroke-width: 1.6; }
+.dialog button:disabled { opacity: .5; cursor: default; }
+.dialog :is(button, input, textarea, select):focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+.dialog :is(button, input, textarea, select):active { scale: 1; }
+.messageSection { min-width: 0; }
+.selectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.selectionHeading h3 { margin: 0; font-size: 14px; font-weight: 500; line-height: 1.5; }
+.textButton { min-height: 40px; padding: 6px 8px; border: 0; border-radius: 10px; color: var(--app-accent-ink); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.search { display: flex; align-items: center; gap: 9px; padding-inline: 13px; }
+.search > svg { flex: 0 0 16px; width: 16px; height: 16px; color: var(--app-muted); stroke-width: 1.6; }
+.search input { width: 100%; min-width: 0; height: 46px; padding: 0; border: 0; outline: none; color: var(--app-ink); background: transparent; font: inherit; font-size: 16px; }
+.search:focus-within { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+.dialog .search input:focus-visible { outline: none; }
+.messageSection > .hint { margin: 9px 0 12px; }
+.messages { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; overscroll-behavior: contain; margin: 12px 0 0; padding: 3px; list-style: none; scrollbar-width: thin; }
+.message { display: grid; width: 100%; gap: 7px; padding: 12px; color: var(--app-ink); text-align: left; cursor: pointer; font: inherit; }
+.contentMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px; color: var(--app-muted); font-size: 11px; line-height: 1.5; }
+.contentMeta > svg { width: 14px; height: 14px; color: var(--app-accent-ink); }
+.contentMeta time { margin-left: auto; font-variant-numeric: tabular-nums; }
+.excerpt { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 13px; line-height: 1.65; }
+.selectedContent { padding: 14px; }
+.selectedContent:focus { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+.selectedContent blockquote { max-height: 180px; overflow-y: auto; margin: 10px 0 0; padding: 0; color: var(--app-ink); font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.loadOlder { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin-top: 10px; padding: 10px; border: 0; border-radius: 12px; color: var(--app-accent-ink); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.loadOlder svg { width: 16px; height: 16px; stroke-width: 1.6; }
+.error { margin: 16px 0 0; color: #b8273e; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+:global(.dark) .error { color: #ff9baa; }
+.success { display: grid; justify-items: center; gap: 18px; padding: 40px 28px 28px; text-align: center; }
+.successIcon { display: grid; place-items: center; width: 64px; height: 64px; border: 1px solid var(--app-panel-rule); border-radius: 50%; color: var(--app-accent-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); }
+.successIcon svg { width: 27px; height: 27px; stroke-width: 1.5; }
+.success h2 { outline: none; }
+.success p { max-width: 32ch; margin: 0 0 8px; color: var(--app-muted); font-size: 14px; line-height: 1.7; }
+.spinner { animation: report-spin 800ms linear infinite; }
+@keyframes report-spin { to { rotate: 360deg; } }
+@media (hover: hover) { .button:not(:disabled):hover, .back:not(:disabled):hover, .message:not(:disabled):hover, .scope:has(input:not(:disabled)):hover { box-shadow: var(--app-glass-shadow-hover); } }
+@media (max-width: 600px) { .layer { padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); } .dialog { border-radius: 26px; } .form { max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); } .header { padding: 20px 20px 18px; } .body { padding-inline: 20px; } .footer { padding: 16px 20px 20px; } .field :is(select, textarea) { font-size: 16px; } .scope { min-height: 78px; } .scope span { font-size: 11px; } }
+@media (max-width: 359px) { .header { padding-inline: 16px; gap: 12px; } .body, .footer { padding-inline: 16px; } .scopes { gap: 6px; } .scope span { font-size: 10px; } .contentMeta time { width: 100%; margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .layer *, .layer *::before, .layer *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .dialog, .scope, .context, .selectedContent, .message, .button, .back { background: var(--app-ground); border-color: var(--app-panel-rule); } }
+@media (prefers-reduced-transparency: reduce) { .backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; } .dialog, .scope, .context, .selectedContent, .message, .button, .back { background: var(--app-ground); border-color: var(--app-panel-rule); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (forced-colors: active) { .dialog, .scope, .context, .selectedContent, .message, .button, .back, .search, .field :is(select, textarea) { color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; } .scope[data-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; } .dialog::before, .scope::before, .context::before, .selectedContent::before, .message::before, .button::before, .back::before { display: none; } }

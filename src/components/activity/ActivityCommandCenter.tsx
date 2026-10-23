@@ -38,6 +38,7 @@ import {
     recoverActivityFailedSend,
 } from "@/lib/activity/chat";
 import { cn } from "@/lib/utils";
+import type { ActivityReportInput } from "@/lib/activity/reporting";
 import { profileInitials } from "@/components/profile/public-profile";
 import styles from "./ActivityWorkspace.module.css";
 
@@ -61,14 +62,7 @@ type ActivityCommandCenterProps = {
     onRequestReopen?: (applicationId: string, message: string) => Promise<any>;
     onRespondReopenRequest?: (requestId: string, accept: boolean, reason?: string) => Promise<any>;
     onComplete?: (applicationId: string, reason?: string) => Promise<any>;
-    onReport?: (input: {
-        applicationId: string;
-        reasonCode: "harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other";
-        details?: string;
-        reportedUserId?: string | null;
-        messageId?: string | null;
-        reopenRequestId?: string | null;
-    }) => Promise<any>;
+    onReport?: (input: ActivityReportInput) => Promise<any>;
 };
 
 type ActivityAttentionSource = {

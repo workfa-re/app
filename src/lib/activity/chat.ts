@@ -17,6 +17,7 @@ export type ActivityMessage = {
     content: string;
     created_at: string | null;
     read_at?: string | null;
+    deleted_at?: string | null;
     kind?: "application" | "chat" | "system";
     is_temp?: boolean;
     failed?: boolean;

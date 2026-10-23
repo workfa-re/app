@@ -1884,8 +1884,7 @@
   gap: 0.35rem;
 }
 
-.activity-reopen-request-footer button,
-.activity-inline-report {
+.activity-reopen-request-footer button {
   display: inline-flex;
   min-height: 2rem;
   align-items: center;
@@ -1910,9 +1909,6 @@
   opacity: 0.5;
 }
 
-.activity-inline-report:hover {
-  color: var(--activity-danger);
-}
 
 .application-chat-inputbar.activity-locked-composer {
   min-height: 5.5rem;

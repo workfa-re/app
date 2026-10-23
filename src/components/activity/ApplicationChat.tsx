@@ -17,7 +17,6 @@ import {
     Send,
     ShieldCheck,
     Trash2,
-    UserRound,
     WifiOff,
     X,
     XCircle,
@@ -45,6 +44,8 @@ import { ChatDetails, HighlightedChatText } from "./ChatDetails";
 import { ChatAppointments } from "./ChatAppointments";
 import { useAppointmentRequests } from "./useAppointmentRequests";
 import detailsStyles from "./ChatDetails.module.css";
+import { ReportDialog } from "./ReportDialog";
+import { getReportableContent, type ActivityReportInput } from "@/lib/activity/reporting";
 
 type RealtimeState = "connecting" | "live" | "delayed";
 
@@ -66,14 +67,7 @@ interface ApplicationChatProps {
     onRequestReopen?: (message: string) => Promise<any>;
     onRespondReopenRequest?: (requestId: string, accept: boolean, reason?: string) => Promise<any>;
     onComplete?: (reason?: string) => Promise<any>;
-    onReport?: (input: {
-        applicationId: string;
-        reasonCode: "harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other";
-        details?: string;
-        reportedUserId?: string | null;
-        messageId?: string | null;
-        reopenRequestId?: string | null;
-    }) => Promise<any>;
+    onReport?: (input: ActivityReportInput) => Promise<any>;
     onSendMessage: (applicationId: string, message: string) => Promise<any>;
     draftValue?: string;
     failedSends?: readonly ActivityFailedSend[];
@@ -102,18 +96,6 @@ type ReopenRequest = {
     resolved_at?: string | null;
 };
 
-type ReportTarget = {
-    reportedUserId?: string | null;
-    messageId?: string | null;
-    reopenRequestId?: string | null;
-    reportedPersonName: string;
-    context: {
-        kind: "message" | "reopen_request" | "conversation";
-        label: string;
-        content: string;
-        createdAt?: string | null;
-    };
-};
 
 function mergeMessages(current: ActivityMessage[], incoming: ActivityMessage[]) {
     const byId = new Map(current.map((message) => [message.id, message]));
@@ -205,6 +187,7 @@ export function ApplicationChat({
     const [currentUserId, setCurrentUserId] = useState<string | null>(knownCurrentUserId ?? null);
     const [messages, setMessages] = useState<ActivityMessage[]>([]);
     const [loadingMessages, setLoadingMessages] = useState(true);
+    const [messageReloadKey, setMessageReloadKey] = useState(0);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [sendError, setSendError] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
@@ -244,12 +227,7 @@ export function ApplicationChat({
     const [completeReason, setCompleteReason] = useState("");
     const [completePending, setCompletePending] = useState(false);
     const [completeError, setCompleteError] = useState<string | null>(null);
-    const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
-    const [reportReason, setReportReason] = useState<"harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other">("inappropriate");
-    const [reportDetails, setReportDetails] = useState("");
-    const [reportPending, setReportPending] = useState(false);
-    const [reportError, setReportError] = useState<string | null>(null);
-    const [reportSuccess, setReportSuccess] = useState(false);
+    const [reportOpen, setReportOpen] = useState(false);
     const [showNewMessages, setShowNewMessages] = useState(false);
     const [partnerTyping, setPartnerTyping] = useState(false);
     const [hasOlderMessages, setHasOlderMessages] = useState(false);
@@ -258,6 +236,9 @@ export function ApplicationChat({
 
     const detailsDialogRef = useActivityDialogFocus<HTMLElement>(detailsOpen, compactDetails);
     const detailsTriggerRef = useRef<HTMLButtonElement>(null);
+    const reportTriggerRef = useRef<HTMLButtonElement>(null);
+    const returnToReportRef = useRef(false);
+    const olderLoadingRef = useRef(false);
     const messagesViewportRef = useRef<HTMLDivElement>(null);
     const composerRef = useRef<HTMLTextAreaElement>(null);
     const messageElementsRef = useRef(new Map<string, HTMLDivElement>());
@@ -280,11 +261,11 @@ export function ApplicationChat({
     }, []);
 
     useEffect(() => {
-        if (!detailsOpen || !compactDetails) return;
+        if (!reportOpen && (!detailsOpen || !compactDetails)) return;
         const previous = document.body.style.overflow;
         document.body.style.overflow = "hidden";
         return () => { document.body.style.overflow = previous; };
-    }, [compactDetails, detailsOpen]);
+    }, [compactDetails, detailsOpen, reportOpen]);
 
     useEffect(() => {
         if (!detailsOpen) return;
@@ -299,7 +280,7 @@ export function ApplicationChat({
                 || reopenDialogOpen
                 || declineRequest
                 || completeOpen
-                || reportTarget
+                || reportOpen
             ) return;
 
             setDetailsOpen(false);
@@ -314,7 +295,7 @@ export function ApplicationChat({
         profileOpen,
         declineRequest,
         reopenDialogOpen,
-        reportTarget,
+        reportOpen,
         scheduleOpen,
     ]);
 
@@ -384,10 +365,9 @@ export function ApplicationChat({
         setCompleteOpen(false);
         setCompleteReason("");
         setCompleteError(null);
-        setReportTarget(null);
-        setReportDetails("");
-        setReportError(null);
-        setReportSuccess(false);
+        setReportOpen(false);
+        returnToReportRef.current = false;
+        olderLoadingRef.current = false;
         setPartnerTyping(false);
         setAuthorizedJobLocation(null);
         return () => { appointmentTargetGenerationRef.current++; };
@@ -444,6 +424,8 @@ export function ApplicationChat({
         setLoadingMessages(true);
         setRealtimeState("connecting");
         setHasOlderMessages(false);
+        olderLoadingRef.current = false;
+        setLoadingOlderMessages(false);
 
         if (readOnly) {
             setLoadingMessages(false);
@@ -531,7 +513,7 @@ export function ApplicationChat({
         const loadMessages = async () => {
             const { data, error } = await supabaseBrowser
                 .from("messages")
-                .select("id, application_id, sender_id, content, created_at, read_at, kind")
+                .select("id, application_id, sender_id, content, created_at, read_at, kind, deleted_at")
                 .eq("application_id", liveApplication.id)
                 .order("created_at", { ascending: false })
                 .order("id", { ascending: false })
@@ -551,13 +533,19 @@ export function ApplicationChat({
             setLoadingMessages(false);
         };
 
-        void loadMessages();
+        void loadMessages().catch(() => {
+            if (active && generation === requestGenerationRef.current) {
+                setLoadError("Der Verlauf konnte nicht geladen werden.");
+                setLoadingMessages(false);
+            }
+        });
 
         return () => {
             active = false;
+            requestGenerationRef.current++;
             void supabaseBrowser.removeChannel(channel);
         };
-    }, [currentUserId, liveApplication.id, markRead, readOnly, scrollToEnd]);
+    }, [currentUserId, liveApplication.id, markRead, messageReloadKey, readOnly, scrollToEnd]);
 
     useEffect(() => {
         if (loadingMessages || initialScrollDoneRef.current) return;
@@ -572,6 +560,9 @@ export function ApplicationChat({
         ? headerProfile?.company_name || headerProfile?.full_name || "Auftraggeber"
         : headerProfile?.full_name || "Bewerber";
     const jobTitle = liveApplication?.job?.title || "Job-Angebot";
+    const reportPersonId = currentUserRole === "provider" ? liveApplication?.user_id ?? headerProfile?.id : liveApplication?.job?.posted_by ?? headerProfile?.id;
+    const canReport = !readOnly && Boolean(onReport) && typeof reportPersonId === "string" && Boolean(reportPersonId.trim()) && reportPersonId !== currentUserId;
+    const reportItems = useMemo(() => reportPersonId ? getReportableContent(messages, reopenRequests, reportPersonId) : [], [messages, reopenRequests, reportPersonId]);
     const status = liveApplication?.status;
     const historicalRequest = status === "waitlisted" || liveApplication?.close_action === "waitlist_retired";
     const conversationState = historicalRequest ? "closed" : liveApplication?.conversation_state ?? "open";
@@ -888,31 +879,39 @@ export function ApplicationChat({
 
     const loadOlderMessages = async () => {
         const oldestMessage = messages[0];
-        if (!oldestMessage?.created_at || loadingOlderMessages) return;
+        if (!oldestMessage?.created_at || olderLoadingRef.current) return;
+        olderLoadingRef.current = true;
         setLoadingOlderMessages(true);
+        setLoadError(null);
+        const generation = requestGenerationRef.current;
         const viewport = messagesViewportRef.current;
         const previousHeight = viewport?.scrollHeight ?? 0;
-
-        const { data, error } = await supabaseBrowser
-            .from("messages")
-            .select("id, application_id, sender_id, content, created_at, read_at, kind")
-            .eq("application_id", liveApplication.id)
-            .or(`created_at.lt.${oldestMessage.created_at},and(created_at.eq.${oldestMessage.created_at},id.lt.${oldestMessage.id})`)
-            .order("created_at", { ascending: false })
-            .order("id", { ascending: false })
-            .limit(120);
-
-        if (!error) {
+        const previousTop = viewport?.scrollTop ?? 0;
+        try {
+            const { data, error } = await supabaseBrowser
+                .from("messages")
+                .select("id, application_id, sender_id, content, created_at, read_at, kind, deleted_at")
+                .eq("application_id", liveApplication.id)
+                .or(`created_at.lt.${oldestMessage.created_at},and(created_at.eq.${oldestMessage.created_at},id.lt.${oldestMessage.id})`)
+                .order("created_at", { ascending: false })
+                .order("id", { ascending: false })
+                .limit(120);
+            if (generation !== requestGenerationRef.current) return;
+            if (error) throw error;
             const older = [...(data ?? [])].reverse() as unknown as ActivityMessage[];
-            setMessages((current) => mergeMessages(older, current));
+            setMessages(current => mergeMessages(older, current));
             setHasOlderMessages((data?.length ?? 0) === 120);
             requestAnimationFrame(() => {
-                if (viewport) viewport.scrollTop = viewport.scrollHeight - previousHeight;
+                if (generation === requestGenerationRef.current && viewport) viewport.scrollTop = previousTop + viewport.scrollHeight - previousHeight;
             });
-        } else {
-            setLoadError("Ältere Nachrichten konnten nicht geladen werden.");
+        } catch {
+            if (generation === requestGenerationRef.current) setLoadError("Ältere Nachrichten konnten nicht geladen werden. Bitte versuche es erneut.");
+        } finally {
+            if (generation === requestGenerationRef.current) {
+                olderLoadingRef.current = false;
+                setLoadingOlderMessages(false);
+            }
         }
-        setLoadingOlderMessages(false);
     };
 
     const handleDestructiveAction = async () => {
@@ -1076,28 +1075,6 @@ export function ApplicationChat({
         }
     };
 
-    const handleReport = async () => {
-        if (readOnly || !onReport || !reportTarget || reportPending) return;
-        setReportPending(true);
-        setReportError(null);
-        try {
-            const { reportedUserId, messageId, reopenRequestId } = reportTarget;
-            const result = await onReport({
-                applicationId: liveApplication.id,
-                reasonCode: reportReason,
-                details: reportDetails.trim() || undefined,
-                reportedUserId,
-                messageId,
-                reopenRequestId,
-            });
-            if (result?.error) throw new Error(result.error);
-            setReportSuccess(true);
-        } catch (error) {
-            setReportError(error instanceof Error ? error.message : "Die Meldung konnte nicht gesendet werden.");
-        } finally {
-            setReportPending(false);
-        }
-    };
 
     if (!application) return null;
 
@@ -1105,7 +1082,7 @@ export function ApplicationChat({
         <MotionConfig reducedMotion="user">
         <div className={cn(styles.chat, detailsStyles.workspace, "application-chat activity-modern-chat", embedded ? "" : "activity-modern-chat-modal")} data-ui="conversation" data-chat-tools data-details-open={detailsOpen}
             onKeyDown={event => {
-                if (!profileOpen && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+                if (!profileOpen && !reportOpen && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
                     event.preventDefault();
                     setAppointmentFocusKey(0);
                     setSearchOpen(true);
@@ -1246,32 +1223,7 @@ export function ApplicationChat({
                                                     <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
                                                     {timelineMessage.is_temp ? <span>Wird gesendet</span> : null}
                                                     {!timelineMessage.is_temp && isOwnMessage && timelineMessage.read_at ? <span>Gelesen</span> : null}
-                                                    {!readOnly && !timelineMessage.is_temp && !isOwnMessage && onReport ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setReportTarget({
-                                                                    messageId: timelineMessage.id,
-                                                                    reportedUserId: timelineMessage.sender_id,
-                                                                    reportedPersonName: headerName,
-                                                                    context: {
-                                                                        kind: "message",
-                                                                        label: timelineMessage.isApplicationMessage
-                                                                            ? "Ausgewählte Bewerbungsnachricht"
-                                                                            : "Ausgewählte Nachricht",
-                                                                        content: timelineMessage.content,
-                                                                        createdAt: timelineMessage.created_at,
-                                                                    },
-                                                                });
-                                                                setReportReason("inappropriate");
-                                                                setReportDetails("");
-                                                                setReportSuccess(false);
-                                                                setReportError(null);
-                                                            }}
-                                                        >
-                                                            Melden
-                                                        </button>
-                                                    ) : null}
+
                                                 </div>
                                             </div>
                                         </div>
@@ -1327,31 +1279,7 @@ export function ApplicationChat({
                                                 </button>
                                             </div>
                                         ) : null}
-                                        {!readOnly && !isRequester && onReport ? (
-                                            <button
-                                                type="button"
-                                                className="activity-inline-report"
-                                                onClick={() => {
-                                                    setReportTarget({
-                                                        reopenRequestId: request.id,
-                                                        reportedUserId: request.requested_by,
-                                                        reportedPersonName: headerName,
-                                                        context: {
-                                                            kind: "reopen_request",
-                                                            label: "Ausgewählte Öffnungsanfrage",
-                                                            content: request.message,
-                                                            createdAt: request.created_at,
-                                                        },
-                                                    });
-                                                    setReportReason("inappropriate");
-                                                    setReportDetails("");
-                                                    setReportSuccess(false);
-                                                    setReportError(null);
-                                                }}
-                                            >
-                                                <Flag size={13} /> Melden
-                                            </button>
-                                        ) : null}
+
                                     </div>
                                     {requestResponseError && requestResponsePending === null ? (
                                         <div className="activity-chat-inline-error">{requestResponseError}</div>
@@ -1496,7 +1424,7 @@ export function ApplicationChat({
 
             </div>
             <AnimatePresence initial={false} onExitComplete={() => {
-                if (detailsOpen || profileOpen || actionOpen || scheduleOpen || reopenDialogOpen || declineRequest || completeOpen || reportTarget) return;
+                if (detailsOpen || profileOpen || actionOpen || scheduleOpen || reopenDialogOpen || declineRequest || completeOpen || reportOpen) return;
                 requestAnimationFrame(() => {
                     const active = document.activeElement;
                     if (active === document.body || (active && detailsDialogRef.current?.contains(active))) {
@@ -1539,15 +1467,14 @@ export function ApplicationChat({
                         formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={open => { if (open) setAppointmentFocusKey(0); setSearchOpen(open); }} query={searchQuery} onQuery={setSearchQuery}
                         messages={messages} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
                         onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
-                        actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || (!readOnly && onReport && headerProfile?.id) ? <>
+                        actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || canReport ? <>
                             {canSchedule && status !== "accepted" && <button type="button" onClick={openScheduleDialog}><CalendarDays aria-hidden="true" />Termin vereinbaren</button>}
                             {canComplete && <button type="button" onClick={openCompleteDialog}><CheckCircle2 aria-hidden="true" />Zusammenarbeit abschließen</button>}
                             {canDirectReopen && <button type="button" onClick={() => void handleDirectReopen()} disabled={directReopenPending}><RotateCcw aria-hidden="true" />Gespräch wieder öffnen</button>}
                             {canRequestReopen && <button type="button" onClick={() => { closeDetailsForTool(); setReopenError(null); setReopenMessage(""); setReopenDialogOpen(true); }}><RotateCcw aria-hidden="true" />Öffnung anfragen</button>}
-                            {!readOnly && onReport && headerProfile?.id && <button type="button" onClick={() => {
+                            {canReport && <button ref={reportTriggerRef} type="button" onClick={() => {
                                 closeDetailsForTool();
-                                setReportTarget({ reportedUserId: headerProfile.id, reportedPersonName: headerName, context: { kind: "conversation", label: "Gesamter Chat als Kontext", content: `Der vollständige Gesprächsverlauf zu „${jobTitle}“ wird bei der Prüfung berücksichtigt.` } });
-                                setReportReason("inappropriate"); setReportDetails(""); setReportSuccess(false); setReportError(null);
+                                setReportOpen(true);
                             }}><Flag aria-hidden="true" />Person melden</button>}
                         </> : null}
                         dangerAction={canCloseApplication ? <button type="button" onClick={() => { closeDetailsForTool(); setActionReason(""); setActionError(null); setActionOpen(true); }}>
@@ -1557,7 +1484,14 @@ export function ApplicationChat({
                 </>}
             </AnimatePresence>
 
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} onExitComplete={() => {
+                if (!returnToReportRef.current || reportOpen) return;
+                returnToReportRef.current = false;
+                requestAnimationFrame(() => {
+                    reportTriggerRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+                    reportTriggerRef.current?.focus({ preventScroll: true });
+                });
+            }}>
                 {actionOpen ? (
                     <ActionDialog
                         role={currentUserRole}
@@ -1639,20 +1573,11 @@ export function ApplicationChat({
                         onConfirm={() => void handleComplete()}
                     />
                 ) : null}
-                {reportTarget ? (
-                    <ReportDialog
-                        target={reportTarget}
-                        reason={reportReason}
-                        setReason={setReportReason}
-                        details={reportDetails}
-                        setDetails={setReportDetails}
-                        pending={reportPending}
-                        error={reportError}
-                        success={reportSuccess}
-                        onCancel={() => setReportTarget(null)}
-                        onConfirm={() => void handleReport()}
-                    />
-                ) : null}
+                {reportOpen && canReport && onReport ? <ReportDialog key={liveApplication.id}
+                    applicationId={liveApplication.id} personId={reportPersonId} personName={headerName} jobTitle={jobTitle}
+                    items={reportItems} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
+                    onLoadOlder={() => void loadOlderMessages()} onReload={() => setMessageReloadKey(key => key + 1)}
+                    onSubmit={onReport} onClose={() => { returnToReportRef.current = true; setReportOpen(false); setSearchOpen(false); setDetailsOpen(true); }} /> : null}
             </AnimatePresence>
         </div>
         <UserProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={headerProfile ?? null} />
@@ -1866,116 +1791,6 @@ function TextActionDialog({
                         {pending ? "Wird verarbeitet …" : confirmLabel}
                     </button>
                 </div>
-            </motion.div>
-        </div>
-    );
-}
-
-function ReportDialog({
-    target,
-    reason,
-    setReason,
-    details,
-    setDetails,
-    pending,
-    error,
-    success,
-    onCancel,
-    onConfirm,
-}: {
-    target: ReportTarget;
-    reason: "harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other";
-    setReason: (value: "harassment" | "fraud" | "safety" | "inappropriate" | "spam" | "other") => void;
-    details: string;
-    setDetails: (value: string) => void;
-    pending: boolean;
-    error: string | null;
-    success: boolean;
-    onCancel: () => void;
-    onConfirm: () => void;
-}) {
-    const dialogRef = useActivityDialogFocus<HTMLDivElement>();
-    return (
-        <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
-            <motion.div
-                ref={dialogRef}
-                tabIndex={-1}
-                aria-busy={pending}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="activity-report-title"
-                className="activity-action-dialog"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-            >
-                {success ? (
-                    <>
-                        <span className="activity-dialog-icon"><CheckCircle2 size={21} /></span>
-                        <h2 id="activity-report-title">Meldung gesendet</h2>
-                        <p>Die Meldung wurde sicher gespeichert und kann vom zuständigen Team geprüft werden.</p>
-                        <div className="activity-dialog-actions">
-                            <button type="button" className="is-primary" onClick={onCancel}>Schließen</button>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <span className="activity-dialog-icon is-danger"><Flag size={21} /></span>
-                        <h2 id="activity-report-title">Person melden</h2>
-                        <p>
-                            Du meldest <strong>{target.reportedPersonName}</strong>. Die gemeldete Person erhält keine Benachrichtigung über diese Meldung.
-                        </p>
-                        <section
-                            aria-labelledby="activity-report-context-label"
-                            className="rounded-xl bg-[var(--surface-muted)] p-3.5 text-left shadow-[0_0_0_1px_var(--border-subtle)]"
-                        >
-                            <div className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
-                                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-solid)] text-[var(--brand)]">
-                                    <UserRound aria-hidden="true" size={16} />
-                                </span>
-                                <span className="min-w-0">
-                                    <small className="block text-xs text-[var(--text-muted)]">Gemeldete Person</small>
-                                    <strong className="block truncate">{target.reportedPersonName}</strong>
-                                </span>
-                            </div>
-                            <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
-                                <small id="activity-report-context-label" className="block text-xs font-semibold text-[var(--text-muted)]">
-                                    {target.context.label}
-                                </small>
-                                <blockquote className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap text-pretty text-sm leading-5 text-[var(--text-strong)]">
-                                    {target.context.content}
-                                </blockquote>
-                                {target.context.createdAt ? (
-                                    <time dateTime={target.context.createdAt} className="mt-2 block text-xs tabular-nums text-[var(--text-muted)]">
-                                        {formatChatDateLabel(target.context.createdAt)} · {formatMessageTime(target.context.createdAt)} Uhr
-                                    </time>
-                                ) : null}
-                            </div>
-                        </section>
-                        <label>
-                            <span>Grund</span>
-                            <select disabled={pending} className="min-h-11" value={reason} onChange={(event) => setReason(event.target.value as typeof reason)}>
-                                <option value="inappropriate">Unangemessener Inhalt</option>
-                                <option value="harassment">Belästigung oder Druck</option>
-                                <option value="fraud">Betrugsverdacht</option>
-                                <option value="safety">Sicherheitsbedenken</option>
-                                <option value="spam">Spam</option>
-                                <option value="other">Anderer Grund</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>Beschreibung (optional)</span>
-                            <textarea disabled={pending} className="min-h-24" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={1500} rows={4} />
-                        </label>
-                        {error ? <div className="activity-dialog-error" role="alert">{error}</div> : null}
-                        <div className="activity-dialog-actions">
-                            <button type="button" className="min-h-11" onClick={onCancel} disabled={pending}>Abbrechen</button>
-                            <button type="button" className="is-danger min-h-11" onClick={onConfirm} disabled={pending}>
-                                {pending ? "Wird gesendet …" : "Vertraulich melden"}
-                            </button>
-                        </div>
-                    </>
-                )}
             </motion.div>
         </div>
     );
