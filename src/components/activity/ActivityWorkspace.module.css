@@ -1,4 +1,4 @@
-.page.page.page.page { width: 100%; max-width: 78rem; margin-inline: auto; padding: 0 24px 24px !important; height: calc(100dvh - var(--app-content-top, 136px) - var(--app-bottom-clearance, 0px) - 24px); max-height: none; min-height: 0; overflow: visible; }
+.page.page.page.page { width: 100%; max-width: 78rem; margin-inline: auto; padding: 0 24px 24px !important; height: calc(100dvh - var(--app-content-top, 136px) - var(--app-bottom-clearance, 0px)); max-height: none; min-height: 0; overflow: visible; }
 .pageInner { height: 100%; min-height: 0; }
 .experience.experience[data-ui], .chat.chat[data-ui] { color: var(--app-ink, #172a40); font-family: var(--font-sans), Inter, sans-serif; -webkit-font-smoothing: antialiased; }
 .experience.experience[data-ui] { width: 100%; max-width: none; height: 100%; padding: 0; }
@@ -210,7 +210,7 @@
   .chat.chat[data-ui] :global(.activity-schedule-button) { width: 44px; padding: 0; }
 }
 @media (max-width: 1023px) {
-  .page.page.page.page { padding: 0 20px 16px !important; height: calc(100dvh - var(--app-content-top, 168px) - var(--app-bottom-clearance, 0px) - 16px); }
+  .page.page.page.page { padding: 0 20px !important; height: calc(100dvh - var(--app-content-top, 168px) - max(var(--app-bottom-clearance, 0px), 12px, env(safe-area-inset-bottom, 0px))); }
   .experience.experience[data-ui] { gap: 20px; }
   .experience.experience[data-ui] :global(.activity-home-heading h1) { font-size: 30px !important; }
   .experience.experience[data-ui] :global(.activity-workspace) { display: flex !important; flex-direction: column; gap: 0 !important; }
@@ -240,8 +240,14 @@
   .chat.chat[data-ui] :global(.activity-action-dialog) { padding: 24px; }
   .chat.chat[data-ui] :global(.activity-dialog-actions) { flex-direction: column-reverse; }
 }
-@media (max-width: 380px) {
+@media (max-width: 767px) {
   .page.page.page.page { padding-inline: 12px !important; }
+  .experience.experience[data-ui] { gap: 12px !important; }
+  .experience.experience[data-ui] :global(.activity-home-heading) { min-height: 36px; padding-inline: 8px; }
+  .experience.experience[data-ui] :global(.activity-inbox-item) { min-height: 94px; margin-bottom: 0; padding-block: 12px !important; }
+  .experience.experience[data-ui] :global(.activity-inbox-body) { gap: 2px; }
+}
+@media (max-width: 380px) {
   .chat.chat[data-ui] :global(.activity-chat-header) { padding-inline: 8px; gap: 6px; }
   .chat.chat[data-ui] :global(.activity-chat-person) { gap: 8px; }
   .chat.chat[data-ui] :global(.activity-chat-person .activity-chat-avatar) { display: none; }
