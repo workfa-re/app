@@ -166,7 +166,7 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-header-region[data-mobile-nav="bottom"] :is(.app-header-desktop-nav, .app-header-mobile-nav) { display: none; }
   .app-shell:has(.app-header-region[data-mobile-nav="bottom"]) {
     --app-mobile-dock-panel-height: 58px;
-    --app-mobile-dock-edge-gap: 16px;
+    --app-mobile-dock-edge-gap: 6px;
     --app-mobile-dock-content-clearance: 12px;
     --app-content-top: calc(112px + env(safe-area-inset-top, 0px));
     --app-bottom-clearance: calc(var(--app-mobile-dock-panel-height) + var(--app-mobile-dock-edge-gap) + var(--app-mobile-dock-content-clearance) + env(safe-area-inset-bottom, 0px));
