@@ -15,11 +15,10 @@ import {
 interface ActivitiesPageClientProps {
     applications: any[];
     userId: string;
-    initialConversationId?: string | null;
     readOnly?: boolean;
 }
 
-export function ActivitiesPageClient({ applications, userId, initialConversationId, readOnly = false }: ActivitiesPageClientProps) {
+export function ActivitiesPageClient({ applications, userId, readOnly = false }: ActivitiesPageClientProps) {
     const router = useRouter();
 
     const refresh = () => {
@@ -38,7 +37,6 @@ export function ActivitiesPageClient({ applications, userId, initialConversation
             applications={applications}
             role="seeker"
             currentUserId={userId}
-            initialConversationId={initialConversationId}
             readOnly={readOnly}
             onSendMessage={sendMessage}
             onWithdraw={handleWithdraw}

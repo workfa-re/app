@@ -44,12 +44,13 @@ describe("job presentation", () => {
     });
     it.each([
         ["negotiating", "Reserviert"],
-        ["accepted", "In Zusammenarbeit"],
+        ["accepted", "Vereinbart"],
         ["completed", "Abgeschlossen"],
         ["withdrawn", "Zurückgezogen"],
     ] as const)("opens an existing %s application directly with its real status", (applicationStatus, label) => {
         const html = renderToStaticMarkup(<JobCard job={{ ...job, is_applied: true, application_id: "application-a", application_status: applicationStatus }} onSelect={() => {}} />);
         expect(html).toContain('href="/app-home/activities?conversation=application-a"');
+        expect(html).toContain('aria-label="Hilfe im Garten in Nachrichten öffnen"');
         expect(html).toContain(label);
         expect(html).not.toContain(">Beworben<");
     });

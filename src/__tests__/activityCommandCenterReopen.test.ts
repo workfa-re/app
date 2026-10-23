@@ -43,6 +43,17 @@ describe("ActivityCommandCenter reopen attention", () => {
         expect(matchesActivityCommandCenterFilter(application, "closed")).toBe(true);
     });
 
+    it("keeps message counts separate from reopen requests and normalizes invalid badge values", () => {
+        expect(getActivityAttentionSummary({ unread_count: "2.8", pending_reopen_count: "1" })).toEqual({
+            unreadCount: 2, pendingReopenCount: 1, totalCount: 3, kind: "mixed",
+        });
+        expect(getActivityAttentionSummary({ unread_count: Infinity, pending_reopen_count: -1 })).toEqual({
+            unreadCount: 0, pendingReopenCount: 0, totalCount: 0, kind: "none",
+        });
+        expect(getActivityAttentionLabel(getActivityAttentionSummary({ unread_count: 0, pending_reopen_count: 1 })))
+            .toBe("1 offene Öffnungsanfrage");
+    });
+
     it("keeps unread messages from a closed conversation in the archive", () => {
         const application = {
             status: "withdrawn",
@@ -107,6 +118,14 @@ describe("ActivityCommandCenter workspace navigation", () => {
 
     it("treats an explicitly closed conversation as archived even if its older status is active", () => {
         expect(getActivityWorkspaceSection({ status: "negotiating", conversation_state: "closed" })).toBe("closed");
+    });
+
+    it.each(["submitted", "negotiating", "accepted"])("never promotes a historical non-primary %s conversation into Laufend", status => {
+        const historical = { status, conversation_state: "open", is_primary: false, pending_reopen_count: 1 };
+        expect(getActivityWorkspaceSection(historical)).toBe("closed");
+        expect(matchesActivityCommandCenterFilter(historical, "active")).toBe(false);
+        expect(matchesActivityCommandCenterFilter(historical, "closed")).toBe(true);
+        expect(matchesActivityCommandCenterFilter(historical, "unread")).toBe(true);
     });
 
     it("opens an archived deep link in Archiv without requiring a second tab click", () => {

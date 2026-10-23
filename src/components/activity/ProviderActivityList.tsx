@@ -29,14 +29,12 @@ export function ProviderActivityList({
     userId,
     selectedJobId,
     selectedJobTitle,
-    initialConversationId,
     readOnly = false,
 }: {
     applications: ProviderApplication[];
     userId: string;
     selectedJobId?: string | null;
     selectedJobTitle?: string | null;
-    initialConversationId?: string | null;
     readOnly?: boolean;
 }) {
     const router = useRouter();
@@ -65,7 +63,6 @@ export function ProviderActivityList({
             applications={applications}
             role="provider"
             currentUserId={userId}
-            initialConversationId={initialConversationId}
             readOnly={readOnly}
             selectedJobId={selectedJobId}
             selectedJobTitle={selectedJobTitle}

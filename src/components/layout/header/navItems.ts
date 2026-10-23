@@ -1,4 +1,4 @@
-import { Activity, Briefcase, Settings } from "lucide-react";
+import { Briefcase, MessageSquare, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Profile } from "@/lib/types";
 
@@ -20,8 +20,8 @@ export function getAppNavItems(profile: Profile | null): AppNavItem[] {
             activePattern: isProvider ? /^\/app-home\/offers/ : /^\/app-home\/jobs/,
         },
         {
-            label: isProvider ? "Bewerbungen" : "Meine Jobs",
-            icon: Activity,
+            label: "Nachrichten",
+            icon: MessageSquare,
             href: "/app-home/activities",
             activePattern: /^\/app-home\/activities/,
         },

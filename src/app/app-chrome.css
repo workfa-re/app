@@ -182,6 +182,13 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-shell .app-shell-main { padding-bottom: var(--app-bottom-clearance, 0px); }
 }
 @media (pointer: coarse) and (max-width: 767px) {
+  .app-shell:has(.app-header-region[data-mobile-nav="top"]):has(.activities-command-center) {
+    /* Top navigation ends at 124px; leave one 20px content gap. */
+    --app-content-top: calc(144px + env(safe-area-inset-top, 0px));
+  }
+  .app-shell:has(.app-header-region[data-mobile-nav="bottom"]):has(.activities-command-center[data-chat-open="false"]) {
+    --app-content-top: calc(88px + env(safe-area-inset-top, 0px));
+  }
   .app-shell:has(.app-header-region[data-mobile-nav="bottom"]):has(.activities-command-center[data-chat-open="true"]) {
     /* Header inset (16px) + controls (48px) + one content gap (12px). */
     --app-content-top: calc(76px + env(safe-area-inset-top, 0px));

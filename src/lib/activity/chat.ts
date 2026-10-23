@@ -81,39 +81,11 @@ export type ActivityTimelineEntry<TMessage, TReopenRequest> = (
     showDateSeparator: boolean;
 };
 
-export type ProviderGroupableActivity = {
-    id: string;
-    job_id?: string | null;
-    status?: string | null;
-    conversation_state?: string | null;
-    is_primary?: boolean | null;
-    created_at: string;
-    last_activity_at?: string | null;
-    last_message_at?: string | null;
-    agreed_at?: string | null;
-    unread_count?: number | string | null;
-    job?: {
-        id?: string | null;
-        title?: string | null;
-        status?: string | null;
-    } | null;
-};
-
-export type ProviderActivityGroup<T extends ProviderGroupableActivity = ProviderGroupableActivity> = {
-    jobId: string;
-    job: T["job"];
-    applications: T[];
-    primary: T | null;
-    archive: T[];
-    unreadCount: number;
-    lastActivityAt: number;
-};
-
 export const ACTIVITY_STATUS_META: Record<string, ActivityStatusMeta> = {
     submitted: { label: "Reserviert", tone: "brand" },
     negotiating: { label: "Reserviert", tone: "brand" },
     waitlisted: { label: "Beendete Anfrage", tone: "neutral" },
-    accepted: { label: "In Zusammenarbeit", tone: "success" },
+    accepted: { label: "Vereinbart", tone: "success" },
     completed: { label: "Abgeschlossen", tone: "success" },
     rejected: { label: "Abgelehnt", tone: "danger" },
     auto_rejected: { label: "Anderweitig vergeben", tone: "neutral" },
@@ -159,61 +131,6 @@ export function resolveReopenApplicationPatch(result: unknown): Record<string, u
     };
 }
 
-function compareApplicationCreated(a: ProviderGroupableActivity, b: ProviderGroupableActivity) {
-    const difference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    return Number.isFinite(difference) && difference !== 0 ? difference : a.id.localeCompare(b.id);
-}
-
-/** One exclusive application per job; older non-primary requests remain in the archive. */
-export function groupProviderActivities<T extends ProviderGroupableActivity>(
-    applications: T[],
-): ProviderActivityGroup<T>[] {
-    const grouped = new Map<string, T[]>();
-
-    for (const application of applications) {
-        const jobId = application.job?.id || application.job_id || `missing-job:${application.id}`;
-        const current = grouped.get(jobId) ?? [];
-        current.push(application);
-        grouped.set(jobId, current);
-    }
-
-    return [...grouped.entries()]
-        .map(([jobId, groupApplications]) => {
-            const primaryCandidates = groupApplications
-                .filter((application) => (
-                    application.conversation_state !== "closed"
-                    && Boolean(application.is_primary)
-                    && WRITABLE_ACTIVITY_STATUSES.has(application.status ?? "")
-                ))
-                .sort(compareApplicationCreated);
-            const primary = primaryCandidates[0] ?? null;
-            const activeIds = new Set(primary ? [primary.id] : []);
-            const archive = groupApplications
-                .filter((application) => !activeIds.has(application.id))
-                .sort((a, b) => getConversationActivityTimestamp(b) - getConversationActivityTimestamp(a));
-
-            return {
-                jobId,
-                job: groupApplications.find((application) => application.job)?.job ?? null,
-                applications: groupApplications,
-                primary,
-                archive,
-                unreadCount: groupApplications.reduce((total, application) => {
-                    const unreadCount = Number(application.unread_count || 0);
-                    return total + (Number.isFinite(unreadCount) ? unreadCount : 0);
-                }, 0),
-                lastActivityAt: groupApplications.reduce(
-                    (latest, application) => Math.max(latest, getConversationActivityTimestamp(application)),
-                    0,
-                ),
-            } satisfies ProviderActivityGroup<T>;
-        })
-        .sort((a, b) => {
-            if (a.lastActivityAt !== b.lastActivityAt) return b.lastActivityAt - a.lastActivityAt;
-            return a.jobId.localeCompare(b.jobId);
-        });
-}
-
 export function getActivityStatusMeta(status: string | null | undefined, closeAction?: string | null): ActivityStatusMeta {
     if (closeAction === "waitlist_retired") return ACTIVITY_STATUS_META.waitlisted;
     return ACTIVITY_STATUS_META[status ?? ""] ?? { label: "Status offen", tone: "neutral" };
@@ -240,7 +157,7 @@ export function getActivityStage(source: {
         return { key: "closed", index: -1, label: status === "waitlisted" ? "Beendete Anfrage" : CLOSED_ACTIVITY_STATUSES.has(status) ? getActivityStatusMeta(status).label : "Beendet",
             hint: status === "waitlisted" ? "Diese frühere Anfrage ist beendet. Du kannst den bisherigen Verlauf lesen." : "Diese Anfrage ist beendet. Der bisherige Verlauf bleibt erhalten." };
     }
-    if (status === "accepted") return { key: "agreed", index: 2, label: "In Zusammenarbeit", hint: "Die Zusammenarbeit ist bestätigt. Termine und Änderungen klärt ihr direkt hier." };
+    if (status === "accepted") return { key: "agreed", index: 2, label: "Vereinbart", hint: "Die Zusammenarbeit ist bestätigt. Termine und Änderungen klärt ihr direkt hier." };
     if (ACTIVE_ACTIVITY_STATUSES.has(status)) return { key: "reserved", index: 1, label: "Reserviert", hint: role === "provider"
         ? "Der Job ist für diese Bewerbung reserviert. Vereinbare einen Termin oder gib ihn wieder frei."
         : "Der Job ist für dich reserviert. Kläre den Termin direkt mit dem Anbieter." };
@@ -282,7 +199,7 @@ export function getConversationPreviewTimestamp(application: {
     last_message_preview?: string | null;
     last_message_at?: string | null;
 }) {
-    return application.last_message_preview && application.last_message_at
+    return application.last_message_preview?.trim() && application.last_message_at
         ? application.last_message_at
         : application.created_at;
 }

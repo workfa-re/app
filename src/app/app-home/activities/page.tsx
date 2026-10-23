@@ -141,7 +141,6 @@ export default async function ActivityPage({
     const profile = snapshot.profile;
     const viewRole = snapshot.effectiveView.viewRole;
     const selectedJobId = typeof params.jobId === "string" ? params.jobId : null;
-    const initialConversationId = typeof params.conversation === "string" ? params.conversation : null;
     const supabase = await supabaseServer();
 
     if (viewRole === "job_provider") {
@@ -184,7 +183,6 @@ export default async function ActivityPage({
                     userId={profile.id}
                     selectedJobId={selectedJobId}
                     selectedJobTitle={selectedJobTitle}
-                    initialConversationId={initialConversationId}
                 />
             </ActivityPageShell>
         );
@@ -217,7 +215,6 @@ export default async function ActivityPage({
             <ActivitiesPageClient
                 applications={applications}
                 userId={profile.id}
-                initialConversationId={initialConversationId}
             />
         </ActivityPageShell>
     );
@@ -237,7 +234,7 @@ function ActivityLoadError() {
         <>
             <AppRouteReady href="/app-home/activities" />
             <div className="container mx-auto px-4 py-12 text-red-400">
-                Aktivitäten konnten nicht geladen werden.
+                Nachrichten konnten nicht geladen werden.
             </div>
         </>
     );

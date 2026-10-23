@@ -49,7 +49,7 @@ export function getProviderJobStatusMeta(
     applicationStatuses: ApplicationStatus[] = [],
 ): ProviderJobStatusMeta {
     if (status === "closed" || status === "draft") return JOB_STATUS_META[status];
-    if (applicationStatuses.includes("accepted")) return { label: "In Zusammenarbeit", tone: "informative" };
+    if (applicationStatuses.includes("accepted")) return { label: getActivityStatusMeta("accepted").label, tone: "informative" };
     if (applicationStatuses.some(status => status === "submitted" || status === "negotiating")) return { label: "Reserviert", tone: "caution" };
 
     return JOB_STATUS_META[status];
@@ -111,5 +111,5 @@ export function formatProviderApplicationSummary(
     if (jobStatus === "open") return "Die erste Bewerbung reserviert diesen Job. Danach klärt ihr alles direkt im Gespräch.";
     if (jobStatus === "draft") return "Veröffentliche den Job, damit sich jemand bewerben kann.";
     if (jobStatus === "reserved") return "Dieser Job ist bereits reserviert.";
-    return "Den bisherigen Verlauf findest du unter „Meine Jobs“.";
+    return "Den bisherigen Verlauf findest du unter „Nachrichten“.";
 }

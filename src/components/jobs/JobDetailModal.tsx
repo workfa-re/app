@@ -126,7 +126,7 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
                             <footer className={styles.footer}>
                                 {hasApplication ? <>
                                     <div className={styles.footerCopy}><strong>{applicationLabel}</strong>
-                                        <p>{isActiveApplication ? "Gespräch, Termin und nächste Schritte findest du unter „Meine Jobs“." : "Den bisherigen Verlauf findest du im Archiv unter „Meine Jobs“."}</p>
+                                        <p>{isActiveApplication ? "Gespräch, Termin und nächste Schritte findest du unter „Nachrichten“." : "Den bisherigen Verlauf findest du im Archiv unter „Nachrichten“."}</p>
                                     </div>
                                     <Link href={conversationHref} className={styles.action} prefetch={false}>{isActiveApplication ? "Gespräch öffnen" : "Verlauf ansehen"}<ArrowRight size={18} aria-hidden="true" /></Link>
                                 </> : isAvailable ? <>

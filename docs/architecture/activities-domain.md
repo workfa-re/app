@@ -20,7 +20,7 @@ system-role assignments.
 | Relation | Responsibility |
 | --- | --- |
 | `jobs` | Offer visibility, one-time/recurring intent and assignment lifecycle |
-| `applications` | One application and conversation aggregate per job/person; immutable FIFO key |
+| `applications` | One application and conversation aggregate per job/person; one exclusive active primary per job |
 | `messages` | Application, chat and system timeline; optional idempotency nonce |
 | `application_events` | Append-only audit trail for consequential transitions |
 | `conversation_reopen_requests` | One exceptional reopen request per closure version and requester |
@@ -42,66 +42,56 @@ verified compatibility window.
 | State | Meaning and allowed visibility |
 | --- | --- |
 | `draft` | Provider-owned draft; not publicly discoverable |
-| `open` | Accepts a first application or further applications |
+| `open` | Accepts the first successful application and reserves the job atomically |
 | `reviewing` | Supported transitional review state; lifecycle RPCs may advance it, but edit forms must not silently reopen it |
-| `reserved` | A primary conversation exists; authenticated seekers may still join the FIFO waitlist |
+| `reserved` | One exclusive primary conversation exists; further applications are blocked |
 | `filled` | A provider has confirmed an engagement and appointment with one person |
 | `closed` | Completed or archived; does not accept applications |
 
-The normal path is `draft → open → reserved → filled → closed`. If the active
-conversation ends before assignment, the queue is rebalanced to `reserved` with
-the next person or to `open` when nobody remains. Lifecycle-owned states
-`reviewing`, `reserved` and `filled` must never be changed to `open` as a side
-effect of editing descriptive job fields.
+The normal path is `draft → open → reserved → filled → closed`. Rejection or
+withdrawal releases the exclusive reservation and returns the job to `open`.
+Cancellation after agreement is recorded as `cancelled`, not as a rejected or
+withdrawn application. Editing descriptive job fields must not reopen a job.
 
-Application states are more granular: `negotiating` identifies the active
-primary conversation, `waitlisted` identifies queued applications, and
-`accepted` identifies the selected engagement. Terminal states are `rejected`,
-`auto_rejected`, `withdrawn`, `completed` and `cancelled`; `submitted` remains a
-supported active state for compatibility.
+`submitted` and `negotiating` represent a reservation; `accepted` represents an
+agreed engagement. The UI names these stages **Reserviert**, **Vereinbart** and
+**Abgeschlossen**. Rejected, withdrawn, cancelled and other closed conversations
+retain their distinct outcome. `waitlisted` is historical only.
 
-## FIFO queue and automatic promotion
+## Exclusive reservation
 
-1. `submit_job_application` locks the job and creates the application, its first
-   message and audit event in one transaction.
-2. `queue_position` is assigned as the next monotonically increasing value for
-   that job. It is the stable fairness key and is not compacted after exits.
-3. A partial unique index permits at most one open primary application per job.
-   The first eligible applicant becomes primary; later applicants become
-   `waitlisted`.
-4. Queue ordering is deterministic: `queue_position`, then `created_at`, then
-   `id`. The public-facing position is a gapless `row_number` calculated only for
-   the signed-in seeker's own entry; raw queue membership is not exposed.
-5. Only the primary conversation can send normal chat messages. A waitlisted
-   person can see their own application and first message but cannot chat until
-   promoted.
-6. When a primary application is rejected, withdrawn or otherwise released,
-   `_activity_rebalance_job` promotes the next open waitlisted application in
-   the same transaction. It sets the job to `reserved`, writes an audit event
-   and system message, and creates a recipient notification. With no candidate,
-   the job returns to `open`.
-7. A provider may exceptionally call `promote_waitlisted_application` with a
-   meaningful reason. The displaced primary returns to the queue and both
-   decisions are audited. This is an explicit exception, not a new FIFO rule.
+The current transaction and migration contract is documented in
+[Exclusive job reservations](../exclusive-job-reservations.md). The first
+successful application claims the job under a database lock. A unique index
+also prevents two active primary applications for the same job. Further
+applications are blocked until the place is released; there is no automatic
+promotion or new job waitlist.
 
-The onboarding/access table `waitlist` is unrelated to this per-job queue. The
-job queue lives exclusively in `applications`.
+Reopening a conversation checks participation and current availability again.
+It cannot displace a different reserved or agreed person. Historical queue
+fields remain audit information; they do not drive the current workflow. The
+separate onboarding/access waitlist remains unrelated to job reservations.
 
-## Provider-side job grouping
+## Shared Nachrichten workspace
 
-The provider inbox is a derived read model, not another database aggregate.
-Applications are grouped by `job_id`. Each group contains:
+Both roles use one flat conversation list. Each row is keyed by application ID
+and opens the existing chat directly, with the job title, partner, one true
+status and a message preview. No provider job accordion or applicant-selection
+step sits between the inbox and the conversation. Multiple historical
+conversations for one job remain separate, including jobs with identical titles.
 
-- at most one writable primary conversation;
-- the open waitlist in FIFO order;
-- an archive containing all remaining/closed conversations, ordered by latest
-  activity;
-- the sum of unread messages and the newest activity timestamp.
+**Laufend** contains open primary reservations and agreed engagements. All other
+conversations remain in **Archiv**, including a closed conversation with new
+messages or a pending reopen request. Numeric badges count unread messages;
+reopen attention is identified separately. Filter counts describe conversations
+for both roles.
 
-Job groups are ordered by their newest activity. Search and status filters may
-hide groups or conversations but never modify `queue_position`. Visible waitlist
-ranks are calculated after sorting the currently open waitlist, so gaps in the
-immutable database key are not shown to providers.
+The canonical URL is `/app-home/activities?conversation=<application-id>`.
+`view=archive` and a provider's `jobId` filter are preserved through selection and
+return navigation. Search keeps the two filters visible. Returning restores the
+trigger focus without resetting the list scroll; mobile chat entry focuses the
+conversation region, never the message composer. Drafts and failed sends remain
+scoped to the conversation while switching within the workspace.
 
 Initial previews and unread counts come from
 `get_activity_inbox_summaries`, scoped to conversations where the current user
@@ -144,15 +134,16 @@ IDs, run with a `pg_catalog`-only search path and expose execution only to
 Closing a conversation records `closed_by`, `closed_at`, `closed_reason`,
 `close_action`, the previous status and an incremented `closure_version`. It
 also clears `is_primary`, updates related engagement/appointment state when
-required, writes an `application_events` row and rebalances the job if the
-primary position became free. Repeating the same close action by the same actor
+required, writes an `application_events` row and reconciles the job's availability.
+Repeating the same close action by the same actor
 is idempotent.
 
 Only the participant who closed a reversible conversation can reopen it
-directly. The database restores it as `accepted`, primary `negotiating`, or
-`waitlisted` according to the current assignment and whether another primary
-conversation exists. A system closure caused by assignment to somebody else is
-not reversible while that assignment exists.
+directly. The database checks availability under the same job lock used for a
+new application. It rejects reopening when another person already holds the
+reservation or engagement. Undoing completion restores the existing agreed
+engagement; reopening a cancelled engagement creates a reservation that needs a
+new appointment confirmation. No reopening creates a waitlist entry.
 
 The other participant may send one reopen request for the current
 `closure_version`. The request is 10–500 characters and is unique by
@@ -257,7 +248,7 @@ The following datasets are protected during migrations and restores:
 | --- | --- |
 | `auth.users` and Auth-managed schemas | Managed by Supabase Auth; never copied as plain SQL fixtures or rewritten by application migrations |
 | `profiles` | Stable user UUID and account identity; additive changes only unless a separately approved migration says otherwise |
-| `waitlist` | Onboarding/access state; anonymous/authenticated clients have no direct table access and may only invoke the validated `join_launch_waitlist` RPC. They cannot read rows and must not confuse it with the application FIFO queue |
+| `waitlist` | Onboarding/access state; anonymous/authenticated clients have no direct table access and may only invoke the validated `join_launch_waitlist` RPC. They cannot read rows; this table is unrelated to job reservations |
 | `guardian_relationships`, `guardian_invitations` | Consent/link history; preserve identifiers, status and audit timestamps |
 | `system_roles`, `user_system_roles` | Staff authorization; changes require an audited administrative path |
 

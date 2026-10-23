@@ -23,7 +23,7 @@ describe("provider offer presentation", () => {
     it("distinguishes an exclusive reservation from confirmed collaboration", () => {
         expect(getProviderJobStatusMeta("open", ["rejected"]).label).toBe("Aktiv");
         expect(getProviderJobStatusMeta("open", ["negotiating"]).label).toBe("Reserviert");
-        expect(getProviderJobStatusMeta("reserved", ["accepted"]).label).toBe("In Zusammenarbeit");
+        expect(getProviderJobStatusMeta("reserved", ["accepted"]).label).toBe("Vereinbart");
         expect(getProviderJobStatusMeta("reserved", ["negotiating"]).label).toBe("Reserviert");
     });
 
@@ -44,6 +44,7 @@ describe("provider offer presentation", () => {
         expect(formatProviderApplicationSummary("submitted", true)).toContain("exklusiv reserviert");
         expect(formatProviderApplicationSummary("negotiating", true)).toContain("Termin");
         expect(formatProviderApplicationSummary("accepted", true)).toContain("Termin ist bestätigt");
+        expect(formatProviderApplicationSummary("completed", true, "closed")).toBe("Den bisherigen Verlauf findest du unter „Nachrichten“.");
     });
 
     it("only sends drafts directly into editing", () => {
@@ -69,6 +70,6 @@ describe("provider offer presentation", () => {
             { id: "finished", job_id: "job-2", status: "completed" },
         ])).toEqual({ "job-1": { conversationId: "active", status: "negotiating" } });
         expect(getProviderConversationLabel("submitted")).toBe("Reserviert");
-        expect(getProviderConversationLabel("accepted")).toBe("In Zusammenarbeit");
+        expect(getProviderConversationLabel("accepted")).toBe("Vereinbart");
     });
 });

@@ -51,7 +51,7 @@ export const JobCard = memo(function JobCard({ job, isApplied, isLocked, hideSta
 
     return (
         <article data-card-state={cardState} data-interactive={interactive} onMouseEnter={warmDetail} onFocus={warmDetail} onPointerDown={warmDetail} className={styles.card}>
-            {targetHref ? <Link href={targetHref} prefetch={false} aria-label={job.title + (workspaceHref ? " in Meine Jobs öffnen" : " ansehen")} className={styles.openTarget} />
+            {targetHref ? <Link href={targetHref} prefetch={false} aria-label={job.title + (workspaceHref ? " in Nachrichten öffnen" : " ansehen")} className={styles.openTarget} />
                 : onSelect ? <button type="button" aria-label={job.title + " ansehen"} onClick={handleSelect} className={styles.openTarget} /> : null}
             <div className={styles.content}>
                 <CategoryArtwork categoryId={job.category} previewImageUrl={previewImageUrl} className={styles.artwork} />

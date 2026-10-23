@@ -80,13 +80,13 @@ describe("mobile bottom dock", () => {
         expect(markup).toContain('aria-label="Hauptnavigation"');
         expect(testState.renderedLinks.map(({ href, label }) => ({ href, label }))).toEqual([
             { href: "/app-home/jobs", label: "Jobs finden" },
-            { href: "/app-home/activities", label: "Meine Jobs" },
+            { href: "/app-home/activities", label: "Nachrichten" },
             { href: "/app-home/settings", label: "Einstellungen" },
         ]);
         expect(testState.renderedLinks.find(({ ariaCurrent }) => ariaCurrent === "page")?.label)
-            .toBe("Meine Jobs");
+            .toBe("Nachrichten");
         expect(testState.renderedLinks.find(({ className }) => className?.includes("is-active"))?.label)
-            .toBe("Meine Jobs");
+            .toBe("Nachrichten");
     });
 
     it("uses the provider jobs destination without changing the dock structure", () => {

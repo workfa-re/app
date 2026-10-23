@@ -1021,7 +1021,7 @@ export function ApplicationChat({
             <div className={detailsStyles.conversation} inert={compactDetails && detailsOpen}>
             <header className="activity-chat-header">
                 {onClose ? (
-                    <button type="button" onClick={onClose} className="activity-chat-back" aria-label={embedded ? currentUserRole === "provider" ? "Zur Bewerbungsübersicht" : "Zur Jobübersicht" : "Chat schließen"}>
+                    <button type="button" onClick={onClose} className="activity-chat-back" aria-label={embedded ? "Zur Nachrichtenübersicht" : "Chat schließen"}>
                         {embedded ? <ArrowLeft size={20} /> : <X size={20} />}
                     </button>
                 ) : null}

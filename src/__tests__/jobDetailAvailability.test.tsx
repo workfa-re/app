@@ -38,12 +38,14 @@ describe("exclusive job availability", () => {
         const html = detail({ ...job, status: "reserved", application_id: "existing-chat", application_status: "negotiating" });
         expect(html).toContain('href="/app-home/activities?conversation=existing-chat"');
         expect(html).toContain("Gespräch öffnen");
+        expect(html).toContain("unter „Nachrichten“");
         expect(html).not.toContain("Jetzt bewerben");
     });
 
     it("preserves an old application as history without queue promises", () => {
         const html = detail({ ...job, status: "reserved", is_applied: true, application_id: "legacy-chat", application_status: "waitlisted" });
         expect(html).toContain("Verlauf ansehen");
+        expect(html).toContain("im Archiv unter „Nachrichten“");
         expect(html).not.toMatch(/Warteliste|nachrück|Jetzt bewerben/);
     });
 

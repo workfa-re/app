@@ -4,11 +4,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { startTransition, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "framer-motion";
 import {
     ArrowRight,
     Briefcase,
-    ChevronDown,
     Filter,
     MessageSquare,
     Search,
@@ -24,18 +23,17 @@ import {
     ACTIVE_ACTIVITY_STATUSES,
     formatConversationTime,
     getActivityStatusMeta,
+    getActivityStage,
     getConversationActivityTimestamp,
     getConversationPreviewTimestamp,
-    getProfileInitials,
-    groupProviderActivities,
     matchesActivityFilter,
     normalizeMessagePreview,
     updateActivityComposerDraft,
     recordActivitySendFailure,
     recoverActivityFailedSend,
-    type ProviderActivityGroup,
 } from "@/lib/activity/chat";
 import { cn } from "@/lib/utils";
+import { profileInitials } from "@/components/profile/public-profile";
 import styles from "./ActivityWorkspace.module.css";
 
 const ApplicationChat = dynamic(
@@ -47,7 +45,6 @@ type ActivityCommandCenterProps = {
     applications: any[];
     role: ActivityRole;
     currentUserId: string;
-    initialConversationId?: string | null;
     selectedJobId?: string | null;
     selectedJobTitle?: string | null;
     readOnly?: boolean;
@@ -176,12 +173,9 @@ export function getActivityWorkspaceSelection(
 function getFilterAriaLabel(
     label: string,
     count: number,
-    role: ActivityRole,
     attention: ActivityAttentionSummary,
 ) {
-    const noun = role === "provider"
-        ? count === 1 ? "Job" : "Jobs"
-        : count === 1 ? "Bewerbung" : "Bewerbungen";
+    const noun = count === 1 ? "Gespräch" : "Gespräche";
     return `${label}, ${count} ${noun}${attention.totalCount ? `, ${getActivityAttentionLabel(attention)}` : ""}`;
 }
 
@@ -205,9 +199,24 @@ function getPartner(app: any, role: ActivityRole) {
     };
 }
 
-function getSearchText(app: any, role: ActivityRole) {
-    const partner = getPartner(app, role);
+export function getActivityInboxPresentation(app: any, role: ActivityRole) {
     const status = getActivityStatusMeta(app.status, app.close_action);
+    const stage = getActivityStage(app, role);
+    return {
+        partner: getPartner(app, role),
+        status: {
+            ...status,
+            label: stage.label,
+            tone: stage.key === "closed" && ACTIVE_ACTIVITY_STATUSES.has(app.status) ? "neutral" as const : status.tone,
+        },
+        attention: getActivityAttentionSummary(app),
+        preview: normalizeMessagePreview(app.last_message_preview, normalizeMessagePreview(app.message, "Noch keine Nachricht im Gespräch.")),
+        previewTimestamp: getConversationPreviewTimestamp(app),
+    };
+}
+
+function getSearchText(app: any, role: ActivityRole) {
+    const { partner, status } = getActivityInboxPresentation(app, role);
     return [
         partner.name,
         partner.subtitle,
@@ -219,10 +228,6 @@ function getSearchText(app: any, role: ActivityRole) {
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-}
-
-function getApplicationJobId(app: any) {
-    return app.job?.id || app.job_id || `missing-job:${app.id}`;
 }
 
 export function getActivityWorkspaceUrl(
@@ -291,7 +296,6 @@ export function ActivityCommandCenter({
     applications,
     role,
     currentUserId,
-    initialConversationId,
     selectedJobId,
     selectedJobTitle,
     readOnly = false,
@@ -333,15 +337,14 @@ export function ActivityCommandCenter({
     const [query, setQuery] = useState("");
     const deferredQuery = useDeferredValue(query);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const reduceMotion = useReducedMotion();
     const searchInputId = useId();
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchButtonRef = useRef<HTMLButtonElement>(null);
-    const [expandedProviderJobIds, setExpandedProviderJobIds] = useState<Set<string>>(() => {
-        if (role !== "provider" || applications.length === 0) return new Set();
-        const initialApplication = applications.find((app) => app.id === initialConversationId) ?? applications[0];
-        return new Set([getApplicationJobId(initialApplication)]);
-    });
-    const [expandedProviderArchives, setExpandedProviderArchives] = useState<Set<string>>(() => new Set());
+    const activeFilterButtonRef = useRef<HTMLButtonElement>(null);
+    const chatStageRef = useRef<HTMLElement>(null);
+    const conversationTriggerRef = useRef<{ applicationId: string; element: HTMLButtonElement } | null>(null);
+    const previousSelectionRef = useRef(selectedAppId);
     const selectedAppIdRef = useRef(selectedAppId);
 
     const closeInboxSearch = useCallback(() => {
@@ -362,6 +365,28 @@ export function ActivityCommandCenter({
 
     useEffect(() => {
         selectedAppIdRef.current = selectedAppId;
+    }, [selectedAppId]);
+
+    useEffect(() => {
+        if (!selectedAppId || !window.matchMedia("(max-width: 1023px)").matches) return;
+        const frame = requestAnimationFrame(() => chatStageRef.current?.focus({ preventScroll: true }));
+        return () => cancelAnimationFrame(frame);
+    }, [selectedAppId]);
+
+    useEffect(() => {
+        const previousSelection = previousSelectionRef.current;
+        previousSelectionRef.current = selectedAppId;
+        if (!previousSelection || selectedAppId) return;
+
+        const frame = requestAnimationFrame(() => {
+            const trigger = conversationTriggerRef.current;
+            const previousButton = trigger?.applicationId === previousSelection ? trigger.element : null;
+            const target = previousButton?.isConnected && previousButton.getClientRects().length > 0
+                ? previousButton
+                : activeFilterButtonRef.current;
+            target?.focus({ preventScroll: true });
+        });
+        return () => cancelAnimationFrame(frame);
     }, [selectedAppId]);
 
     useEffect(() => {
@@ -470,35 +495,10 @@ export function ActivityCommandCenter({
         };
     }, [currentUserId, readOnly, router]);
 
-    const selectedAppBase = useMemo(
+    const selectedApp = useMemo(
         () => items.find((app) => app.id === selectedAppId) ?? null,
         [items, selectedAppId],
     );
-
-    const providerGroups = useMemo(
-        () => role === "provider" ? groupProviderActivities(items) : [],
-        [items, role],
-    );
-
-    const selectedApp = selectedAppBase;
-
-    useEffect(() => {
-        if (role !== "provider" || providerGroups.length === 0) return;
-        const selectedJobId = selectedApp ? getApplicationJobId(selectedApp) : null;
-        if (selectedJobId && getActivityWorkspaceSection(selectedApp) === "closed") {
-            setExpandedProviderArchives(current => current.has(selectedJobId) ? current : new Set(current).add(selectedJobId));
-        }
-
-        setExpandedProviderJobIds((current) => {
-            const validIds = new Set(providerGroups.map((group) => group.jobId));
-            const next = new Set([...current].filter((jobId) => validIds.has(jobId)));
-            if (selectedJobId) next.add(selectedJobId);
-            if (next.size === 0) next.add(providerGroups[0].jobId);
-
-            if (next.size === current.size && [...next].every((jobId) => current.has(jobId))) return current;
-            return next;
-        });
-    }, [providerGroups, role, selectedApp]);
 
     const filterOptions = useMemo(() => {
         const options: Array<{ key: InboxFilter; label: string }> = [
@@ -509,13 +509,9 @@ export function ActivityCommandCenter({
         return options.map((option) => ({
             ...option,
             attention: getGroupedActivityAttentionSummary(items.filter(app => matchesActivityCommandCenterFilter(app, option.key))),
-            count: role === "provider"
-                ? providerGroups.filter((group) => group.applications.some((app) => (
-                    matchesActivityCommandCenterFilter(app, option.key)
-                ))).length
-                : items.filter((app) => matchesActivityCommandCenterFilter(app, option.key)).length,
+            count: items.filter((app) => matchesActivityCommandCenterFilter(app, option.key)).length,
         }));
-    }, [items, providerGroups, role]);
+    }, [items]);
 
     const visibleItems = useMemo(() => {
         const normalizedQuery = deferredQuery.trim().toLowerCase();
@@ -525,53 +521,16 @@ export function ActivityCommandCenter({
             .sort((a, b) => getConversationActivityTimestamp(b) - getConversationActivityTimestamp(a));
     }, [deferredQuery, filter, items, role]);
 
-    const visibleProviderGroups = useMemo(() => {
-        if (role !== "provider") return [];
-        const normalizedQuery = deferredQuery.trim().toLowerCase();
+    const visibleInboxCount = visibleItems.length;
 
-        return groupProviderActivities(items.filter(app => matchesActivityCommandCenterFilter(app, filter)))
-            .filter((group) => {
-                if (!normalizedQuery) return true;
-                const jobText = [group.job?.title, group.job?.status].filter(Boolean).join(" ").toLowerCase();
-                return jobText.includes(normalizedQuery)
-                    || group.applications.some((app) => getSearchText(app, role).includes(normalizedQuery));
-            });
-    }, [deferredQuery, filter, items, role]);
-
-    const visibleInboxCount = role === "provider" ? visibleProviderGroups.length : visibleItems.length;
-
-    const selectConversation = (applicationId: string) => {
+    const selectConversation = (applicationId: string, trigger: HTMLButtonElement) => {
+        conversationTriggerRef.current = { applicationId, element: trigger };
         selectedAppIdRef.current = applicationId;
         setItems((current) => current.map((app) => (
             app.id === applicationId ? { ...app, unread_count: 0 } : app
         )));
-        if (role === "provider") {
-            const application = items.find((app) => app.id === applicationId);
-            if (application) {
-                const jobId = getApplicationJobId(application);
-                setExpandedProviderJobIds((current) => new Set(current).add(jobId));
-            }
-        }
         const application = items.find(app => app.id === applicationId);
         updateConversationUrl(applicationId, application ? getActivityWorkspaceSection(application) : filter);
-    };
-
-    const toggleProviderJob = (jobId: string) => {
-        setExpandedProviderJobIds((current) => {
-            const next = new Set(current);
-            if (next.has(jobId)) next.delete(jobId);
-            else next.add(jobId);
-            return next;
-        });
-    };
-
-    const toggleProviderArchive = (jobId: string) => {
-        setExpandedProviderArchives((current) => {
-            const next = new Set(current);
-            if (next.has(jobId)) next.delete(jobId);
-            else next.add(jobId);
-            return next;
-        });
     };
 
     const closeConversation = () => {
@@ -647,425 +606,206 @@ export function ActivityCommandCenter({
         )));
     }, []);
 
-    if (items.length === 0) {
-        return (
-            <MotionConfig reducedMotion="user">
-                <ActivityEmptyState
-                    role={role}
-                    selectedJobId={selectedJobId}
-                    selectedJobTitle={selectedJobTitle}
-                />
-            </MotionConfig>
-        );
-    }
-
     return (
         <MotionConfig reducedMotion="user">
-        <div
-            className={cn(styles.experience, "activities-command-center jobs-home-surface")}
-            data-ui="conversations"
-            data-role={role}
-            data-chat-open={selectedApp ? "true" : "false"}
-        >
-            <div className="jobs-home-heading activity-home-heading">
-                <div>
-                    <h1>{role === "provider" ? "Bewerbungen" : "Meine Jobs"}</h1>
+            <div
+                className={cn(styles.experience, "activities-command-center jobs-home-surface")}
+                data-ui="conversations"
+                data-role={role}
+                data-empty={items.length === 0 ? "true" : "false"}
+                data-chat-open={selectedApp ? "true" : "false"}
+            >
+                <div className="jobs-home-heading activity-home-heading">
+                    <div>
+                        <h1>Nachrichten</h1>
+                    </div>
+
+                    {selectedJobId && (
+                        <div className="activity-job-filter">
+                            <Filter size={15} />
+                            <span>{selectedJobTitle || "Ausgewählter Job"}</span>
+                            <Link href="/app-home/activities">Alle Gespräche</Link>
+                        </div>
+                    )}
                 </div>
 
-                {selectedJobId && (
-                    <div className="activity-job-filter">
-                        <Filter size={15} />
-                        <span>{selectedJobTitle || "Ausgewählter Job"}</span>
-                        <Link href="/app-home/activities">Alle anzeigen</Link>
-                    </div>
-                )}
-            </div>
-
-            <div className="activity-workspace">
-                <aside className={cn("activity-inbox-panel", selectedApp ? "hidden lg:flex" : "flex")} aria-label={role === "provider" ? "Bewerbungen" : "Meine Jobs"}>
-                    <div className="activity-panel-heading" data-search-open={isSearchOpen ? "true" : "false"}>
-                        <AnimatePresence initial={false} mode="popLayout">
-                            {isSearchOpen ? (
-                                <motion.label
-                                    key="search"
-                                    className="activity-inbox-search"
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -4 }}
-                                    transition={{ duration: 0.16, ease: "easeOut" }}
-                                >
-                                    <span className="sr-only">{role === "provider" ? "Bewerbungen durchsuchen" : "Meine Jobs durchsuchen"}</span>
-                                    <Search aria-hidden="true" size={16} />
-                                    <input
-                                        ref={searchInputRef}
-                                        id={searchInputId}
-                                        type="search"
-                                        autoComplete="off"
-                                        spellCheck={false}
-                                        value={query}
-                                        onChange={(event) => setQuery(event.target.value)}
-                                        onKeyDown={(event) => {
-                                            if (event.key !== "Escape") return;
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            closeInboxSearch();
-                                        }}
-                                        placeholder={role === "provider" ? "Jobs oder Bewerber suchen" : "Job oder Anbieter suchen"}
-                                    />
-                                    <span className="sr-only" role="status" aria-live="polite">
-                                        {visibleInboxCount} {role === "provider"
-                                            ? visibleInboxCount === 1 ? "Job gefunden" : "Jobs gefunden"
-                                            : visibleInboxCount === 1 ? "Job gefunden" : "Jobs gefunden"}
-                                    </span>
-                                </motion.label>
-                            ) : (
-                                <motion.div
-                                    key="summary"
-                                    className="activity-panel-summary"
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -4 }}
-                                    transition={{ duration: 0.16, ease: "easeOut" }}
-                                >
-                                    <div
-                                        className="activity-filter-strip"
-                                        role="group"
-                                        aria-label={role === "provider" ? "Bewerbungen anzeigen" : "Meine Jobs anzeigen"}
-                                    >
-                                        {filterOptions.map((option) => (
-                                            <button
-                                                key={option.key}
-                                                type="button"
-                                                onClick={() => updateConversationUrl(null, option.key)}
-                                                className={cn(filter === option.key && "is-active")}
-                                                aria-pressed={filter === option.key}
-                                                aria-label={getFilterAriaLabel(option.label, option.count, role, option.attention)}
-                                            >
-                                                {option.label}
-                                                {option.attention.totalCount > 0 && <span className="activity-filter-attention" aria-hidden="true">{option.attention.totalCount > 99 ? "99+" : option.attention.totalCount}</span>}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <button
-                            ref={searchButtonRef}
-                            type="button"
-                            className="activity-panel-search-toggle"
-                            aria-label={isSearchOpen
-                                ? "Suche schließen"
-                                : role === "provider" ? "Bewerbungen durchsuchen" : "Meine Jobs durchsuchen"}
-                            aria-expanded={isSearchOpen}
-                            aria-controls={searchInputId}
-                            onClick={() => {
-                                if (isSearchOpen) closeInboxSearch();
-                                else setIsSearchOpen(true);
-                            }}
-                        >
-                            <AnimatePresence initial={false} mode="popLayout">
-                                <motion.span
-                                    key={isSearchOpen ? "close" : "search"}
-                                    initial={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
-                                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                                    exit={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
-                                    transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-                                    aria-hidden="true"
-                                >
-                                    {isSearchOpen ? <X size={17} /> : <Search size={17} />}
-                                </motion.span>
-                            </AnimatePresence>
-                        </button>
-                    </div>
-
-                    <div className="activity-inbox-list" data-provider={role === "provider" ? "true" : "false"}>
-                        {role === "provider" ? (
-                            visibleProviderGroups.map((group) => (
-                                <ProviderJobGroup
-                                    key={group.jobId}
-                                    group={group}
-                                    selectedAppId={selectedAppId}
-                                    expanded={expandedProviderJobIds.has(group.jobId)}
-                                    archiveExpanded={expandedProviderArchives.has(group.jobId)}
-                                    onToggle={() => toggleProviderJob(group.jobId)}
-                                    onToggleArchive={() => toggleProviderArchive(group.jobId)}
-                                    onSelect={selectConversation}
-                                />
-                            ))
-                        ) : (
-                            <AnimatePresence initial={false}>
-                                {visibleItems.map((app) => (
-                                    <ActivityInboxItem
-                                        key={app.id}
-                                        app={app}
-                                        role={role}
-                                        selected={selectedAppId === app.id}
-                                        onSelect={() => selectConversation(app.id)}
-                                    />
-                                ))}
-                            </AnimatePresence>
-                        )}
-
-                        {visibleInboxCount === 0 && (
-                            <div className="activity-no-results">
-                                <Search size={20} />
-                                <strong>{query.trim() ? "Keine Treffer" : filter === "active" ? "Keine laufenden Jobs" : "Archiv ist leer"}</strong>
-                                <span>{query.trim()
-                                    ? "Prüfe den Suchbegriff oder schließe die Suche."
-                                    : filter === "active" ? "Beendete Bewerbungen und Jobs findest du im Archiv." : "Beendete Bewerbungen und Jobs bleiben hier mit ihrem Verlauf erhalten."}</span>
-                            </div>
-                        )}
-                    </div>
-                </aside>
-
-                <section className={cn("activity-chat-stage", selectedApp ? "flex" : "hidden lg:flex")} aria-label="Gespräch">
-                    {selectedApp ? (
-                        <ApplicationChat
-                            key={selectedApp.id}
-                            application={selectedApp}
-                            draftValue={conversationComposers[selectedApp.id]?.draft ?? ""}
-                            failedSends={conversationComposers[selectedApp.id]?.failedSends}
-                            onSendFailure={handleSendFailure}
-                            onRecoverFailedSend={recoverFailedSend}
-                            onDraftChange={updateConversationDraft}
-                            currentUserRole={role}
-                            currentUserId={currentUserId}
-                            readOnly={readOnly}
-                            onWithdraw={
-                                role === "seeker" && onWithdraw
-                                    ? (reason: string) => updateSelectedStatus(reason, "withdrawn")
-                                    : undefined
-                            }
-                            onReject={
-                                role === "provider" && onReject
-                                    ? (reason: string) => updateSelectedStatus(reason, "rejected")
-                                    : undefined
-                            }
-                            onSchedule={role === "provider" && onSchedule ? scheduleSelectedApplication : undefined}
-                            onReopen={onReopen ? () => onReopen(selectedApp.id) : undefined}
-                            onRequestReopen={onRequestReopen ? (message: string) => onRequestReopen(selectedApp.id, message) : undefined}
-                            onRespondReopenRequest={onRespondReopenRequest}
-                            onComplete={role === "provider" && onComplete ? completeSelectedApplication : undefined}
-                            onReport={onReport}
-                            onSendMessage={onSendMessage}
-                            onClose={closeConversation}
-                            onConversationRead={handleConversationRead}
-                            embedded
-                        />
-                    ) : (
-                        <ActivityDetailPlaceholder role={role} />
-                    )}
-                </section>
-            </div>
-        </div>
-        </MotionConfig>
-    );
-}
-
-function ProviderJobGroup({
-    group,
-    selectedAppId,
-    expanded,
-    archiveExpanded,
-    onToggle,
-    onToggleArchive,
-    onSelect,
-}: {
-    group: ProviderActivityGroup<any>;
-    selectedAppId: string | null;
-    expanded: boolean;
-    archiveExpanded: boolean;
-    onToggle: () => void;
-    onToggleArchive: () => void;
-    onSelect: (applicationId: string) => void;
-}) {
-    const title = group.job?.title || "Job-Angebot";
-    const attention = getGroupedActivityAttentionSummary(group.applications);
-    const pendingReopenApplications = group.archive.filter((application) => (
-        getActivityAttentionSummary(application).pendingReopenCount > 0
-    ));
-    const archivedApplications = group.archive.filter((application) => (
-        getActivityAttentionSummary(application).pendingReopenCount === 0
-    ));
-    const primaryLabel = group.primary
-        ? group.primary.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"
-        : null;
-    const summaryParts = [
-        primaryLabel,
-        attention.pendingReopenCount > 0
-            ? `${attention.pendingReopenCount} ${attention.pendingReopenCount === 1 ? "Öffnungsanfrage" : "Öffnungsanfragen"}`
-            : null,
-        !group.primary && archivedApplications.length > 0
-            ? `${archivedApplications.length} beendet`
-            : null,
-    ].filter(Boolean);
-    const archiveOnly = !group.primary;
-    const showArchive = archiveOnly || archiveExpanded;
-
-    return (
-        <article className="activity-provider-group" data-expanded={expanded ? "true" : "false"}>
-            <button
-                type="button"
-                className="activity-provider-group-header"
-                onClick={onToggle}
-                aria-expanded={expanded}
-                aria-controls={`provider-job-${group.jobId}`}
-            >
-                <span className="activity-provider-group-icon" aria-hidden="true">
-                    <Briefcase size={16} />
-                </span>
-                <span className="activity-provider-group-copy">
-                    <strong>{title}</strong>
-                    <span>{summaryParts.join(" · ") || "Keine offenen Bewerbungen"}</span>
-                </span>
-                {attention.totalCount > 0 ? (
-                    <span
-                        className="activity-provider-group-unread"
-                        data-kind={attention.kind}
-                        aria-label={getActivityAttentionLabel(attention)}
-                    >
-                        {attention.totalCount > 99 ? "99+" : attention.totalCount}
-                    </span>
-                ) : null}
-                <ChevronDown className="activity-provider-group-chevron" size={17} aria-hidden="true" />
-            </button>
-
-            {expanded ? (
-                <div id={`provider-job-${group.jobId}`} className="activity-provider-group-body">
-                    {group.primary ? (
-                        <section className="activity-provider-section" aria-label="Aktuelles Gespräch">
-                            <div className="activity-provider-section-heading">
-                                <strong>{group.primary.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"}</strong>
-                                <span>{group.primary.status === "accepted" ? "Zusammenarbeit bestätigt" : "Eine Bewerbung · exklusiv reserviert"}</span>
-                            </div>
-                            <ProviderConversationRow
-                                app={group.primary}
-                                kind="primary"
-                                selected={selectedAppId === group.primary.id}
-                                onSelect={() => onSelect(group.primary!.id)}
-                            />
-                        </section>
-                    ) : null}
-
-                    {pendingReopenApplications.length > 0 ? (
-                        <section className="activity-provider-section activity-provider-attention-section" aria-label="Offene Öffnungsanfragen">
-                            <div className="activity-provider-section-heading">
-                                <strong>{pendingReopenApplications.length === 1 ? "Öffnungsanfrage" : "Öffnungsanfragen"}</strong>
-                                <span>Antwort ausstehend</span>
-                            </div>
-                            <div className="activity-provider-request-list">
-                                {pendingReopenApplications.map((application: any) => (
-                                    <ProviderConversationRow
-                                        key={application.id}
-                                        app={application}
-                                        kind="archive"
-                                        selected={selectedAppId === application.id}
-                                        onSelect={() => onSelect(application.id)}
-                                    />
-                                ))}
-                            </div>
-                        </section>
-                    ) : null}
-
-                    {archivedApplications.length > 0 ? (
-                        <section className="activity-provider-archive" aria-label="Beendete Gespräche">
-                            {archiveOnly ? (
-                                <div className="activity-provider-archive-label">
-                                    <span>Beendet</span>
-                                    <small>{archivedApplications.length}</small>
-                                </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="activity-provider-archive-toggle"
-                                    onClick={onToggleArchive}
-                                    aria-expanded={showArchive}
-                                >
-                                    <span>Beendet</span>
-                                    <small>{archivedApplications.length}</small>
-                                    <ChevronDown size={15} aria-hidden="true" />
-                                </button>
-                            )}
-                            {showArchive ? (
-                                <div className="activity-provider-archive-list">
-                                    {archivedApplications.map((application: any) => (
-                                        <ProviderConversationRow
-                                            key={application.id}
-                                            app={application}
-                                            kind="archive"
-                                            selected={selectedAppId === application.id}
-                                            onSelect={() => onSelect(application.id)}
-                                        />
+                <div className="activity-workspace">
+                    <aside className={cn("activity-inbox-panel", selectedApp ? "hidden lg:flex" : "flex")} aria-label="Gespräche">
+                        <div className="activity-panel-heading" data-search-open={isSearchOpen ? "true" : "false"}>
+                            <div className="activity-panel-summary">
+                                <div className="activity-filter-strip" role="group" aria-label="Gespräche anzeigen">
+                                    {filterOptions.map((option) => (
+                                        <button
+                                            key={option.key}
+                                            ref={filter === option.key ? activeFilterButtonRef : undefined}
+                                            type="button"
+                                            onClick={() => updateConversationUrl(null, option.key)}
+                                            className={cn(filter === option.key && "is-active")}
+                                            aria-pressed={filter === option.key}
+                                            aria-label={getFilterAriaLabel(option.label, option.count, option.attention)}
+                                        >
+                                            {filter === option.key ? (
+                                                <motion.span
+                                                    className="activity-filter-selection"
+                                                    layoutId={`activity-filter-${searchInputId}`}
+                                                    transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.3, bounce: 0 }}
+                                                    aria-hidden="true"
+                                                />
+                                            ) : null}
+                                            <span className="activity-filter-label">{option.label}</span>
+                                            {option.attention.pendingReopenCount > 0 ? (
+                                                <span className="activity-filter-request" aria-hidden="true" />
+                                            ) : null}
+                                            {option.attention.unreadCount > 0 ? (
+                                                <span className="activity-filter-attention" aria-hidden="true">
+                                                    {option.attention.unreadCount > 99 ? "99+" : option.attention.unreadCount}
+                                                </span>
+                                            ) : null}
+                                        </button>
                                     ))}
                                 </div>
+                            </div>
+                            <button
+                                ref={searchButtonRef}
+                                type="button"
+                                className="activity-panel-search-toggle"
+                                aria-label={isSearchOpen ? "Suche schließen" : "Gespräche durchsuchen"}
+                                aria-expanded={isSearchOpen}
+                                aria-controls={`${searchInputId}-tray`}
+                                onClick={() => {
+                                    if (isSearchOpen) closeInboxSearch();
+                                    else setIsSearchOpen(true);
+                                }}
+                            >
+                                <AnimatePresence initial={false} mode="wait">
+                                    <motion.span
+                                        key={isSearchOpen ? "close" : "search"}
+                                        initial={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+                                        animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                                        exit={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+                                        transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.3, bounce: 0 }}
+                                        aria-hidden="true"
+                                    >
+                                        {isSearchOpen ? <X size={17} /> : <Search size={17} />}
+                                    </motion.span>
+                                </AnimatePresence>
+                            </button>
+                        </div>
+                        <AnimatePresence initial={false}>
+                            {isSearchOpen ? (
+                                <motion.div
+                                    key="search"
+                                    id={`${searchInputId}-tray`}
+                                    className="activity-search-tray"
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                >
+                                    <div className="activity-search-tray-inner">
+                                        <label className="activity-inbox-search">
+                                            <span className="sr-only">Gespräche durchsuchen</span>
+                                            <Search aria-hidden="true" size={16} />
+                                            <input
+                                                ref={searchInputRef}
+                                                id={searchInputId}
+                                                type="search"
+                                                autoComplete="off"
+                                                spellCheck={false}
+                                                value={query}
+                                                onChange={(event) => setQuery(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key !== "Escape") return;
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    closeInboxSearch();
+                                                }}
+                                                placeholder="Job oder Person suchen"
+                                            />
+                                        </label>
+                                        <span className="sr-only" role="status" aria-live="polite">
+                                            {visibleInboxCount} {visibleInboxCount === 1 ? "Gespräch gefunden" : "Gespräche gefunden"}
+                                        </span>
+                                    </div>
+                                </motion.div>
                             ) : null}
-                        </section>
-                    ) : null}
+                        </AnimatePresence>
+
+                        <div className="activity-inbox-list" data-provider={role === "provider" ? "true" : "false"}>
+                            {visibleItems.map((app) => (
+                                <ActivityInboxItem
+                                    key={app.id}
+                                    app={app}
+                                    role={role}
+                                    selected={selectedAppId === app.id}
+                                    onSelect={(trigger) => selectConversation(app.id, trigger)}
+                                />
+                            ))}
+
+                            {items.length === 0 ? (
+                                <ActivityEmptyInbox
+                                    role={role}
+                                    selectedJobId={selectedJobId}
+                                    selectedJobTitle={selectedJobTitle}
+                                />
+                            ) : visibleInboxCount === 0 ? (
+                                <div className="activity-no-results">
+                                    <Search size={20} />
+                                    <strong>{query.trim() ? "Keine Treffer" : filter === "active" ? "Keine laufenden Gespräche" : "Dein Archiv ist leer"}</strong>
+                                    <span>{query.trim()
+                                        ? "Versuche einen anderen Namen oder Jobtitel."
+                                        : filter === "active" ? "Gespräche zu beendeten Jobs findest du im Archiv." : "Beendete Gespräche bleiben hier mit ihrem Verlauf erhalten."}</span>
+                                </div>
+                            ) : null}
+                        </div>
+                    </aside>
+
+                    <section
+                        ref={chatStageRef}
+                        className={cn("activity-chat-stage", selectedApp ? "flex" : "hidden lg:flex")}
+                        tabIndex={-1}
+                        aria-label={selectedApp ? `Gespräch zu ${selectedApp.job?.title || "deinem Job"}` : "Gespräch"}
+                    >
+                        {selectedApp ? (
+                            <ApplicationChat
+                                key={selectedApp.id}
+                                application={selectedApp}
+                                draftValue={conversationComposers[selectedApp.id]?.draft ?? ""}
+                                failedSends={conversationComposers[selectedApp.id]?.failedSends}
+                                onSendFailure={handleSendFailure}
+                                onRecoverFailedSend={recoverFailedSend}
+                                onDraftChange={updateConversationDraft}
+                                currentUserRole={role}
+                                currentUserId={currentUserId}
+                                readOnly={readOnly}
+                                onWithdraw={
+                                    role === "seeker" && onWithdraw
+                                        ? (reason: string) => updateSelectedStatus(reason, "withdrawn")
+                                        : undefined
+                                }
+                                onReject={
+                                    role === "provider" && onReject
+                                        ? (reason: string) => updateSelectedStatus(reason, "rejected")
+                                        : undefined
+                                }
+                                onSchedule={role === "provider" && onSchedule ? scheduleSelectedApplication : undefined}
+                                onReopen={onReopen ? () => onReopen(selectedApp.id) : undefined}
+                                onRequestReopen={onRequestReopen ? (message: string) => onRequestReopen(selectedApp.id, message) : undefined}
+                                onRespondReopenRequest={onRespondReopenRequest}
+                                onComplete={role === "provider" && onComplete ? completeSelectedApplication : undefined}
+                                onReport={onReport}
+                                onSendMessage={onSendMessage}
+                                onClose={closeConversation}
+                                onConversationRead={handleConversationRead}
+                                embedded
+                            />
+                        ) : (
+                            <ActivityDetailPlaceholder />
+                        )}
+                    </section>
                 </div>
-            ) : null}
-        </article>
-    );
-}
-
-function ProviderConversationRow({
-    app,
-    kind,
-    selected,
-    onSelect,
-}: {
-    app: any;
-    kind: "primary" | "archive";
-    selected: boolean;
-    onSelect: () => void;
-}) {
-    const partner = getPartner(app, "provider");
-    const status = getActivityStatusMeta(app.status, app.close_action);
-    const attention = getActivityAttentionSummary(app);
-    const preview = normalizeMessagePreview(
-        app.last_message_preview,
-        app.message || "Noch keine Nachricht im Gespräch.",
-    );
-    const previewTimestamp = getConversationPreviewTimestamp(app);
-    const baseMetaLabel = kind === "primary"
-        ? app.status === "accepted" ? "In Zusammenarbeit" : "Reserviert"
-        : status.label;
-    const metaLabel = attention.pendingReopenCount > 0
-        ? `${baseMetaLabel} · ${attention.pendingReopenCount === 1 ? "Öffnungsanfrage offen" : `${attention.pendingReopenCount} Öffnungsanfragen offen`}`
-        : baseMetaLabel;
-
-    return (
-        <button
-            type="button"
-            className="activity-provider-row"
-            data-kind={kind}
-            data-selected={selected ? "true" : "false"}
-            data-unread={attention.unreadCount > 0 ? "true" : "false"}
-            data-attention={attention.kind}
-            onClick={onSelect}
-            aria-pressed={selected}
-        >
-            <span className="activity-provider-row-avatar" aria-hidden="true">
-                {partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : getProfileInitials(partner.name)}
-            </span>
-            <span className="activity-provider-row-body">
-                <span className="activity-provider-row-title">
-                    <strong>{partner.name}</strong>
-                    <time dateTime={previewTimestamp}>{formatConversationTime(previewTimestamp)}</time>
-                </span>
-                <span className="activity-provider-row-preview">{preview}</span>
-                <span className="activity-provider-row-meta">{metaLabel}</span>
-            </span>
-            {attention.totalCount > 0 ? (
-                <span
-                    className="activity-provider-row-unread"
-                    data-kind={attention.kind}
-                    aria-label={getActivityAttentionLabel(attention)}
-                >
-                    {attention.totalCount > 9 ? "9+" : attention.totalCount}
-                </span>
-            ) : null}
-        </button>
+            </div>
+        </MotionConfig>
     );
 }
 
@@ -1078,47 +818,35 @@ function ActivityInboxItem({
     app: any;
     role: ActivityRole;
     selected: boolean;
-    onSelect: () => void;
+    onSelect: (trigger: HTMLButtonElement) => void;
 }) {
-    const status = getActivityStatusMeta(app.status, app.close_action);
-    const partner = getPartner(app, role);
-    const attention = getActivityAttentionSummary(app);
-    const preview = normalizeMessagePreview(
-        app.last_message_preview,
-        app.message || "Noch keine Nachricht im Gespräch.",
-    );
-    const previewTimestamp = getConversationPreviewTimestamp(app);
+    const { partner, status, attention, preview, previewTimestamp } = getActivityInboxPresentation(app, role);
     const activityTime = formatConversationTime(previewTimestamp);
 
     return (
-        <motion.button
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
+        <button
             type="button"
-            onClick={onSelect}
+            onClick={(event) => onSelect(event.currentTarget)}
             className="activity-inbox-item"
             data-selected={selected ? "true" : "false"}
             data-unread={attention.unreadCount > 0 ? "true" : "false"}
             data-attention={attention.kind}
             aria-pressed={selected}
         >
+            <span className="sr-only">Gespräch öffnen: </span>
             <span className="activity-inbox-avatar" aria-hidden="true">
-                {partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : getProfileInitials(partner.name)}
+                <ConversationAvatar name={partner.name} avatarUrl={partner.avatarUrl} />
             </span>
             <span className="activity-inbox-body">
                 <span className="activity-inbox-title-row">
                     <strong>{partner.subtitle}</strong>
-                    <time dateTime={previewTimestamp}>{activityTime}</time>
                 </span>
                 <span className="activity-inbox-context-row">
                     <span className="activity-inbox-job">{partner.name}</span>
-                    {!["submitted", "negotiating"].includes(app.status) && <span className="activity-inbox-status" data-tone={status.tone}>
+                    <span className="activity-inbox-status" data-tone={status.tone}>
                         <span aria-hidden="true" />
                         {status.label}
-                    </span>}
+                    </span>
                 </span>
                 <span className="activity-inbox-preview">{preview}</span>
                 {attention.pendingReopenCount > 0 ? (
@@ -1131,30 +859,41 @@ function ActivityInboxItem({
                     </span>
                 ) : null}
             </span>
-            {attention.totalCount > 0 ? (
-                <span
-                    className="activity-attention-dot"
-                    data-kind={attention.kind}
-                    aria-label={getActivityAttentionLabel(attention)}
-                />
-            ) : null}
-        </motion.button>
+            <span className="activity-inbox-tail">
+                <time dateTime={previewTimestamp}>{activityTime}</time>
+                {attention.unreadCount > 0 ? (
+                    <span className="activity-inbox-unread">
+                        <span aria-hidden="true">{attention.unreadCount > 99 ? "99+" : attention.unreadCount}</span>
+                        <span className="sr-only">
+                            {attention.unreadCount} {attention.unreadCount === 1 ? "ungelesene Nachricht" : "ungelesene Nachrichten"}
+                        </span>
+                    </span>
+                ) : null}
+            </span>
+        </button>
     );
 }
 
-function ActivityDetailPlaceholder({ role }: { role: ActivityRole }) {
+function ConversationAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+    const [failedUrl, setFailedUrl] = useState<string | null>(null);
+    return avatarUrl && avatarUrl !== failedUrl
+        ? <img src={avatarUrl} alt="" onError={() => setFailedUrl(avatarUrl)} />
+        : <>{profileInitials(name)}</>;
+}
+
+function ActivityDetailPlaceholder() {
     return (
         <div className="activity-detail-placeholder">
             <div className="activity-placeholder-icon">
                 <MessageSquare size={24} />
             </div>
-            <h2>{role === "provider" ? "Wähle eine Bewerbung" : "Wähle einen Job"}</h2>
+            <h2>Wähle ein Gespräch</h2>
             <p>Gespräch, Termin und Details findest du hier an einem Ort.</p>
         </div>
     );
 }
 
-function ActivityEmptyState({
+function ActivityEmptyInbox({
     role,
     selectedJobId,
     selectedJobTitle,
@@ -1164,32 +903,21 @@ function ActivityEmptyState({
     selectedJobTitle?: string | null;
 }) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={cn(styles.experience, "activity-empty-command")}
-            data-ui="conversations"
-        >
+        <div className="activity-empty-inbox">
             <div className="activity-placeholder-icon">
                 {role === "provider" ? <User size={26} /> : <Briefcase size={26} />}
             </div>
-            <h1>
-                {selectedJobId
-                    ? `Noch keine Bewerbungen für ${selectedJobTitle || "diesen Job"}`
-                    : role === "provider"
-                        ? "Noch keine Bewerbungen"
-                        : "Noch keine Bewerbungen"}
-            </h1>
+            <h2>{selectedJobId ? `Noch kein Gespräch zu ${selectedJobTitle || "diesem Job"}` : "Noch keine Gespräche"}</h2>
             <p>
                 {role === "provider"
                     ? "Sobald sich jemand bewirbt, erscheint das Gespräch hier."
-                    : "Sobald du dich bewirbst, findest du Status und Nachrichten hier."}
+                    : "Bewirb dich auf einen Job. Hier klärst du anschließend den Termin mit dem Anbieter."}
             </p>
-            <Link href={role === "provider" ? "/app-home/offers" : "/app-home/jobs"}>
-                {role === "provider" ? "Zu deinen Jobs" : "Jobs entdecken"}
+            <Link href={selectedJobId ? "/app-home/activities" : role === "provider" ? "/app-home/offers" : "/app-home/jobs"}>
+                {selectedJobId ? "Alle Gespräche" : role === "provider" ? "Zu deinen Jobs" : "Jobs entdecken"}
                 <ArrowRight size={16} />
             </Link>
-        </motion.div>
+        </div>
     );
 }
 

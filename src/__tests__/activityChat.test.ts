@@ -9,7 +9,6 @@ import {
     getConversationActivityTimestamp,
     getConversationPreviewTimestamp,
     getProfileInitials,
-    groupProviderActivities,
     matchesActivityFilter,
     normalizeMessagePreview,
     resolveReopenApplicationPatch,
@@ -21,7 +20,7 @@ import {
 describe("activity conversation helpers", () => {
     it("maps every operational status to understandable copy", () => {
         expect(getActivityStatusMeta("negotiating")).toEqual({ label: "Reserviert", tone: "brand" });
-        expect(getActivityStatusMeta("accepted")).toEqual({ label: "In Zusammenarbeit", tone: "success" });
+        expect(getActivityStatusMeta("accepted")).toEqual({ label: "Vereinbart", tone: "success" });
         expect(getActivityStatusMeta("auto_rejected")).toEqual({ label: "Anderweitig vergeben", tone: "neutral" });
         expect(getActivityStatusMeta("unknown")).toEqual({ label: "Status offen", tone: "neutral" });
     });
@@ -56,6 +55,12 @@ describe("activity conversation helpers", () => {
             created_at: "2026-07-10T10:00:00.000Z",
             last_message_preview: null,
             last_message_at: null,
+        })).toBe("2026-07-10T10:00:00.000Z");
+
+        expect(getConversationPreviewTimestamp({
+            created_at: "2026-07-10T10:00:00.000Z",
+            last_message_preview: " \n ",
+            last_message_at: "2026-07-12T10:00:00.000Z",
         })).toBe("2026-07-10T10:00:00.000Z");
     });
 
@@ -92,33 +97,10 @@ describe("activity conversation helpers", () => {
         ]);
     });
 
-    it("keeps exactly one exclusive primary and archives historical non-primary requests", () => {
-        const base = { job_id: "job-a", job: { id: "job-a", title: "Gartenhilfe" }, created_at: "2026-10-23T10:00:00Z" };
-        const groups = groupProviderActivities([
-            { ...base, id: "older-request", status: "waitlisted", is_primary: false, conversation_state: "open", unread_count: 2 },
-            { ...base, id: "reserved", status: "negotiating", is_primary: true, conversation_state: "open", unread_count: 1 },
-            { ...base, id: "withdrawn", status: "withdrawn", is_primary: false, conversation_state: "closed" },
-        ]);
-        expect(groups[0].primary?.id).toBe("reserved");
-        expect(groups[0].archive.map(item => item.id).sort()).toEqual(["older-request", "withdrawn"]);
-        expect(groups[0]).not.toHaveProperty("waitlist");
-        expect(groups[0].unreadCount).toBe(3);
-    });
-
-    it("never promotes a historical request after the exclusive application closes", () => {
-        const base = { job_id: "job-a", created_at: "2026-10-23T10:00:00Z" };
-        const groups = groupProviderActivities([
-            { ...base, id: "closed", status: "withdrawn", is_primary: false, conversation_state: "closed" },
-            { ...base, id: "historical", status: "waitlisted", is_primary: false, conversation_state: "open" },
-        ]);
-        expect(groups[0].primary).toBeNull();
-        expect(groups[0].archive).toHaveLength(2);
-    });
-
     it("describes reserved, agreed, completed and historical stages for each role", () => {
         expect(getActivityStage({ status: "negotiating", is_primary: true }, "provider")).toMatchObject({ key: "reserved", index: 1, label: "Reserviert" });
         expect(getActivityStage({ status: "negotiating", is_primary: true }, "seeker").hint).toContain("für dich reserviert");
-        expect(getActivityStage({ status: "accepted", is_primary: true }, "provider")).toMatchObject({ key: "agreed", index: 2, label: "In Zusammenarbeit" });
+        expect(getActivityStage({ status: "accepted", is_primary: true }, "provider")).toMatchObject({ key: "agreed", index: 2, label: "Vereinbart" });
         expect(getActivityStage({ status: "accepted", is_primary: true }, "provider").hint).toBe("Die Zusammenarbeit ist bestätigt. Termine und Änderungen klärt ihr direkt hier.");
         expect(getActivityStage({ status: "cancelled", conversation_state: "closed" }, "provider").label).toBe("Abgesagt");
         expect(getActivityStage({ status: "auto_rejected", close_action: "waitlist_retired", conversation_state: "closed" }, "seeker")).toMatchObject({ key: "closed", label: "Beendete Anfrage", index: -1 });
