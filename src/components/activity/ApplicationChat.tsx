@@ -36,7 +36,7 @@ import {
     resolveReopenApplicationPatch,
 } from "@/lib/activity/chat";
 import { getAppointmentRequestForMessage, markApplicationMessagesRead } from "@/app/app-home/applications/actions";
-import { getAppointmentSystemMessageKind, type AppointmentRequest } from "@/lib/activity/appointments";
+import { getAppointmentSystemMessageKind, isPendingAppointmentMessage, type AppointmentRequest } from "@/lib/activity/appointments";
 import { cn } from "@/lib/utils";
 import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import styles from "./ActivityWorkspace.module.css";
@@ -213,7 +213,7 @@ export function ApplicationChat({
     const [profileOpen, setProfileOpen] = useState(false);
     const [compactDetails, setCompactDetails] = useState(true);
     const [searchOpen, setSearchOpen] = useState(false);
-    const [appointmentsOpen, setAppointmentsOpen] = useState(false);
+    const [appointmentFocusKey, setAppointmentFocusKey] = useState(0);
     const [focusedAppointmentRequest, setFocusedAppointmentRequest] = useState<AppointmentRequest | null | undefined>();
     const [appointmentTargetLoading, setAppointmentTargetLoading] = useState(false);
     const [appointmentTargetError, setAppointmentTargetError] = useState<string | null>(null);
@@ -361,7 +361,7 @@ export function ApplicationChat({
         setDetailsOpen(false);
         setProfileOpen(false);
         setSearchOpen(false);
-        setAppointmentsOpen(false);
+        setAppointmentFocusKey(0);
         setFocusedAppointmentRequest(undefined);
         setAppointmentTargetLoading(false);
         setAppointmentTargetError(null);
@@ -663,7 +663,7 @@ export function ApplicationChat({
         setAppointmentTargetLoading(false);
         setAppointmentTargetError(null);
         setAppointmentMessageId(null);
-        setAppointmentsOpen(true);
+        setAppointmentFocusKey(key => key + 1);
         setSearchOpen(false);
         setDetailsOpen(true);
     };
@@ -674,7 +674,7 @@ export function ApplicationChat({
         setAppointmentTargetLoading(true);
         setAppointmentTargetError(null);
         setAppointmentMessageId(messageId);
-        setAppointmentsOpen(true);
+        setAppointmentFocusKey(key => key + 1);
         setSearchOpen(false);
         setDetailsOpen(true);
         try {
@@ -693,20 +693,22 @@ export function ApplicationChat({
     };
 
     useEffect(() => {
-        if (!detailsOpen || !appointmentsOpen || !appointmentMessageId || focusedAppointmentRequest?.status !== "pending") return;
+        if (!detailsOpen || appointmentFocusKey === 0 || !appointmentMessageId || focusedAppointmentRequest?.status !== "pending") return;
         if (canManageAppointments && (appointmentRequests.available !== true
             || appointmentRequests.requests.some(request => request.id === focusedAppointmentRequest.id))) return;
         let active = true;
         const generation = ++appointmentTargetGenerationRef.current;
         void getAppointmentRequestForMessage(liveApplication.id, appointmentMessageId).then(result => {
             if (!active || generation !== appointmentTargetGenerationRef.current) return;
-            if (result.available) setFocusedAppointmentRequest(result.request);
-            else setAppointmentTargetError("Die Terminanfrage konnte nicht aktualisiert werden. Bitte lade sie erneut.");
+            if (result.available) {
+                setFocusedAppointmentRequest(result.request);
+                setAppointmentTargetError(null);
+            } else setAppointmentTargetError("Die Terminanfrage konnte nicht aktualisiert werden. Bitte lade sie erneut.");
         }).catch(() => {
             if (active && generation === appointmentTargetGenerationRef.current) setAppointmentTargetError("Die Terminanfrage konnte nicht aktualisiert werden. Bitte lade sie erneut.");
         });
         return () => { active = false; };
-    }, [appointmentRequests.available, appointmentRequests.requests, appointmentMessageId, appointmentsOpen, canManageAppointments, detailsOpen, focusedAppointmentRequest?.id, focusedAppointmentRequest?.status, liveApplication.id]);
+    }, [appointmentRequests.available, appointmentRequests.requests, appointmentMessageId, appointmentFocusKey, canManageAppointments, detailsOpen, focusedAppointmentRequest?.id, focusedAppointmentRequest?.status, liveApplication.id]);
 
     const jumpToMessage = (id: string, query: string) => {
         setMessageHighlight({ id, query: query.trim() });
@@ -1105,7 +1107,7 @@ export function ApplicationChat({
             onKeyDown={event => {
                 if (!profileOpen && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
                     event.preventDefault();
-                    setAppointmentsOpen(false);
+                    setAppointmentFocusKey(0);
                     setSearchOpen(true);
                     setDetailsOpen(true);
                 }
@@ -1158,10 +1160,10 @@ export function ApplicationChat({
                     {pendingAppointmentRequest ? <button type="button" className="activity-appointment-shortcut"
                         aria-label={currentUserRole === "provider" ? "Offene Terminanfrage prüfen" : "Deinen Terminvorschlag ansehen"}
                         title={currentUserRole === "provider" ? "Offene Terminanfrage prüfen" : "Deinen Terminvorschlag ansehen"}
-                        aria-haspopup="dialog" aria-expanded={detailsOpen && appointmentsOpen} onClick={openAppointmentRequests}>
+                        aria-haspopup="dialog" aria-expanded={detailsOpen && appointmentFocusKey > 0} onClick={openAppointmentRequests}>
                         <CalendarClock size={17} aria-hidden="true" /><span>{currentUserRole === "provider" ? "Anfrage prüfen" : "Dein Vorschlag"}</span>
                     </button> : null}
-                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { appointmentTargetGenerationRef.current++; setAppointmentsOpen(false); setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen && !appointmentsOpen} aria-label="Jobdetails und Aktionen öffnen" title="Jobdetails und Aktionen">
+                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { appointmentTargetGenerationRef.current++; setAppointmentFocusKey(0); setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen" title="Jobdetails und Aktionen">
                         <Info size={18} aria-hidden="true" /><span>Details</span>
                     </button>
                 </div>
@@ -1211,6 +1213,9 @@ export function ApplicationChat({
                         if (timelineEntry.type === "message") {
                             const timelineMessage = timelineEntry.item;
                             const isOwnMessage = timelineMessage.sender_id === currentUserId;
+                            const appointmentMessageKind = getAppointmentSystemMessageKind(timelineMessage);
+                            const actionableAppointment = !readOnly && appointmentRequests.available === true
+                                && isPendingAppointmentMessage(timelineMessage, appointmentRequests.requests);
 
                             return (
                                 <div key={timelineEntry.key} className={cn("activity-message-entry", detailsStyles.messageTarget)}
@@ -1218,15 +1223,15 @@ export function ApplicationChat({
                                     tabIndex={-1} data-message-id={timelineMessage.id} data-search-selected={messageHighlight?.id === timelineMessage.id}>
                                     {dateSeparator}
                                     {timelineMessage.isSystemMessage ? (
-                                        getAppointmentSystemMessageKind(timelineMessage) && !readOnly ? <button type="button" className="activity-system-message activity-system-message-link"
+                                        actionableAppointment ? <button type="button" className="activity-system-message activity-system-message-link"
                                             onClick={() => void openAppointmentMessage(timelineMessage.id)} aria-haspopup="dialog"
-                                            aria-label={`${timelineMessage.content} ${getAppointmentSystemMessageKind(timelineMessage) === "request" ? "Terminanfrage ansehen" : "Termine ansehen"}`}>
+                                            aria-label={`${timelineMessage.content} Terminanfrage in Details ansehen`}>
                                             <CalendarClock size={16} aria-hidden="true" />
                                             <span><HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} /></span>
                                             <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
                                             <ArrowRight size={15} aria-hidden="true" />
-                                        </button> : <div className="activity-system-message">
-                                            <CheckCircle2 size={14} aria-hidden="true" />
+                                        </button> : <div className="activity-system-message activity-system-message-notice">
+                                            {appointmentMessageKind ? <CalendarDays size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
                                             <span><HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} /></span>
                                             <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
                                         </div>
@@ -1500,10 +1505,10 @@ export function ApplicationChat({
                 });
             }}>
                 {detailsOpen && <>
-                    <motion.button type="button" className={detailsStyles.backdrop} aria-label={appointmentsOpen ? "Termine schließen" : "Details schließen"} tabIndex={-1}
+                    <motion.button type="button" className={detailsStyles.backdrop} aria-label="Details schließen" tabIndex={-1}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsOpen(false)} />
                     <ChatDetails dialogRef={detailsDialogRef} compact={compactDetails} onClose={() => setDetailsOpen(false)}
-                        appointmentsOpen={appointmentsOpen} onAppointmentsOpen={setAppointmentsOpen}
+                        appointmentFocusKey={appointmentFocusKey} appointmentFocusReady={!appointmentTargetLoading}
                         name={headerName} profile={headerProfile ?? null} partnerRole={currentUserRole === "seeker" ? "Auftraggeber" : "Bewerber"}
                         onOpenProfile={() => setProfileOpen(true)}
                         job={liveApplication.job ?? {}} jobTitle={jobTitle}
@@ -1512,15 +1517,14 @@ export function ApplicationChat({
                         closureReason={conversationState === "closed" && liveApplication.closed_reason ? formatClosureReason(liveApplication.closed_reason) : null}
                         authorizedAddress={authorizedJobLocation?.address_full}
                         appointments={appointments} scheduledFor={liveApplication.scheduled_for || liveApplication.agreement?.starts_at} scheduleNote={liveApplication.agreement?.note}
-                        appointmentActions={!readOnly && currentUserId && (canManageAppointments || appointmentsOpen) ? <ChatAppointments
+                        appointmentActions={!readOnly && currentUserId && (canManageAppointments || appointmentFocusKey > 0) ? <ChatAppointments
                             key={liveApplication.id} applicationId={liveApplication.id} currentUserId={currentUserId}
                             isProvider={currentUserRole === "provider"} recurring={liveApplication.job?.job_kind === "recurring"}
                             appointments={appointments} formatSchedule={formatSchedule} onLegacySchedule={canSchedule ? openScheduleDialog : undefined}
                             requests={appointmentRequests.requests} available={appointmentRequests.available} onReload={appointmentRequests.refresh}
                             canManage={canManageAppointments}
-                            requestOnly={appointmentsOpen && (Boolean(pendingAppointmentRequest) || focusedAppointmentRequest !== undefined)}
-                            focusedRequest={appointmentsOpen ? focusedAppointmentRequest : undefined}
-                            focusedLoading={appointmentsOpen && appointmentTargetLoading} focusedError={appointmentsOpen ? appointmentTargetError : null}
+                            focusedRequest={appointmentFocusKey > 0 ? focusedAppointmentRequest : undefined}
+                            focusedLoading={appointmentFocusKey > 0 && appointmentTargetLoading} focusedError={appointmentFocusKey > 0 ? appointmentTargetError : null}
                             onReloadFocused={appointmentMessageId ? () => void openAppointmentMessage(appointmentMessageId) : undefined}
                             onRequestChanged={request => setFocusedAppointmentRequest(current => current?.id === request.id ? request : current)}
                             onChanged={appointment => {
@@ -1532,7 +1536,7 @@ export function ApplicationChat({
                                     return { ...current, appointments: updated, scheduled_for: next?.starts_at ?? null, agreement: next ? { ...current.agreement, starts_at: next.starts_at, note: next.note } : null };
                                 });
                             }} /> : null}
-                        formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={setSearchOpen} query={searchQuery} onQuery={setSearchQuery}
+                        formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={open => { if (open) setAppointmentFocusKey(0); setSearchOpen(open); }} query={searchQuery} onQuery={setSearchQuery}
                         messages={messages} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
                         onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
                         actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || (!readOnly && onReport && headerProfile?.id) ? <>

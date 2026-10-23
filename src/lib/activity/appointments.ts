@@ -41,6 +41,51 @@ export function getAppointmentSystemMessageKind(message: { kind?: string | null;
     return appointmentSystemMessages.get(message.content.replace(/\s+/g, " ").trim()) ?? null;
 }
 
+type AppointmentMessageSource = {
+    kind?: string | null;
+    content?: string | null;
+    application_id?: string | null;
+    sender_id?: string | null;
+    created_at?: string | null;
+    deleted_at?: string | null;
+    is_temp?: boolean;
+    failed?: boolean;
+};
+
+/** Compare transaction instants without discarding PostgreSQL's microseconds. */
+function appointmentTransactionTime(value?: string | null): string | null {
+    if (typeof value !== "string") return null;
+    const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/.exec(value.replace(/\+00$/, "Z"));
+    if (!parts) return null;
+    const [year, month, day, hour, minute, second] = parts.slice(1, 7).map(Number);
+    if (!year) return null;
+    const calendar = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (year < 100) calendar.setUTCFullYear(year);
+    if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day
+        || calendar.getUTCHours() !== hour || calendar.getUTCMinutes() !== minute || calendar.getUTCSeconds() !== second) return null;
+    const zone = parts[8];
+    const offsetHour = zone === "Z" ? 0 : Number(zone.slice(1, 3));
+    const offsetMinute = zone === "Z" ? 0 : Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+    const offset = (offsetHour * 60 + offsetMinute) * 60 * (zone.startsWith("-") ? -1 : 1);
+    return `${calendar.getTime() / 1000 - offset}:${(parts[7] ?? "").padEnd(6, "0")}`;
+}
+
+/** Only the still-pending request from this exact database transaction is actionable. */
+export function isPendingAppointmentMessage(message: AppointmentMessageSource, pendingRequests: readonly AppointmentRequest[]): boolean {
+    if (getAppointmentSystemMessageKind(message) !== "request" || !message.application_id || !message.sender_id
+        || message.deleted_at != null || message.is_temp || message.failed) return false;
+    const timestamp = appointmentTransactionTime(message.created_at);
+    if (timestamp === null) return false;
+    let matches = 0;
+    for (const request of pendingRequests) {
+        if (request.status !== "pending" || request.responded_at !== null || request.application_id !== message.application_id
+            || request.requested_by !== message.sender_id || appointmentTransactionTime(request.created_at) !== timestamp) continue;
+        if (++matches > 1) return false;
+    }
+    return matches === 1;
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function appointmentMutationError(input: AppointmentMutation, now = Date.now()) {
     if (!uuid.test(input.applicationId)) return "Der Vorgang ist nicht verfügbar.";

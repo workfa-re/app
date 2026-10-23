@@ -21,7 +21,6 @@ type Props = {
     focusedError?: string | null;
     onReloadFocused?: () => void;
     canManage?: boolean;
-    requestOnly?: boolean;
     onRequestChanged?: (request: AppointmentRequest) => void;
 };
 
@@ -126,10 +125,10 @@ function AppointmentTools(props: Props) {
             </div>}
         </div>}
         {!hasFocusedRequest && !request && available === null && <p className={styles.muted} role="status">Terminoptionen werden geladen …</p>}
-        {available === false && (canManage || !hasFocusedRequest) && (canManage && !props.requestOnly && props.isProvider && props.onLegacySchedule
+        {available === false && (canManage || !hasFocusedRequest) && (canManage && props.isProvider && props.onLegacySchedule
             ? <button type="button" className={styles.action} onClick={props.onLegacySchedule}><Pencil aria-hidden="true" />{props.recurring ? "Weiteren Termin vereinbaren" : "Termin bearbeiten"}</button>
             : <p className={styles.muted}>Neue Terminoptionen sind gerade nicht verfügbar. Du kannst dich im Chat abstimmen.<button type="button" className={styles.retry} onClick={() => void props.onReload()}>Erneut laden</button></p>)}
-        {showMutationTools && !props.requestOnly && (!mode ? <div className={styles.buttons}>
+        {showMutationTools && (!mode ? <div className={styles.buttons}>
             {active.length > 0 && <button type="button" className={styles.action} disabled={pending || (!props.isProvider && hasPendingRequest)} onClick={() => open("edit")}><Pencil aria-hidden="true" />{props.isProvider ? "Termin bearbeiten" : "Änderung anfragen"}</button>}
             {(props.recurring || !active.length) && <button type="button" className={styles.action} disabled={pending || (!props.isProvider && hasPendingRequest)} onClick={() => open("add")}><CalendarPlus aria-hidden="true" />{props.isProvider ? "Neuer Termin" : "Termin anfragen"}</button>}
             {props.isProvider && active.length > 0 && <button type="button" className={styles.quiet} disabled={pending} onClick={() => open("cancel")}>Termin absagen</button>}

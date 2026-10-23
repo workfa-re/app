@@ -30,12 +30,12 @@ describe("controlled appointment proposal details", () => {
         expect(html).toContain("Ablehnen");
     });
 
-    it("focuses the request-only view on withdrawing the pending proposal without general management controls", () => {
-        const html = render({ requestOnly: true, isProvider: false, currentUserId: "seeker-a", recurring: true });
+    it("keeps the selected proposal and appointment management together in details", () => {
+        const html = render({ focusedRequest: proposal, isProvider: false, currentUserId: "seeker-a", recurring: true });
         expect(html).toContain("Dein offener Vorschlag");
         expect(html).toContain("Vorschlag zurückziehen");
-        expect(html).not.toContain("Änderung anfragen");
-        expect(html).not.toContain("Termin anfragen");
+        expect(html).toContain("Änderung anfragen");
+        expect(html).toContain("Termin anfragen");
         expect(html).not.toContain("Neuer Termin");
         expect(html).not.toContain("<form");
     });

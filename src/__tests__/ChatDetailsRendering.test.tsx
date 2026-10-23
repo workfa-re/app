@@ -22,24 +22,9 @@ function renderDetails(overrides: Partial<ComponentProps<typeof ChatDetails>> = 
     />);
 }
 
-describe("focused appointment view in chat details", () => {
-    it("places the request before confirmed appointments without profile or job facts", () => {
-        const html = renderDetails({ appointmentsOpen: true });
-        expect(html).toContain(">Termine</h2>");
-        expect(html).toContain("Hilfe im Garten");
-        expect(html).toContain("Deine Terminanfrage");
-        expect(html).toContain("Vereinbarte Termine");
-        expect(html).toContain("Treffpunkt am Gartentor");
-        expect(html.indexOf("Deine Terminanfrage")).toBeLessThan(html.indexOf("Vereinbarte Termine"));
-        expect(html.match(/data-testid="request"/g)).toHaveLength(1);
-        for (const hidden of ["Mara Beispiel", "Profil von", "Rheinbach", "Die Beete für den Frühling vorbereiten.", "/ Std.", "Allgemeine Auftragsaktion", "Zusammenarbeit absagen"])
-            expect(html).not.toContain(hidden);
-        expect(html).toContain('aria-label="Zurück zu den Details"');
-        expect(html).toContain('aria-label="Termine schließen"');
-    });
-
-    it("keeps the normal profile, task, appointments and actions when no focused view is open", () => {
-        const html = renderDetails();
+describe("appointment requests within the actual chat details", () => {
+    it.each([0, 1])("keeps the profile and task when opening details with focus key %s", appointmentFocusKey => {
+        const html = renderDetails({ appointmentFocusKey });
         expect(html).toContain(">Details</h2>");
         expect(html).toContain('aria-label="Profil von Mara Beispiel öffnen"');
         expect(html).toContain("Rheinbach");
@@ -49,10 +34,23 @@ describe("focused appointment view in chat details", () => {
         expect(html).toContain("Allgemeine Auftragsaktion");
         expect(html).toContain("Zusammenarbeit absagen");
         expect(html).toContain('aria-label="Details schließen"');
+        expect(html).not.toContain(">Termine</h2>");
+        expect(html).not.toContain('aria-label="Zurück zu den Details"');
+        expect(html).not.toContain('aria-label="Termine schließen"');
+        expect(html.match(/role="dialog"/g)).toHaveLength(1);
+    });
+
+    it("puts the request before confirmed appointments in a single appointment section", () => {
+        const html = renderDetails({ appointmentFocusKey: 1, appointmentFocusReady: false });
+        expect(html.match(/aria-label="Termine"/g)).toHaveLength(1);
+        expect(html.match(/data-testid="request"/g)).toHaveLength(1);
+        expect(html).toContain('role="group" tabindex="-1" aria-label="Terminanfrage"');
+        expect(html.indexOf("Deine Terminanfrage")).toBeLessThan(html.indexOf("Treffpunkt am Gartentor"));
+        expect(html).toContain("Mara Beispiel");
     });
 
     it("keeps chat search separate from appointment and profile content", () => {
-        const html = renderDetails({ searchOpen: true, appointmentsOpen: true, query: "Gartentor", messages: [
+        const html = renderDetails({ searchOpen: true, appointmentFocusKey: 1, query: "Gartentor", messages: [
             { id: "message-a", application_id: "application-a", sender_id: "seeker-a", content: "Wir treffen uns am Gartentor", created_at: "2026-10-23T12:00:00Z" },
         ] });
         expect(html).toContain(">Im Chat suchen</h2>");
@@ -60,5 +58,11 @@ describe("focused appointment view in chat details", () => {
         expect(html).not.toContain("Deine Terminanfrage");
         expect(html).not.toContain("Vereinbarte Termine");
         expect(html).not.toContain("Mara Beispiel");
+    });
+
+    it("does not create an empty request target for a job without appointment controls", () => {
+        const html = renderDetails({ appointmentFocusKey: 1, appointmentActions: null });
+        expect(html).toContain("Treffpunkt am Gartentor");
+        expect(html).not.toContain('aria-label="Terminanfrage"');
     });
 });

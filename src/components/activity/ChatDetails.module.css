@@ -42,8 +42,6 @@
 .section { padding: 24px 0 0; }
 .section h3 { margin: 0 0 12px; color: var(--app-ink); font-size: 13px; font-weight: 500; }
 .appointmentSection { min-width: 0; }
-.appointmentPane { min-width: 0; }
-.appointmentContext { margin: 0 0 16px; color: var(--app-muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .appointment { display: flex; align-items: flex-start; gap: 12px; padding: 15px 16px; border-radius: 18px; }
 .appointment > svg { flex: 0 0 19px; width: 19px; height: 21px; margin-top: 2px; color: var(--app-muted); stroke-width: 1.5; }
 .appointment > div { min-width: 0; }
@@ -52,7 +50,9 @@
 .history { margin-top: 8px; }
 .history .appointment { margin-top: 8px; }
 .history summary { cursor: pointer; min-height: 40px; padding-block: 10px; color: var(--app-muted); font-size: 12px; }
-.appointmentActions { margin-top: 10px; }
+.appointmentActions { margin: 0 0 12px; border-radius: 18px; scroll-margin-block: 12px; }
+.appointmentActions:focus { outline: none; }
+.appointmentActions:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }
 .text { margin: 0; color: var(--app-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .actions { display: grid; gap: 10px; }
 .actions > button, .utility.utility { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 46px; padding: 12px 14px; border-radius: 16px; color: var(--app-ink); font-size: 12px; font-weight: 500; line-height: 1.5; text-align: center; }
