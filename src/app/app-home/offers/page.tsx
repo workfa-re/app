@@ -7,6 +7,8 @@ import { getAppHomeSnapshot } from "@/lib/app-shell";
 import { summarizeProviderApplications, type ProviderJobApplicationSummary } from "./presentation";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import { CumulativeLoadMoreLink } from "@/components/ui/CumulativeLoadMoreLink";
+import { CircleAlert } from "lucide-react";
+import styles from "./components/MyJobsView.module.css";
 
 type OffersSearchParams = Record<string, string | string[] | undefined>;
 
@@ -143,11 +145,16 @@ export default async function OffersPage({
 
             <div className="min-h-[400px]">
                 {jobsError ? (
-                    <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-10 text-center shadow-[var(--shadow-card)]">
-                        <p className="font-semibold text-[var(--danger)]">Jobs konnten nicht geladen werden.</p>
-                        <p className="mt-2 break-words font-mono text-xs text-[var(--text-muted)]">
-                            {jobsError.code ? `${jobsError.code}: ` : ""}{jobsError.message}
-                        </p>
+                    <div className={styles.state} role="status">
+                        <div className={styles.stateIcon} aria-hidden="true">
+                            <CircleAlert size={24} />
+                        </div>
+                        <div className={styles.stateCopy}>
+                            <h2>Jobs konnten nicht geladen werden.</h2>
+                            <p className={styles.errorDetails}>
+                                {jobsError.code ? `${jobsError.code}: ` : ""}{jobsError.message}
+                            </p>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-6">

@@ -1,0 +1,59 @@
+.page { width: 100%; max-width: 54rem; margin-inline: auto; padding: 0 24px 48px; color: var(--app-ink); }
+.header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.header h1 { margin: 0; color: var(--app-ink); font-size: clamp(28px, 3.5vw, 38px); font-weight: 500; line-height: 1.2; letter-spacing: -.04em; text-wrap: balance; }
+.header p { max-width: 54ch; margin: 10px 0 0; color: var(--app-muted); font-size: 14px; line-height: 1.7; text-wrap: pretty; }
+.panel { position: relative; isolation: isolate; min-width: 0; padding: 28px; border: 1px solid transparent; border-radius: 28px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
+.panel::before, .inset::before, .segment::before { content: ""; position: absolute; inset: 0; padding: 1px; pointer-events: none; border-radius: inherit; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.form { min-width: 0; color: var(--app-ink); --text-strong: var(--app-ink); --text-default: var(--app-ink); --text-muted: var(--app-muted); --text-faint: var(--app-muted); }
+.form :is(fieldset, label, legend) { min-width: 0; }
+.form :is(input, select, textarea, button) { font-family: inherit; }
+.form .input { width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--app-panel-rule); border-radius: 16px; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); font-size: 16px; font-weight: 400; line-height: 1.5; outline: none; transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
+.form textarea.input { min-height: 144px; resize: vertical; }
+.form button:global(.app-glass-control), .form label.reach .choice { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.protectedIcon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border-radius: 14px; color: var(--app-accent-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
+.form .input::placeholder { color: var(--app-muted); opacity: .8; }
+.form .input:focus { border-color: var(--app-accent); box-shadow: 0 0 0 3px var(--app-accent-soft); }
+.form .amount { padding-right: 76px; font-variant-numeric: tabular-nums; }
+.label { display: block; margin-bottom: 9px; color: var(--app-ink); font-size: 13px; font-weight: 500; line-height: 1.5; }
+.section { padding-top: 8px; }
+.form button.option { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 88px; padding: 16px; border-color: transparent; border-radius: 18px; color: var(--app-ink); text-align: left; }
+.form button.category { position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 100px; padding: 14px 10px; color: var(--app-muted); text-align: center; }
+.form button.category > span:last-child { overflow-wrap: anywhere; font-size: 12px; font-weight: 500; line-height: 1.45; }
+.form button.category svg, .form button.option > svg { flex-shrink: 0; }
+.form button.category[aria-pressed="true"], .form button.option[aria-pressed="true"] { color: var(--app-accent-ink); background: var(--app-glass-selected); }
+.form button.category[aria-pressed="true"]::before, .form button.option[aria-pressed="true"]::before, .form .reach input:checked + .choice::before { background: var(--app-glass-selected-rim); }
+.categoryCheck { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: var(--app-accent-ink); background: var(--app-glass-selected); }
+.categoryIcon { display: grid; place-items: center; width: 32px; height: 32px; }
+.inset, .segment { position: relative; isolation: isolate; min-width: 0; border: 1px solid transparent; border-radius: 18px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
+.inset { padding: 16px; }
+.segment { display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
+.form button.segmentButton { flex: 1; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid transparent; border-radius: 999px; color: var(--app-muted); background: transparent; box-shadow: none; font-size: 13px; font-weight: 500; line-height: 1.5; }
+.form button.segmentButton[aria-pressed="true"] { color: var(--app-accent-ink); background: var(--app-glass-selected); box-shadow: var(--app-glass-inner-shadow); }
+.form button.segmentButton:not([aria-pressed="true"])::before { opacity: 0; }
+.form .checkOption { display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 14px; border: 1px solid var(--app-panel-rule); border-radius: 14px; background: transparent; cursor: pointer; }
+.reach { display: block; min-width: 0; cursor: pointer; }
+.form label.reach .choice { display: block; height: 100%; min-height: 48px; padding: 16px; border-color: transparent; border-radius: 18px; color: var(--app-ink); }
+.form .reach input:checked + .choice { color: var(--app-accent-ink); background: var(--app-glass-selected); }
+.form .reach input:focus-visible + .choice { outline: 2px solid var(--app-accent); outline-offset: 4px; }
+.form .choice strong, .form .choice h4 { font-size: 13px; font-weight: 500; }
+.form .choice :is(p, span + span) { color: var(--app-muted); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; padding-top: 12px; }
+.actions > p { flex: 1 1 200px; }
+.form .action, .page .back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 20px; border-color: transparent; border-radius: 999px; font-size: 13px; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; }
+.page .back { min-height: 44px; padding: 10px 16px; white-space: nowrap; }
+.form .action:disabled { cursor: not-allowed; opacity: .5; }
+.form .draftNotice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border: 1px solid var(--app-panel-rule); border-radius: 16px; color: var(--app-muted); background: var(--app-glass-fill); font-size: 12px; }
+.form .discard { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 10px; border-radius: 12px; color: var(--app-muted); font-size: 12px; }
+.form .locationToggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; text-align: left; }
+.form :is(button, a):active { scale: 1; }
+.form :is(button, a):focus-visible, .page .back:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 4px; }
+.form :global(.job-create-location-search) :global(.location-search-control) { height: 48px !important; border-radius: 16px !important; border-color: var(--app-panel-rule) !important; color: var(--app-ink) !important; background: var(--app-glass-fill) !important; box-shadow: var(--app-glass-inner-shadow) !important; font-size: 16px !important; }
+.form :global(.job-create-location-search) :global(.location-search-control):focus { border-color: var(--app-accent) !important; background: var(--app-glass-fill) !important; box-shadow: 0 0 0 3px var(--app-accent-soft) !important; }
+.form :global(.job-create-location-search) :global(.location-search-menu) { z-index: 10; border-radius: 18px !important; border-color: var(--app-panel-rule) !important; color: var(--app-ink); background: var(--app-menu-fill) !important; box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
+.form :global(.job-create-location-search) :global(.location-search-result-title) { color: var(--app-ink); }
+.form :global(.job-create-location-search) :global(.location-search-result):is(:hover, :focus) { background: var(--app-content-hover); }
+@media (hover: hover) and (pointer: fine) { .form button.option:hover, .form .action:hover, .form .choice:hover, .page .back:hover { box-shadow: var(--app-glass-shadow-hover); }.form .discard:hover { color: var(--danger); background: var(--danger-soft); } }
+@media (max-width: 640px) { .page { padding-inline: 12px; padding-bottom: 24px; }.header { gap: 12px; margin-bottom: 20px; padding-inline: 4px; }.header h1 { font-size: 28px; }.header p { font-size: 13px; }.panel { padding: 20px 16px; border-radius: 24px; }.actions { align-items: stretch; }.actions > p { flex-basis: 100%; }.actions > button, .actions > div { width: 100%; }.form button.option { padding: 14px; }.form button.category { min-height: 96px; padding: 12px 8px; } }
+@media (prefers-reduced-motion: reduce) { .form *, .form *::before, .form *::after { transition: none !important; } }
+@media (prefers-reduced-transparency: reduce) { .panel, .form .inset, .form .segment, .form .input { background: var(--app-ground); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (forced-colors: active) { .panel, .form .input, .form .inset, .form .segment, .form .checkOption, .form .choice { border: 1px solid CanvasText; color: CanvasText; background: Canvas; box-shadow: none; }.panel::before, .inset::before, .segment::before { display: none; }.form button[aria-pressed="true"], .form .reach input:checked + .choice { outline: 2px solid Highlight; }.form .input:focus { outline: 2px solid Highlight; } }

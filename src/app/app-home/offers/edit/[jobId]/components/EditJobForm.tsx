@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
+import styles from "@/components/jobs/JobForm.module.css";
 import type { Database } from "@/lib/types/supabase";
 import { updateJobAction } from "./actions";
 import { AlertTriangle, CalendarDays, Loader2, Lock, MapPin, Repeat2 } from "lucide-react";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { getProviderJobStatusMeta, isProtectedJobStatus } from "../../../presentation";
 import type { EditableJobStatus } from "./jobEditValidation";
 
@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<EditableJobStatus, string> = {
 
 export function EditJobForm({ job, marketName }: { job: Job; marketName: string }) {
     const router = useRouter();
+    const reduceMotion = useReducedMotion();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [categoryId, setCategoryId] = useState(job.category || "");
@@ -46,9 +47,9 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
 
     if (statusIsProtected) {
         return (
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-card)] md:p-8">
+            <section className={cn(styles.form, styles.inset)}>
                 <div className="flex items-start gap-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--brand-border)] bg-[var(--brand-soft)] text-[var(--brand)]">
+                    <span className={styles.protectedIcon}>
                         <Lock size={20} />
                     </span>
                     <div className="min-w-0">
@@ -59,9 +60,9 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                         </p>
                     </div>
                 </div>
-                <div className="mt-6 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-5 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="secondary" onClick={() => router.push("/app-home/offers")}>Zu meinen Jobs</Button>
-                    <Button type="button" onClick={() => router.push(`/app-home/offers/${job.id}`)}>Auftrag ansehen</Button>
+                <div className={cn(styles.actions, "mt-6")}>
+                    <button type="button" className={cn("app-glass-control", styles.action)} onClick={() => router.push("/app-home/offers")}>Zu meinen Jobs</button>
+                    <button type="button" className={cn("app-primary-action app-glass-control", styles.action)} onClick={() => router.push(`/app-home/offers/${job.id}`)}>Auftrag ansehen</button>
                 </div>
             </section>
         );
@@ -92,7 +93,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
     }
 
     return (
-        <form action={handleSubmit} className="space-y-7">
+        <form action={handleSubmit} className={cn(styles.form, "space-y-7")}>
             {error ? (
                 <div className="flex items-start gap-3 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)]" role="alert">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0" />
@@ -101,7 +102,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
             ) : null}
 
             <fieldset>
-                <legend className="mb-3 text-sm font-medium text-[var(--text-default)]">Kategorie *</legend>
+                <legend className={styles.label}>Kategorie *</legend>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {JOB_CATEGORIES.map((category) => {
                         const Icon = category.icon;
@@ -118,14 +119,9 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                                         setPaymentType(category.defaultPaymentType);
                                     }
                                 }}
-                                className={cn(
-                                    "flex min-h-[6.5rem] flex-col items-center justify-center rounded-2xl border p-4 outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-raised)] motion-reduce:transition-none motion-reduce:active:scale-100",
-                                    isSelected
-                                        ? "border-[var(--brand-border)] bg-[var(--brand-soft)] text-[var(--brand)]"
-                                        : "border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:border-[var(--brand-border)] hover:text-[var(--text-strong)]",
-                                )}
+                                className={cn("app-glass-control", styles.option, styles.category)}
                             >
-                                <Icon size={25} strokeWidth={1.7} className="mb-2" />
+                                <Icon size={28} strokeWidth={1.5} />
                                 <span className="text-center text-xs font-semibold">{category.label}</span>
                             </button>
                         );
@@ -134,7 +130,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
             </fieldset>
 
             <div ref={titleRef} className="space-y-2 scroll-mt-8">
-                <label htmlFor="title" className="block text-sm font-medium text-[var(--text-default)]">Titel *</label>
+                <label htmlFor="title" className={styles.label}>Titel *</label>
                 <input
                     type="text"
                     id="title"
@@ -143,12 +139,12 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                     required
                     minLength={5}
                     maxLength={120}
-                    className="min-h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 text-[var(--text-strong)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[var(--text-faint)] focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--focus-halo)]"
+                    className={styles.input}
                 />
             </div>
 
             <div className="space-y-2">
-                <label htmlFor="description" className="block text-sm font-medium text-[var(--text-default)]">Beschreibung *</label>
+                <label htmlFor="description" className={styles.label}>Beschreibung *</label>
                 <textarea
                     id="description"
                     name="description"
@@ -157,12 +153,12 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                     minLength={10}
                     maxLength={5000}
                     rows={6}
-                    className="w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 text-[var(--text-strong)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[var(--text-faint)] focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--focus-halo)]"
+                    className={styles.input}
                 />
             </div>
 
             <fieldset>
-                <legend className="mb-2 text-sm font-medium text-[var(--text-default)]">Jobart</legend>
+                <legend className={styles.label}>Jobart</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <JobKindOption
                         icon={<CalendarDays size={19} />}
@@ -191,22 +187,22 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
             <AnimatePresence initial={false}>
                 {jobKind === "recurring" ? (
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
+                        initial={reduceMotion ? false : { opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.18, ease: "easeOut" }}
+                        transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
                         className="overflow-hidden"
                     >
-                        <div className="grid gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-2">
+                        <div className={cn(styles.inset, "grid gap-4 sm:grid-cols-2")}>
                             <div className="space-y-2">
-                                <label htmlFor="recurrence_rule" className="block text-sm font-medium text-[var(--text-default)]">
+                                <label htmlFor="recurrence_rule" className={styles.label}>
                                     Wie häufig?
                                 </label>
                                 <select
                                     id="recurrence_rule"
                                     value={recurrenceRule}
                                     onChange={(event) => setRecurrenceRule(event.target.value as typeof recurrenceRule)}
-                                    className="min-h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3.5 text-sm text-[var(--text-strong)] outline-none focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--focus-halo)]"
+                                    className={styles.input}
                                 >
                                     <option value="weekly">Wöchentlich</option>
                                     <option value="biweekly">Alle zwei Wochen</option>
@@ -214,7 +210,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                                     <option value="flexible">Nach Absprache</option>
                                 </select>
                             </div>
-                            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-[var(--surface-solid)] p-3.5 ring-1 ring-[var(--border-subtle)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--brand)]">
+                            <label className={styles.checkOption}>
                                 <input
                                     type="checkbox"
                                     checked={continuityPreferred}
@@ -233,8 +229,8 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
 
             <div className="space-y-2">
                 <p className="text-sm font-medium text-[var(--text-default)]">Einsatzort</p>
-                <div className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-solid)] text-[var(--text-muted)]">
+                <div className={cn(styles.inset, "flex items-center gap-3")}>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--app-muted)]">
                         <MapPin size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -251,8 +247,8 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <fieldset>
-                    <legend className="mb-2 text-sm font-medium text-[var(--text-default)]">Bezahlung</legend>
-                    <div className="flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
+                    <legend className={styles.label}>Bezahlung</legend>
+                    <div className={styles.segment}>
                         <PaymentTypeButton active={paymentType === "hourly"} onClick={() => setPaymentType("hourly")}>
                             Stundenlohn
                         </PaymentTypeButton>
@@ -263,7 +259,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                 </fieldset>
 
                 <div className="space-y-2">
-                    <label htmlFor="wage_hourly" className="block text-sm font-medium text-[var(--text-default)]">
+                    <label htmlFor="wage_hourly" className={styles.label}>
                         {paymentType === "hourly" ? "Stundenlohn (€)" : "Pauschale (€)"} *
                     </label>
                     <div className="relative">
@@ -278,7 +274,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                             min="0.5"
                             max="100000"
                             step="0.50"
-                            className="min-h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-2.5 pl-4 pr-16 tabular-nums text-[var(--text-strong)] outline-none transition-[border-color,box-shadow,background-color] duration-150 focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--focus-halo)]"
+                            className={cn(styles.input, styles.amount)}
                         />
                         <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-[var(--text-muted)]">
                             €{paymentType === "hourly" ? "/Std." : ""}
@@ -290,10 +286,10 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
             <AnimatePresence initial={false}>
                 {categoryId ? (
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
+                        initial={reduceMotion ? false : { opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
                         className="overflow-hidden"
                     >
                         <CompensationRecommendation
@@ -309,7 +305,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
 
             <div className="grid grid-cols-1 gap-6 pt-1 md:grid-cols-2">
                 <fieldset>
-                    <legend className="mb-2 text-sm font-medium text-[var(--text-default)]">Reichweite</legend>
+                    <legend className={styles.label}>Reichweite</legend>
                     <div className="grid grid-cols-1 gap-3">
                         <ReachOption
                             value="internal_rheinbach"
@@ -327,11 +323,11 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                 </fieldset>
 
                 <div className="space-y-2">
-                    <label htmlFor={statusIsProtected ? undefined : "status"} className="block text-sm font-medium text-[var(--text-default)]">
+                    <label htmlFor={statusIsProtected ? undefined : "status"} className={styles.label}>
                         Status
                     </label>
                     {statusIsProtected ? (
-                        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                        <div className={styles.inset}>
                             <p className="text-sm font-semibold text-[var(--text-strong)]">{statusInfo.label}</p>
                             <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
                                 Dieser Status wird sicher über den Bewerbungsablauf verwaltet und bleibt beim Speichern unverändert.
@@ -343,7 +339,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                             name="status"
                             defaultValue={job.status}
                             required
-                            className="min-h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 text-[var(--text-strong)] outline-none transition-[border-color,box-shadow,background-color] duration-150 focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--focus-halo)]"
+                            className={styles.input}
                         >
                             {editableStatuses.map((status) => (
                                 <option key={status} value={status}>{STATUS_LABELS[status]}</option>
@@ -353,11 +349,11 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                 </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-[var(--border-subtle)] pt-6 sm:flex-row sm:justify-end">
-                <Button type="button" variant="secondary" onClick={() => router.back()} disabled={isLoading}>
+            <div className={styles.actions}>
+                <button type="button" className={cn("app-glass-control", styles.action)} onClick={() => router.back()} disabled={isLoading}>
                     Abbrechen
-                </Button>
-                <Button type="submit" disabled={isLoading || !categoryId} className="min-w-[150px]">
+                </button>
+                <button type="submit" disabled={isLoading || !categoryId} className={cn("app-primary-action app-glass-control", styles.action)}>
                     {isLoading ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -366,7 +362,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                     ) : (
                         "Änderungen speichern"
                     )}
-                </Button>
+                </button>
             </div>
         </form>
     );
@@ -393,16 +389,11 @@ function JobKindOption({
             onClick={onSelect}
             disabled={disabled}
             aria-pressed={selected}
-            className={cn(
-                "grid min-h-[5.5rem] grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl border p-4 text-left outline-none transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-raised)] disabled:cursor-default disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100",
-                selected
-                    ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                    : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)]",
-            )}
+            className={cn("app-glass-control", styles.option)}
         >
             <span className={cn(
-                "inline-grid size-9 place-items-center rounded-xl",
-                selected ? "bg-[var(--surface-solid)] text-[var(--brand)]" : "bg-[var(--surface-solid)] text-[var(--text-muted)]",
+                "inline-grid size-9 shrink-0 place-items-center",
+                selected ? "text-[var(--app-accent-ink)]" : "text-[var(--app-muted)]",
             )}>
                 {icon}
             </span>
@@ -428,12 +419,7 @@ function PaymentTypeButton({
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            className={cn(
-                "min-h-11 flex-1 rounded-lg px-3 text-sm font-medium outline-none transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[var(--brand)] motion-reduce:transition-none motion-reduce:active:scale-100",
-                active
-                    ? "bg-[var(--surface-solid)] text-[var(--text-strong)] shadow-sm"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-strong)]",
-            )}
+            className={cn("app-glass-control", styles.segmentButton)}
         >
             {children}
         </button>
@@ -453,7 +439,7 @@ function CompensationRecommendation({
     const average = ((selectedCategory.recommendedWage.min + selectedCategory.recommendedWage.max) / 2).toFixed(2);
 
     return (
-        <div className="flex flex-col gap-4 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className={cn(styles.inset, "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between")}>
             <div>
                 <h3 className="text-sm font-semibold text-[var(--text-strong)]">Orientierung für eine faire Vergütung</h3>
                 <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
@@ -466,7 +452,7 @@ function CompensationRecommendation({
             <button
                 type="button"
                 onClick={() => onApply(average, selectedCategory.defaultPaymentType)}
-                className="min-h-11 shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--surface-solid)] px-4 text-xs font-semibold tabular-nums text-[var(--brand)] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--surface-raised)] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[var(--brand)] motion-reduce:transition-none motion-reduce:active:scale-100"
+                className={cn("app-glass-control", styles.action)}
             >
                 {average} € übernehmen
             </button>
@@ -486,7 +472,7 @@ function ReachOption({
     description: string;
 }) {
     return (
-        <label className="cursor-pointer rounded-xl outline-none">
+        <label className={styles.reach}>
             <input
                 type="radio"
                 name="reach"
@@ -495,7 +481,7 @@ function ReachOption({
                 required
                 className="peer sr-only"
             />
-            <span className="block min-h-11 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out peer-checked:border-[var(--brand-border)] peer-checked:bg-[var(--brand-soft)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--brand)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--surface-raised)] peer-active:scale-[0.98] motion-reduce:transition-none">
+            <span className={cn("app-glass-control", styles.choice)}>
                 <span className="block text-sm font-semibold text-[var(--text-strong)]">{title}</span>
                 <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">{description}</span>
             </span>

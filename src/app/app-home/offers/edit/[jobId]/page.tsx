@@ -2,7 +2,7 @@ import { requireCompleteProfile } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { notFound, redirect } from "next/navigation";
 import { EditJobForm } from "./components/EditJobForm";
-import { Button } from "@/components/ui/Button";
+import styles from "@/components/jobs/JobForm.module.css";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -27,13 +27,11 @@ export default async function EditJobPage({
 
     if (job.posted_by !== profile.id) {
         return (
-            <div className="mx-auto w-full max-w-xl px-4 py-20 text-center">
-                <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-8 shadow-[var(--shadow-card)]">
+            <div className={`${styles.page} text-center`}>
+                <div className={styles.panel}>
                     <h1 className="text-2xl font-semibold text-[var(--danger)]">Zugriff verweigert</h1>
                     <p className="mt-2 text-[var(--text-muted)]">Du kannst nur deine eigenen Jobs bearbeiten.</p>
-                    <Link href="/app-home/offers" className="mt-7 inline-block">
-                    <Button variant="secondary">Zurück</Button>
-                    </Link>
+                    <Link href="/app-home/offers" className={`app-glass-control ${styles.back} mt-7`}>Zurück</Link>
                 </div>
             </div>
         );
@@ -46,20 +44,19 @@ export default async function EditJobPage({
     const marketName = region?.display_name || "deiner Stadt";
 
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6 md:py-8">
-            <div className="mb-6">
-                <Link
-                    href="/app-home/offers"
-                    className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-full px-2 text-sm font-medium text-[var(--text-muted)] outline-none transition-[color,transform] duration-150 ease-out hover:text-[var(--text-strong)] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[var(--brand)] motion-reduce:transition-none motion-reduce:active:scale-100"
-                >
-                    <ArrowLeft size={16} />
-                    <span>Zurück zu meinen Jobs</span>
+        <div className={styles.page}>
+            <div className={styles.header}>
+                <div>
+                    <h1>Job bearbeiten</h1>
+                    <p>Passe die Angaben an. Bestehende Bewerbungen bleiben erhalten.</p>
+                </div>
+                <Link href="/app-home/offers" className={`app-glass-control ${styles.back}`}>
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    <span>Zurück</span>
                 </Link>
-                <h1 className="text-balance text-3xl font-semibold tracking-tight text-[var(--text-strong)] md:text-4xl">Job bearbeiten</h1>
-                <p className="mt-2 text-sm text-[var(--text-muted)]">Passe die Angaben an. Bestehende Bewerbungen bleiben erhalten.</p>
             </div>
 
-            <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5 shadow-[var(--shadow-card)] md:p-8">
+            <div className={styles.panel}>
                 <EditJobForm job={job} marketName={marketName} />
             </div>
         </div>

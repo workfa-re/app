@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils";
 import type { ErrorInfo } from "@/lib/types/platform";
 import { LocationAutocomplete, LocationDetails } from "@/components/ui/LocationAutocomplete";
 import { useJobFormPersistence } from "@/hooks/use-job-persistence";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { JOB_CATEGORIES, PaymentType } from "@/lib/constants/jobCategories";
+import styles from "./JobForm.module.css";
 
 function SubmitButtons() {
     const { pending } = useFormStatus();
@@ -30,9 +31,9 @@ function SubmitButtons() {
                 value="draft"
                 disabled={pending}
                 onClick={() => setActiveIntent("draft")}
-                className="group inline-flex h-12 items-center justify-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 text-sm font-semibold text-[var(--text-default)] transition-[background-color,border-color,color,transform] hover:border-[var(--brand-border)] hover:bg-[var(--surface-solid)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)] disabled:cursor-not-allowed disabled:opacity-55"
+                className={cn("app-glass-control", styles.action)}
             >
-                {draftPending ? <Loader2 size={17} className="animate-spin" /> : <FileEdit size={17} className="text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-strong)]" />}
+                {draftPending ? <Loader2 size={17} className="animate-spin" /> : <FileEdit size={17} />}
                 <span>Entwurf</span>
             </button>
             <button
@@ -41,9 +42,9 @@ function SubmitButtons() {
                 value="create"
                 disabled={pending}
                 onClick={() => setActiveIntent("create")}
-                className="group inline-flex h-12 items-center justify-center gap-2.5 rounded-xl bg-[var(--brand)] px-5 text-sm font-semibold text-white transition-[background-color,transform] hover:bg-[var(--brand-strong)] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)] disabled:cursor-not-allowed disabled:opacity-60"
+                className={cn("app-primary-action app-glass-control", styles.action)}
             >
-                {publishPending ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} className="transition-transform group-hover:scale-105" />}
+                {publishPending ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
                 <span>Veröffentlichen</span>
             </button>
         </div>
@@ -62,12 +63,13 @@ type DefaultLocation = {
     postal_code: string | null;
 };
 
-const inputClass = "w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 text-sm font-medium text-[var(--text-strong)] transition-[border-color,background-color,box-shadow] placeholder:text-[var(--text-faint)] focus:border-[var(--brand-border)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)]";
-const fieldLabelClass = "mb-2 block text-sm font-semibold text-[var(--text-default)]";
-const sectionClass = "border-t border-[var(--border-subtle)] pt-6";
+const inputClass = styles.input;
+const fieldLabelClass = styles.label;
+const sectionClass = styles.section;
 
 export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation?: DefaultLocation | null, marketName: string }) {
     const [state, formAction] = useActionState<CreateJobFormState, FormData>(createJob, null);
+    const reduceMotion = useReducedMotion();
 
     // Persistence Hook
     const { draft, isLoaded, saveDraft, clearDraft } = useJobFormPersistence();
@@ -147,7 +149,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
     }, [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, isLoaded, saveDraft]);
 
     return (
-        <form action={formAction} className="space-y-7">
+        <form action={formAction} className={cn(styles.form, "space-y-7")}>
             <input type="hidden" name="use_default_location" value={(!useCustomLocation && defaultLocation) ? "true" : "false"} />
             <input type="hidden" name="category" value={categoryId} />
             <input type="hidden" name="payment_type" value={paymentType} />
@@ -166,7 +168,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
 
             <div className="space-y-7">
                 {isLoaded && draft && (
-                    <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2 text-xs text-[var(--brand)]">
+                    <div className={styles.draftNotice}>
                         <span className="flex items-center gap-2 font-semibold">
                             <Save size={13} />
                             Entwurf automatisch wiederhergestellt
@@ -174,7 +176,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                         <button
                             type="button"
                             onClick={() => { clearDraft(); setTitle(""); setDescription(""); setWage(""); setCategoryId(""); setPaymentType("hourly"); setJobKind("one_time"); setRecurrenceRule("weekly"); setContinuityPreferred(true); setLocation(null); setUseCustomLocation(!defaultLocation); }}
-                            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                            className={styles.discard}
                         >
                             <Trash2 size={12} />
                             Verwerfen
@@ -201,36 +203,25 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                                             setPaymentType(category.defaultPaymentType);
                                         }
                                     }}
-                                    className={cn(
-                                        "group relative flex min-h-[104px] flex-col items-center justify-center rounded-xl border p-4 transition-[background-color,border-color,transform] duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)]",
-                                        isSelected
-                                            ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                                            : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)] hover:bg-[var(--surface-solid)]"
-                                    )}
+                                    className={cn("app-glass-control", styles.option, styles.category)}
                                 >
                                     {isSelected && (
-                                        <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand)] text-white">
+                                        <span className={styles.categoryCheck}>
                                             <CheckCircle2 size={13} />
                                         </span>
                                     )}
-                                    <motion.div
-                                        animate={{
-                                            scale: isSelected ? 1.1 : 1,
-                                            y: isSelected ? -2 : 0
-                                        }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    >
+                                    <span className={styles.categoryIcon}>
                                         <Icon
                                             size={28}
                                             strokeWidth={1.5}
                                             className={cn(
-                                                "mb-3 transition-colors duration-300",
-                                                isSelected ? "text-[var(--brand)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-default)]"
+                                                "transition-colors duration-150",
+                                                isSelected ? "text-[var(--brand)]" : "text-[var(--text-muted)]"
                                             )}
                                         />
-                                    </motion.div>
+                                    </span>
                                     <span className={cn(
-                                        "text-xs font-semibold text-center transition-colors duration-300",
+                                        "text-xs font-medium text-center transition-colors duration-150",
                                         isSelected ? "text-[var(--brand)]" : "text-[var(--text-default)]"
                                     )}>
                                         {category.label}
@@ -282,12 +273,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                         <button
                             type="button"
                             onClick={() => setJobKind("one_time")}
-                            className={cn(
-                                "flex min-h-[86px] items-start gap-3 rounded-xl border p-4 text-left transition-[background-color,border-color]",
-                                jobKind === "one_time"
-                                    ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                                    : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)]",
-                            )}
+                            className={cn("app-glass-control", styles.option)}
                             aria-pressed={jobKind === "one_time"}
                         >
                             <CalendarDays size={20} className={jobKind === "one_time" ? "text-[var(--brand)]" : "text-[var(--text-muted)]"} />
@@ -299,12 +285,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                         <button
                             type="button"
                             onClick={() => setJobKind("recurring")}
-                            className={cn(
-                                "flex min-h-[86px] items-start gap-3 rounded-xl border p-4 text-left transition-[background-color,border-color]",
-                                jobKind === "recurring"
-                                    ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                                    : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)]",
-                            )}
+                            className={cn("app-glass-control", styles.option)}
                             aria-pressed={jobKind === "recurring"}
                         >
                             <Repeat2 size={20} className={jobKind === "recurring" ? "text-[var(--brand)]" : "text-[var(--text-muted)]"} />
@@ -318,12 +299,13 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                     <AnimatePresence initial={false}>
                         {jobKind === "recurring" ? (
                             <motion.div
-                                initial={{ opacity: 0, height: 0 }}
+                                initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                                transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
                                 className="overflow-hidden"
                             >
-                                <div className="grid gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-2">
+                                <div className={cn(styles.inset, "grid gap-3 sm:grid-cols-2")}>
                                     <label>
                                         <span className={fieldLabelClass}>Ungefähre Häufigkeit</span>
                                         <select
@@ -337,7 +319,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                                             <option value="flexible">Nach Absprache</option>
                                         </select>
                                     </label>
-                                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-3">
+                                    <label className={styles.checkOption}>
                                         <input
                                             type="checkbox"
                                             checked={continuityPreferred}
@@ -364,12 +346,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                             type="button"
                             aria-pressed={!useCustomLocation}
                             onClick={() => { setUseCustomLocation(false); setLocation(null); }}
-                            className={cn(
-                                "group relative flex w-full items-start gap-3 rounded-xl border p-4 text-left outline-none transition-[background-color,border-color] focus-visible:ring-2 focus-visible:ring-[var(--focus-halo)]",
-                                !useCustomLocation
-                                    ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                                    : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)]"
-                            )}
+                            className={cn("app-glass-control", styles.option)}
                         >
                             <div className={cn(
                                 "flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center mt-0.5 transition-colors",
@@ -392,18 +369,13 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                     )}
 
                     <div
-                        className={cn(
-                            "space-y-3 rounded-xl border p-4 transition-[background-color,border-color]",
-                            useCustomLocation
-                                ? "border-[var(--brand-border)] bg-[var(--brand-soft)]"
-                                : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--brand-border)]"
-                        )}
+                        className={cn(styles.inset, "space-y-3")}
                     >
                         <button
                             type="button"
                             aria-pressed={useCustomLocation}
                             onClick={() => setUseCustomLocation(true)}
-                            className="flex w-full items-start gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-halo)]"
+                            className={styles.locationToggle}
                         >
                             <div className={cn(
                                 "flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center mt-0.5 transition-colors",
@@ -443,24 +415,20 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className={fieldLabelClass}>Bezahlung</label>
-                            <div className="flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
+                            <div className={styles.segment}>
                                 <button
                                     type="button"
                                     onClick={() => setPaymentType("hourly")}
-                                    className={cn(
-                                        "flex-1 rounded-lg py-2 text-sm font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)]",
-                                        paymentType === "hourly" ? "bg-[var(--surface-solid)] text-[var(--text-strong)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-default)]"
-                                    )}
+                                    aria-pressed={paymentType === "hourly"}
+                                    className={cn("app-glass-control", styles.segmentButton)}
                                 >
                                     Stundenlohn
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setPaymentType("fixed")}
-                                    className={cn(
-                                        "flex-1 rounded-lg py-2 text-sm font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--focus-halo)]",
-                                        paymentType === "fixed" ? "bg-[var(--surface-solid)] text-[var(--text-strong)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-default)]"
-                                    )}
+                                    aria-pressed={paymentType === "fixed"}
+                                    className={cn("app-glass-control", styles.segmentButton)}
                                 >
                                     Pauschale
                                 </button>
@@ -483,7 +451,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                                     value={wage}
                                     onChange={(e) => setWage(e.target.value)}
                                     placeholder={paymentType === "hourly" ? "15.00" : "50.00"}
-                                    className={cn(inputClass, "h-[46px] pr-12")}
+                                    className={cn(inputClass, styles.amount)}
                                 />
                                 <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-[var(--text-muted)]">
                                     € {paymentType === "hourly" && <span className="text-xs">/h</span>}
@@ -493,16 +461,16 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                     </div>
 
                     {/* Compensation Suggestion (Animated) moved below inputs */}
-                    <AnimatePresence>
+                    <AnimatePresence initial={false}>
                         {categoryId && (
                             <motion.div
-                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                initial={reduceMotion ? false : { opacity: 0, height: 0, marginTop: 0 }}
                                 animate={{ opacity: 1, height: "auto", marginTop: 16 }}
                                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
                                 className="overflow-hidden"
                             >
-                                <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4">
+                                <div className={styles.inset}>
                                     {(() => {
                                         const selectedCat = JOB_CATEGORIES.find(c => c.id === categoryId);
                                         if (!selectedCat) return null;
@@ -525,7 +493,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                                                         setWage(avg);
                                                         setPaymentType(selectedCat.defaultPaymentType);
                                                     }}
-                                                    className="min-h-10 shrink-0 rounded-lg border border-[var(--brand-border)] bg-[var(--surface-solid)] px-4 py-2 text-center text-xs font-semibold text-[var(--brand)] transition-colors hover:bg-[var(--surface-raised)]"
+                                                    className={cn("app-glass-control", styles.action)}
                                                 >
                                                     {avg} € {selectedCat.defaultPaymentType === 'hourly' ? '/ Std' : 'pau.'} übernehmen
                                                 </button>
@@ -542,16 +510,16 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
             <div className={cn(sectionClass, "space-y-3")}>
                 <label className={fieldLabelClass}>Reichweite</label>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <label className="cursor-pointer">
+                    <label className={styles.reach}>
                         <input type="radio" name="reach" value="internal_rheinbach" defaultChecked className="peer sr-only" />
-                        <div className="h-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 transition-all hover:border-[var(--brand-border)] peer-checked:border-[var(--brand-border)] peer-checked:bg-[var(--brand-soft)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--focus-halo)]">
+                        <div className={cn("app-glass-control", styles.choice)}>
                             <h4 className="text-sm font-semibold text-[var(--text-strong)]">Lokal in {marketName}</h4>
                             <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Nur für Nutzer aus {marketName} sichtbar. Perfekt für Nachbarschaftshilfe.</p>
                         </div>
                     </label>
-                    <label className="cursor-pointer">
+                    <label className={styles.reach}>
                         <input type="radio" name="reach" value="extended" className="peer sr-only" />
-                        <div className="h-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 transition-all hover:border-[var(--brand-border)] peer-checked:border-[var(--brand-border)] peer-checked:bg-[var(--brand-soft)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--focus-halo)]">
+                        <div className={cn("app-glass-control", styles.choice)}>
                             <h4 className="text-sm font-semibold text-[var(--text-strong)]">Überregional</h4>
                             <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Auch für Nutzer aus umliegenden Städten sichtbar.</p>
                         </div>
@@ -573,7 +541,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                 )
             }
 
-            <div className="mt-6 flex flex-col justify-between gap-4 border-t border-[var(--border-subtle)] pt-5 sm:flex-row sm:items-center">
+            <div className={styles.actions}>
                 <p className="max-w-xs text-xs leading-5 text-[var(--text-muted)]">
                     {`Nach dem Veröffentlichen ist der Job für passende Jobsuchende in ${marketName} sichtbar.`}
                 </p>

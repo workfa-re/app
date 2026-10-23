@@ -20,6 +20,7 @@ import {
     summarizeProviderApplications,
 } from "../presentation";
 import styles from "@/components/jobs/JobDetail.module.css";
+import stateStyles from "../components/MyJobsView.module.css";
 import { formatJobCompensation } from "@/components/jobs/job-presentation";
 import { getActivityConversationHref } from "@/lib/activity/navigation";
 
@@ -37,23 +38,23 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
 
     if (error || !data) {
         return (
-            <div className="mx-auto w-full max-w-xl px-4 py-16 text-center md:py-20">
-                <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-8 shadow-[var(--shadow-card)]">
-                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--danger-soft)] text-[var(--danger)]">
-                        <FileText size={23} />
+            <div className="provider-home-surface">
+                <section className={stateStyles.state}>
+                    <div className={stateStyles.stateIcon} aria-hidden="true">
+                        <FileText size={24} />
                     </div>
-                    <h1 className="text-balance text-2xl font-semibold text-[var(--text-strong)]">Job nicht gefunden</h1>
-                    <p className="mt-2 text-pretty text-sm leading-6 text-[var(--text-muted)]">
-                        Dieser Job existiert nicht oder du hast keine Berechtigung, ihn zu öffnen.
-                    </p>
-                    <Link
-                        href="/app-home/offers"
-                        className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-5 text-sm font-semibold text-[var(--text-default)] outline-none transition-[background-color,border-color,transform] duration-150 ease-out hover:border-[var(--brand-border)] hover:bg-[var(--brand-soft)] active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[var(--brand)] motion-reduce:transition-none motion-reduce:active:scale-100"
-                    >
-                        <ArrowLeft size={16} />
-                        Zur Übersicht
-                    </Link>
-                </div>
+                    <div className={stateStyles.stateCopy}>
+                        <h1>Job nicht gefunden</h1>
+                        <p>Dieser Job existiert nicht oder du hast keine Berechtigung, ihn zu öffnen.</p>
+                        <Link
+                            href="/app-home/offers"
+                            className={`app-primary-action app-glass-control ${stateStyles.stateAction}`}
+                        >
+                            <ArrowLeft size={16} aria-hidden="true" />
+                            Zur Übersicht
+                        </Link>
+                    </div>
+                </section>
             </div>
         );
     }

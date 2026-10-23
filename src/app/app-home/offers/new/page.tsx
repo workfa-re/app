@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { CreateJobForm } from "@/components/jobs/CreateJobForm";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getEffectiveView } from "@/lib/dal/platform";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import styles from "@/components/jobs/JobForm.module.css";
 
 type DefaultLocation = {
     id: string;
@@ -52,15 +55,18 @@ export default async function NewOfferPage() {
     const marketName = region?.display_name || "deiner Stadt";
 
     return (
-        <div className="container mx-auto max-w-3xl px-4 py-8 md:px-6">
-            <div className="mb-8">
-                <h1 className="text-4xl font-semibold tracking-tight text-[var(--text-strong)] md:text-5xl">Neuen Job erstellen</h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--text-muted)]">
-                    Suche nach Unterstützung in {marketName}.
-                </p>
+        <div className={styles.page}>
+            <div className={styles.header}>
+                <div>
+                    <h1>Neuen Job erstellen</h1>
+                    <p>Suche nach Unterstützung in {marketName}.</p>
+                </div>
+                <Link href="/app-home/offers" className={`app-glass-control ${styles.back}`}>
+                    <ArrowLeft size={16} aria-hidden="true" />Zurück
+                </Link>
             </div>
 
-            <div className="rounded-[1.75rem] border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5 shadow-[var(--shadow-card)] sm:p-7 md:p-8">
+            <div className={styles.panel}>
                 <CreateJobForm defaultLocation={defaultLocation} marketName={marketName} />
             </div>
         </div>
