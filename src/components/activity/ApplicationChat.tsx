@@ -580,8 +580,10 @@ export function ApplicationChat({
         && !readOnly
         && Boolean(onComplete)
         && conversationState === "open"
+        && isPrimary
         && status === "accepted"
         && liveApplication?.engagement?.status === "active";
+    const headerAction = canComplete ? "complete" : canSchedule && status !== "accepted" ? "schedule" : null;
     const canDirectReopen = !readOnly
         && !historicalRequest
         && conversationState === "closed"
@@ -614,6 +616,13 @@ export function ApplicationChat({
         setScheduleValue(addingRecurringAppointment ? "" : toDateTimeLocalValue(liveApplication?.scheduled_for));
         setScheduleNote(addingRecurringAppointment ? "" : liveApplication?.agreement?.note ?? "");
         setScheduleOpen(true);
+    };
+
+    const openCompleteDialog = () => {
+        closeDetailsForTool();
+        setCompleteReason("");
+        setCompleteError(null);
+        setCompleteOpen(true);
     };
 
     const jumpToMessage = (id: string, query: string) => {
@@ -1019,7 +1028,7 @@ export function ApplicationChat({
             }}>
 
             <div className={detailsStyles.conversation} inert={compactDetails && detailsOpen}>
-            <header className="activity-chat-header">
+            <header className="activity-chat-header" data-has-primary-action={Boolean(headerAction)}>
                 {onClose ? (
                     <button type="button" onClick={onClose} className="activity-chat-back" aria-label={embedded ? "Zur Nachrichtenübersicht" : "Chat schließen"}>
                         {embedded ? <ArrowLeft size={20} /> : <X size={20} />}
@@ -1052,26 +1061,21 @@ export function ApplicationChat({
                 </div>
 
                 <div className="activity-chat-actions">
-                    {canComplete && <button type="button" className="activity-schedule-button" aria-label="Zusammenarbeit abschließen" onClick={() => { closeDetailsForTool(); setCompleteReason(""); setCompleteError(null); setCompleteOpen(true); }}><CheckCircle2 size={17} /><span>Abschließen</span></button>}
-                    {canSchedule && status !== "accepted" ? (
+                    {headerAction ? (
                         <button
                             type="button"
                             className="activity-schedule-button"
-                            aria-label="Termin vereinbaren oder ändern"
-                            onClick={openScheduleDialog}
+                            aria-label={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Termin vereinbaren"}
+                            title={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Termin vereinbaren"}
+                            disabled={schedulePending || completePending}
+                            onClick={headerAction === "complete" ? openCompleteDialog : openScheduleDialog}
                         >
-                            <CalendarDays size={17} />
-                            <span>
-                                {liveApplication?.job?.job_kind === "recurring" && status === "accepted"
-                                    ? "Weiteren Termin"
-                                    : status === "accepted"
-                                        ? "Termin ändern"
-                                        : "Termin festlegen"}
-                            </span>
+                            {headerAction === "complete" ? <CheckCircle2 size={17} aria-hidden="true" /> : <CalendarDays size={17} aria-hidden="true" />}
+                            <span>{headerAction === "complete" ? "Abschließen" : "Termin vereinbaren"}</span>
                         </button>
                     ) : null}
-                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen">
-                        <Info size={18} /><span>Details</span>
+                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen" title="Jobdetails und Aktionen">
+                        <Info size={18} aria-hidden="true" /><span>Details</span>
                     </button>
                 </div>
             </header>
@@ -1443,7 +1447,7 @@ export function ApplicationChat({
                         onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
                         actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || (!readOnly && onReport && headerProfile?.id) ? <>
                             {canSchedule && status !== "accepted" && <button type="button" onClick={openScheduleDialog}><CalendarDays aria-hidden="true" />Termin vereinbaren</button>}
-                            {canComplete && <button type="button" onClick={() => { closeDetailsForTool(); setCompleteError(null); setCompleteOpen(true); }}><CheckCircle2 aria-hidden="true" />Zusammenarbeit abschließen</button>}
+                            {canComplete && <button type="button" onClick={openCompleteDialog}><CheckCircle2 aria-hidden="true" />Zusammenarbeit abschließen</button>}
                             {canDirectReopen && <button type="button" onClick={() => void handleDirectReopen()} disabled={directReopenPending}><RotateCcw aria-hidden="true" />Gespräch wieder öffnen</button>}
                             {canRequestReopen && <button type="button" onClick={() => { closeDetailsForTool(); setReopenError(null); setReopenMessage(""); setReopenDialogOpen(true); }}><RotateCcw aria-hidden="true" />Öffnung anfragen</button>}
                             {!readOnly && onReport && headerProfile?.id && <button type="button" onClick={() => {
