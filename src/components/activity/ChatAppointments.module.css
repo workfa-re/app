@@ -1,26 +1,36 @@
 .tools { display: grid; gap: 14px; min-width: 0; }
-.buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools > .buttons { display: grid; grid-template-columns: minmax(0, 1fr); }
+.tools > .buttons > :is(.action,.quiet) { width: 100%; justify-content: center; text-align: center; }
 .action, .quiet, .retry, .close { font: inherit; cursor: pointer; color: var(--app-ink); }
-.action { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 9px 12px; font-size: 12px; font-weight: 600; border: 1px solid transparent; border-radius: 14px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); transition: box-shadow 180ms ease; }
-.action::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-@media (hover: hover) { .action:hover { box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); } }
-.action svg { width: 14px; height: 14px; }
-.quiet, .retry { min-height: 42px; background: transparent; border: 0; font-size: 12px; padding: 9px 10px; color: var(--app-muted); }
+.action { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 44px; padding: 11px 16px; font-size: 12px; font-weight: 500; line-height: 1.5; text-align: center; overflow-wrap: anywhere; border: 1px solid transparent; border-radius: 15px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color 180ms ease, box-shadow 180ms ease; }
+.action::before, .request::before, .form::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+@media (hover: hover) { .action:not(:disabled):hover { background-color: var(--app-glass-highlight, var(--app-content-hover)); box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); } .quiet:not(:disabled):hover, .close:not(:disabled):hover { background-color: var(--app-content-hover); } }
+.action svg { width: 15px; height: 15px; flex: 0 0 15px; stroke-width: 1.6; }
+.action:active { scale: 1; }
+.quiet, .retry { min-height: 44px; background: transparent; border: 0; border-radius: 12px; font-size: 12px; padding: 10px 12px; color: var(--app-muted); transition: background-color 180ms ease; }
 .retry { text-decoration: underline; text-underline-offset: 3px; }
-.close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; }
+.close { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); display: grid; place-items: center; transition: background-color 180ms ease; }
 .close svg { width: 16px; height: 16px; }
 .action:focus-visible, .quiet:focus-visible, .retry:focus-visible, .close:focus-visible, .form :is(input,textarea,select):focus-visible { outline: 2px solid var(--app-ink); outline-offset: 3px; }
 .tools button:disabled { opacity: .45; cursor: default; }
 .muted { font-size: 11px; line-height: 1.6; color: var(--app-muted); margin: 0; }
-.request, .form { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--app-panel-rule); border-radius: 18px; background: var(--app-content-hover); }
-.request > strong { font-size: 14px; line-height: 1.5; }
+.request, .form { position: relative; isolation: isolate; display: grid; min-width: 0; gap: 14px; padding: 16px; border: 1px solid transparent; border-radius: 24px; background: var(--app-surface-fill, var(--app-glass-fill)); box-shadow: var(--app-surface-shadow, var(--app-glass-shadow)); -webkit-backdrop-filter: var(--app-surface-filter, var(--app-glass-filter)); backdrop-filter: var(--app-surface-filter, var(--app-glass-filter)); }
+.request::before, .form::before { background: var(--app-surface-rim, var(--app-glass-rim)); }
+.request > strong { font-size: 14px; font-weight: 500; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.request .buttons > .action { flex: 1 1 auto; }
 .request > span:not(.eyebrow), .request p, .form p { margin: 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .eyebrow { color: var(--app-muted); font-size: 10px; font-weight: 600; }
-.formTitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.formTitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; }
+.formTitle strong { font-weight: 500; line-height: 1.5; text-wrap: balance; }
 .form label { display: grid; gap: 7px; font-size: 12px; font-weight: 500; }
 .optional { font-size: 11px; font-weight: 400; color: var(--app-muted); }
-.form :is(input,textarea,select) { font: inherit; color: var(--app-ink); width: 100%; min-width: 0; min-height: 44px; padding: 10px; border-radius: 12px; border: 1px solid var(--app-panel-rule); background: var(--app-glass-fill); color-scheme: inherit; }
+.form :is(input,textarea,select) { box-sizing: border-box; font: inherit; color: var(--app-ink); width: 100%; min-width: 0; min-height: 46px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--app-panel-rule); background: var(--app-panel-fill); box-shadow: var(--app-glass-inner-shadow); color-scheme: inherit; font-variant-numeric: tabular-nums; }
 .form textarea { resize: vertical; }
+.form > .buttons > .action { flex: 1 1 140px; border-radius: 12px; }
+.form > .buttons > .quiet { flex: 1 1 80px; }
 .error { color: var(--app-ink); margin: 0; font-size: 12px; line-height: 1.6; padding-left: 10px; border-left: 2px solid currentColor; scroll-margin-block: 12px; }
-@media (max-width: 600px) { .action, .quiet { min-height: 44px; }.form :is(input,textarea,select) { font-size: 16px; }.close { width: 44px; height: 44px; } }
-@media (prefers-reduced-motion: reduce) { .action { transition: none; } }
+@media (max-width: 600px) { .form :is(input,textarea,select) { font-size: 16px; }.close { flex-basis: 44px; width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .action, .quiet, .retry, .close { transition: none; } }
+@media (prefers-reduced-transparency: reduce) { .action, .close, .request, .form { background: var(--app-ground); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (forced-colors: active) { .action, .close, .request, .form { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; box-shadow: none; }.action::before, .request::before, .form::before { display: none; }.form :is(input,textarea,select) { border-color: ButtonText; color: FieldText; background: Field; }.tools button:disabled { color: GrayText; opacity: 1; } }

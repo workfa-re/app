@@ -35,6 +35,7 @@ import {
 } from "@/lib/activity/chat";
 import { markApplicationMessagesRead } from "@/app/app-home/applications/actions";
 import { cn } from "@/lib/utils";
+import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import styles from "./ActivityWorkspace.module.css";
 import { useActivityDialogFocus } from "./useActivityDialogFocus";
 import { ChatDetails, HighlightedChatText } from "./ChatDetails";
@@ -205,6 +206,7 @@ export function ApplicationChat({
     const [sending, setSending] = useState(false);
     const [realtimeState, setRealtimeState] = useState<RealtimeState>("connecting");
     const [detailsOpen, setDetailsOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
     const [compactDetails, setCompactDetails] = useState(true);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -280,6 +282,8 @@ export function ApplicationChat({
         const handleEscape = (event: KeyboardEvent) => {
             if (
                 event.key !== "Escape"
+                || event.defaultPrevented
+                || profileOpen
                 || actionOpen
                 || scheduleOpen
                 || reopenDialogOpen
@@ -297,6 +301,7 @@ export function ApplicationChat({
         actionOpen,
         completeOpen,
         detailsOpen,
+        profileOpen,
         declineRequest,
         reopenDialogOpen,
         reportTarget,
@@ -344,6 +349,7 @@ export function ApplicationChat({
         setLocalDraft("");
         setSendError(null);
         setDetailsOpen(false);
+        setProfileOpen(false);
         setSearchOpen(false);
         setSearchQuery("");
         setMessageHighlight(null);
@@ -1005,7 +1011,7 @@ export function ApplicationChat({
         <MotionConfig reducedMotion="user">
         <div className={cn(styles.chat, detailsStyles.workspace, "application-chat activity-modern-chat", embedded ? "" : "activity-modern-chat-modal")} data-ui="conversation" data-chat-tools data-details-open={detailsOpen}
             onKeyDown={event => {
-                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+                if (!profileOpen && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
                     event.preventDefault();
                     setSearchOpen(true);
                     setDetailsOpen(true);
@@ -1399,7 +1405,7 @@ export function ApplicationChat({
 
             </div>
             <AnimatePresence initial={false} onExitComplete={() => {
-                if (detailsOpen || actionOpen || scheduleOpen || reopenDialogOpen || declineRequest || completeOpen || reportTarget) return;
+                if (detailsOpen || profileOpen || actionOpen || scheduleOpen || reopenDialogOpen || declineRequest || completeOpen || reportTarget) return;
                 requestAnimationFrame(() => {
                     const active = document.activeElement;
                     if (active === document.body || (active && detailsDialogRef.current?.contains(active))) {
@@ -1412,8 +1418,9 @@ export function ApplicationChat({
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsOpen(false)} />
                     <ChatDetails dialogRef={detailsDialogRef} compact={compactDetails} onClose={() => setDetailsOpen(false)}
                         name={headerName} profile={headerProfile ?? null} partnerRole={currentUserRole === "seeker" ? "Auftraggeber" : "Bewerber"}
+                        onOpenProfile={() => setProfileOpen(true)}
                         job={liveApplication.job ?? {}} jobTitle={jobTitle}
-                        jobKind={liveApplication.job?.job_kind === "recurring" ? `Regelmäßig · ${formatRecurrence(liveApplication.job?.recurrence_rule)}` : "Einmaliger Auftrag"}
+                        jobKind={liveApplication.job?.job_kind === "recurring" ? formatRecurrence(liveApplication.job?.recurrence_rule) : "Einmalig"}
                         statusLabel={stage.label} stage={stage}
                         closureReason={conversationState === "closed" && liveApplication.closed_reason ? formatClosureReason(liveApplication.closed_reason) : null}
                         authorizedAddress={authorizedJobLocation?.address_full}
@@ -1434,7 +1441,6 @@ export function ApplicationChat({
                         formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={setSearchOpen} query={searchQuery} onQuery={setSearchQuery}
                         messages={messages} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
                         onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
-                        onLatest={() => { closeDetailsForTool(); setMessageHighlight(null); requestAnimationFrame(() => scrollToEnd("auto")); }}
                         actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || (!readOnly && onReport && headerProfile?.id) ? <>
                             {canSchedule && status !== "accepted" && <button type="button" onClick={openScheduleDialog}><CalendarDays aria-hidden="true" />Termin vereinbaren</button>}
                             {canComplete && <button type="button" onClick={() => { closeDetailsForTool(); setCompleteError(null); setCompleteOpen(true); }}><CheckCircle2 aria-hidden="true" />Zusammenarbeit abschließen</button>}
@@ -1551,6 +1557,7 @@ export function ApplicationChat({
                 ) : null}
             </AnimatePresence>
         </div>
+        <UserProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={headerProfile ?? null} />
         </MotionConfig>
     );
 }

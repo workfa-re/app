@@ -7,46 +7,49 @@ import { ChatDetails } from "@/components/activity/ChatDetails";
 function renderDetails(overrides: Partial<ComponentProps<typeof ChatDetails>> = {}) {
     return renderToStaticMarkup(<ChatDetails
         dialogRef={createRef<HTMLElement>()} compact={false} onClose={() => {}}
-        name="Mara Beispiel" partnerRole="Bewerber" profile={{
+        name="Mara Beispiel" partnerRole="Bewerber" onOpenProfile={() => {}} profile={{
             id: "profile-demo", full_name: "Mara Beispiel", account_type: "job_seeker",
             city: "Rheinbach", country: "DE", bio: "Ich helfe gern im Garten und arbeite sorgfältig.",
             skills: "Gartenarbeit, Fahrradreparatur", interests: "Natur", age_years: 17,
             created_at: "2026-02-10T10:00:00Z",
         }}
         job={{ wage_hourly: 15, payment_type: "hourly", public_location_label: "Rheinbach", description: "Die Beete vorbereiten und anschließend die Gartengeräte wegräumen." }}
-        jobTitle="Hilfe im Garten" jobKind="Einmaliger Auftrag" statusLabel="Im Gespräch"
+        jobTitle="Hilfe im Garten" jobKind="Einmalig" statusLabel="Reserviert" stage={getActivityStage({ status: "negotiating", is_primary: true }, "seeker")}
         appointments={[]} formatSchedule={value => value || null}
         searchOpen={false} onSearchOpen={() => {}} query="" onQuery={() => {}}
         messages={[]} loading={false} hasOlder={false} loadingOlder={false}
-        onLoadOlder={() => {}} onJump={() => {}} onLatest={() => {}}
+        onLoadOlder={() => {}} onJump={() => {}}
         actions={null} dangerAction={null}
         {...overrides}
     />);
 }
 
 describe("integrated chat details profile", () => {
-    it("shows the safe person summary before the task without a profile detour", () => {
+    it("keeps the person to a named profile trigger and makes the task the main content", () => {
         const html = renderDetails();
         expect(html).toContain("Mara Beispiel");
-        expect(html).toContain("Bewerber · 17 Jahre");
-        expect(html).toContain("Rheinbach, Deutschland");
-        expect(html).toContain("Dabei seit Februar 2026");
-        expect(html).toContain("Ich helfe gern im Garten und arbeite sorgfältig.");
-        expect(html).toContain("Fahrradreparatur");
-        expect(html).toContain("Natur");
+        expect(html).toContain("Bewerber");
+        expect(html).toContain('aria-label="Profil von Mara Beispiel öffnen"');
+        expect(html).toContain('aria-haspopup="dialog"');
+        for (const extra of ["17 Jahre", "Rheinbach, Deutschland", "Dabei seit", "Ich helfe gern im Garten und arbeite sorgfältig.", "Fahrradreparatur", "Natur"])
+            expect(html).not.toContain(extra);
         expect(html.indexOf("Mara Beispiel")).toBeLessThan(html.indexOf("Hilfe im Garten"));
         expect(html).not.toContain("Profil ansehen");
         expect(html).not.toContain("Zum Auftrag");
         expect(html).not.toContain("href=");
         expect(html).toContain("Die Beete vorbereiten und anschließend die Gartengeräte wegräumen.");
         expect(html).not.toContain("Beschreibung lesen");
+        expect(html).not.toContain("Zu den neuesten Nachrichten");
+        expect(html).not.toContain("Sicherheit im Chat");
+        expect(html).not.toContain(">Auftrag<");
     });
 
     it("shows the exclusive job stages without implying historical requests are active", () => {
         const html = renderDetails({ stage: getActivityStage({ status: "negotiating", is_primary: true }, "provider") });
         for (const label of ["Offen", "Reserviert", "Vereinbart", "Abgeschlossen"]) expect(html).toContain(label);
         expect(html).toContain('aria-current="step"');
-        expect(html).toContain("für diese Bewerbung reserviert");
+        expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+        expect(html).not.toContain("für diese Bewerbung reserviert");
         const archive = renderDetails({ stage: getActivityStage({ status: "waitlisted" }, "seeker") });
         expect(archive).not.toContain('aria-label="Jobverlauf"');
         expect(archive).toContain("Diese frühere Anfrage ist beendet");
@@ -61,22 +64,31 @@ describe("integrated chat details profile", () => {
         for (const privateValue of ["2009-03-14", "Nur private Kontonotiz", "private@example.test", "Verborgene Straße 8", "+490000001"]) {
             expect(html).not.toContain(privateValue);
         }
-        expect(html).toContain("17 Jahre");
+        expect(html).not.toContain("17 Jahre");
     });
 
-    it("keeps provider identity and verification truthful without seeker-only tags or age", () => {
+    it("leaves full provider facts to the shared public profile view", () => {
         const html = renderDetails({ partnerRole: "Auftraggeber", profile: {
             id: "company-fixture", account_type: "job_provider", full_name: "Nora Beispiel", company_name: "Beispielbetrieb",
             provider_verification_status: "verified", age_years: 40, skills: "Nicht für Anbieter", interests: "Nicht anzeigen",
             bio: "Ein kleiner Betrieb in der Nachbarschaft.",
         } });
         expect(html).toContain("Beispielbetrieb");
-        expect(html).toContain("Nora Beispiel");
-        expect(html).toContain("Adresse geprüft");
+        expect(html).toContain('aria-label="Profil von Beispielbetrieb öffnen"');
+        expect(html).not.toContain("Nora Beispiel");
+        expect(html).not.toContain("Adresse geprüft");
         expect(html).not.toContain("40 Jahre");
         expect(html).not.toContain("Nicht für Anbieter");
         expect(html).not.toContain("Nicht anzeigen");
         expect(html).not.toContain("Bewertungen");
+    });
+
+    it("does not offer an empty profile or turn a closed request into completed progress", () => {
+        const html = renderDetails({ profile: null, stage: getActivityStage({ status: "withdrawn", conversation_state: "closed" }, "seeker") });
+        expect(html).toContain('disabled=""');
+        expect(html).toContain("Zurückgezogen");
+        expect(html).not.toContain('aria-label="Jobverlauf"');
+        expect(html).not.toContain("Abgeschlossen");
     });
 
     it("requires an explicit reveal only for a long task description", () => {

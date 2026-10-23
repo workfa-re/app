@@ -245,6 +245,48 @@ function updateConversationUrl(applicationId: string | null, filter: InboxFilter
     window.history.pushState(null, "", href);
 }
 
+/** Recover missed events without repeating the server snapshot on the first subscription. */
+export function createActivitySnapshotRefresher(
+    refresh: () => void,
+    canRefresh: () => boolean,
+) {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+    let subscribed = false;
+    let interrupted = false;
+
+    const request = () => {
+        if (disposed) return;
+        if (timer) clearTimeout(timer);
+        timer = null;
+        if (!canRefresh()) return;
+        // One lifecycle transition may emit several table events plus online/visible.
+        timer = setTimeout(() => {
+            timer = null;
+            if (!disposed && canRefresh()) refresh();
+        }, 150);
+    };
+
+    return {
+        request,
+        onStatus(status: string) {
+            if (disposed) return;
+            if (status === "SUBSCRIBED") {
+                if (subscribed || interrupted) request();
+                subscribed = true;
+                interrupted = false;
+            } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+                interrupted = true;
+            }
+        },
+        dispose() {
+            disposed = true;
+            if (timer) clearTimeout(timer);
+            timer = null;
+        },
+    };
+}
+
 export function ActivityCommandCenter({
     applications,
     role,
@@ -325,9 +367,16 @@ export function ActivityCommandCenter({
     useEffect(() => {
         if (!currentUserId || readOnly) return;
 
-        const refreshActivitySnapshot = () => {
-            startTransition(() => router.refresh());
+        const snapshot = createActivitySnapshotRefresher(
+            () => startTransition(() => router.refresh()),
+            () => document.visibilityState === "visible" && navigator.onLine,
+        );
+        const refreshActivitySnapshot = snapshot.request;
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") refreshActivitySnapshot();
         };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("online", refreshActivitySnapshot);
 
         const channel = supabaseBrowser
             .channel(`activity-center-${currentUserId}`)
@@ -379,9 +428,7 @@ export function ActivityCommandCenter({
             .on(
                 "postgres_changes",
                 { event: "INSERT", schema: "public", table: "applications" },
-                () => {
-                    startTransition(() => router.refresh());
-                },
+                refreshActivitySnapshot,
             )
             .on(
                 "postgres_changes",
@@ -413,9 +460,12 @@ export function ActivityCommandCenter({
                 { event: "UPDATE", schema: "public", table: "job_appointments" },
                 refreshActivitySnapshot,
             )
-            .subscribe();
+            .subscribe(snapshot.onStatus);
 
         return () => {
+            snapshot.dispose();
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("online", refreshActivitySnapshot);
             void supabaseBrowser.removeChannel(channel);
         };
     }, [currentUserId, readOnly, router]);
