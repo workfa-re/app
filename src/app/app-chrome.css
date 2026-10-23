@@ -76,22 +76,6 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #0c121c; }
   .app-nav-link:hover { color: var(--app-accent-ink); background-color: var(--app-accent-soft); }
   .app-shell .app-glass-control:hover::after { opacity: 1; }
 }
-/* Notification data and actions keep their existing contracts. */
-.app-shell .notifications-popover-root .notifications-trigger,
-.app-shell .notifications-popover-root .notifications-trigger:is(:hover, .is-open),
-.app-shell .notifications-popover-root:has(.notifications-panel) .notifications-trigger {
-  width: var(--app-header-control-size, 52px); height: var(--app-header-control-size, 52px); flex-shrink: 0; border: 1px solid var(--app-panel-rule) !important; border-radius: 999px; color: var(--app-ink) !important;
-  background: var(--app-glass-fill) !important; box-shadow: var(--app-glass-shadow) !important; -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter);
-}
-.app-shell .notifications-trigger svg { width: 19px; height: 19px; stroke-width: 1.6; color: inherit; }
-.app-shell .notifications-panel { color: var(--app-ink); background: var(--app-overlay-fill, var(--app-menu-fill)) !important; border-radius: 28px !important; box-shadow: var(--app-surface-shadow), 0 16px 48px rgb(0 0 0 / .15) !important; -webkit-backdrop-filter: var(--app-surface-filter); backdrop-filter: var(--app-surface-filter); }
-.app-shell .notifications-panel::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-surface-rim, var(--app-glass-rim)); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-.app-shell .notifications-panel :is(.notifications-panel-title, .notification-title) { color: var(--app-ink) !important; font-weight: 500; }
-.app-shell .notifications-panel :is(.notifications-panel-count, .notification-body, .notification-date, .notifications-empty) { color: var(--app-muted) !important; }
-.app-shell .notifications-panel :is(.notifications-panel-header, .notifications-panel-footer) { border-color: var(--app-panel-rule) !important; }
-.app-shell .notifications-view-all { color: var(--app-accent-ink) !important; }
-.app-shell :is(.notification-unread-dot, .notification-card-dot) { background: var(--app-accent) !important; }
-.app-shell .notification-unread-dot { box-shadow: 0 0 0 2px var(--app-ground) !important; }
 /* A single readable toolbar, shared at every width. */
 .app-shell .jobs-home-surface, .app-shell .provider-home-surface { width: 100%; max-width: 78rem; margin-inline: auto; padding: 0 24px 48px; }
 .app-shell .jobs-home-heading { margin-bottom: 32px; }

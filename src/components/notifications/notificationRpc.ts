@@ -1,6 +1,9 @@
 "use client";
 
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import type { NotificationCursor, NotificationPage } from "./notificationTypes";
+import { parseNotificationPage } from "./notificationPayload";
+export { normalizeNotificationItem } from "./notificationPayload";
 
 const FALLBACK_RPC_ERROR = "Die Änderung konnte nicht bestätigt werden.";
 
@@ -11,7 +14,7 @@ function getRpcError(result: unknown, transportError?: string) {
     }
 
     const response = result as { ok?: boolean; error?: string };
-    return response.ok ? null : response.error ?? FALLBACK_RPC_ERROR;
+    return response.ok === true ? null : response.error ?? FALLBACK_RPC_ERROR;
 }
 
 export async function markNotificationRead(notificationId: string) {
@@ -32,4 +35,30 @@ export async function markAllNotificationsRead() {
     } catch {
         return FALLBACK_RPC_ERROR;
     }
+}
+
+export async function markNotificationsReadThrough(snapshotAt: string) {
+    try {
+        const { data, error } = await supabaseBrowser.rpc("mark_notifications_read_through", { p_snapshot_at: snapshotAt });
+        return getRpcError(data, error?.message);
+    } catch { return FALLBACK_RPC_ERROR; }
+}
+
+export async function markNotificationsSeen(ids: string[]) {
+    if (!ids.length) return null;
+    try {
+        const { data, error } = await supabaseBrowser.rpc("mark_notifications_seen", { p_notification_ids: ids.slice(0, 100) });
+        return getRpcError(data, error?.message);
+    } catch { return FALLBACK_RPC_ERROR; }
+}
+
+export async function getNotificationPage(cursor: NotificationCursor | null, unreadOnly: boolean, limit = 25): Promise<NotificationPage> {
+    const { data, error } = await supabaseBrowser.rpc("get_notification_feed", {
+        p_limit: Math.max(1, Math.min(100, Math.trunc(limit))),
+        p_before_created_at: cursor?.createdAt ?? undefined,
+        p_before_id: cursor?.id ?? undefined,
+        p_unread_only: unreadOnly,
+    });
+    if (error) throw new Error("Benachrichtigungen nicht verfügbar.");
+    return parseNotificationPage(data);
 }

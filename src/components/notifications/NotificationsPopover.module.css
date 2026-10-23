@@ -1,0 +1,41 @@
+.trigger { position: relative; display: grid; place-items: center; flex: 0 0 auto; width: var(--app-header-control-size, 52px); height: var(--app-header-control-size, 52px); padding: 0; border: 0; border-radius: 50%; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); cursor: pointer; transition: box-shadow .18s ease, color .18s ease; }
+.trigger::before, .panel::before, .control::before, .liveCard::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.triggerOpen { color: var(--app-accent-ink); }
+.dot { position: absolute; width: 8px; height: 8px; top: 4px; right: 4px; border-radius: 50%; background: var(--app-accent); box-shadow: 0 0 0 3px var(--app-ground); }
+.dialog { position: fixed; inset: 0; z-index: 150; color: var(--app-ink); font-family: inherit; }
+.backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / .18); }
+.panel { position: fixed; display: flex; flex-direction: column; isolation: isolate; top: 12px; right: 12px; bottom: 12px; width: min(460px, calc(100vw - 24px)); min-height: 0; border: 0; border-radius: 32px; overflow: hidden; color: var(--app-ink); background: var(--app-overlay-fill); box-shadow: var(--app-surface-shadow), 0 24px 80px rgb(0 0 0 / .16); -webkit-backdrop-filter: var(--app-surface-filter); backdrop-filter: var(--app-surface-filter); }
+.panel::before { z-index: 2; background: var(--app-surface-rim); }
+.heading { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 24px 20px 18px 26px; }
+.heading h2 { flex: 1; min-width: 0; margin: 0; color: var(--app-ink); font-size: 22px; line-height: 1.2; letter-spacing: -.035em; font-weight: 550; text-wrap: balance; }
+.control { position: relative; display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: var(--app-glass-fill); color: var(--app-ink); box-shadow: var(--app-glass-shadow); text-decoration: none; cursor: pointer; transition: box-shadow .18s ease; }
+.liveRegion { position: fixed; z-index: 140; top: calc(max(16px, env(safe-area-inset-top)) + 80px); right: max(24px, env(safe-area-inset-right)); width: min(410px, calc(100vw - 32px)); color: var(--app-ink); pointer-events: none; }
+.liveCard { position: relative; isolation: isolate; display: flex; align-items: center; min-width: 0; border-radius: 28px; background: var(--app-surface-fill); box-shadow: var(--app-glass-shadow), 0 16px 48px rgb(0 0 0 / .13); -webkit-backdrop-filter: var(--app-surface-filter); backdrop-filter: var(--app-surface-filter); pointer-events: auto; touch-action: pan-y; }
+.liveCard::before { background: var(--app-surface-rim); }
+.liveContent { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; min-height: 96px; padding: 16px 0 16px 18px; color: var(--app-ink); text-align: left; border: 0; background: none; border-radius: 28px; cursor: pointer; }
+.liveContent > svg { flex: 0 0 16px; margin-inline: 2px; color: var(--app-muted); }
+.liveIcon { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; color: var(--app-accent-ink); background: var(--app-glass-selected); box-shadow: var(--app-glass-inner-shadow); }
+.liveCopy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.liveCopy strong { overflow: hidden; color: var(--app-ink); font-size: 14px; font-weight: 550; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.liveMeta { display: flex; gap: 8px; color: var(--app-muted); font-size: 10px; line-height: 1.5; }
+.liveMeta > span { margin-left: auto; font-variant-numeric: tabular-nums; }
+.liveBody { overflow: hidden; color: var(--app-muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.liveClose { align-self: flex-start; display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 44px; margin-top: 5px; padding: 0; border: 0; border-radius: 50%; color: var(--app-muted); background: none; cursor: pointer; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+:is(.trigger, .control, .liveContent, .liveClose):focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
+.liveContent:focus-visible, .liveClose:focus-visible { outline-offset: -4px; }
+@media (hover: hover) { .trigger:hover, .control:hover { box-shadow: var(--app-glass-shadow-hover, var(--app-glass-shadow)); } .liveClose:hover { color: var(--app-ink); } }
+@media (max-width: 600px) {
+  .panel { top: max(8px, env(safe-area-inset-top)); bottom: max(8px, env(safe-area-inset-bottom)); right: 8px; left: 8px; width: auto; }
+  .heading { gap: 6px; padding: 18px 16px 16px 20px; }
+  .heading h2 { font-size: clamp(18px, 5vw, 22px); }
+  .control { flex-basis: 44px; width: 44px; height: 44px; }
+  .liveRegion { right: 12px; left: 12px; width: auto; top: calc(max(12px, env(safe-area-inset-top)) + 70px); }
+}
+@media (prefers-reduced-motion: reduce) { .trigger, .control { transition: none; } }
+@media (forced-colors: active) {
+  .panel, .liveCard { color: CanvasText; background: Canvas; border: 1px solid CanvasText; box-shadow: none; }
+  .trigger, .control, .liveClose { color: ButtonText; background: ButtonFace; border: 1px solid ButtonText; box-shadow: none; }
+  .trigger::before, .panel::before, .control::before, .liveCard::before { display: none; }
+  .dot { background: Highlight; }
+}

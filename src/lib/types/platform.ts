@@ -70,8 +70,16 @@ export type ApplicationRow = Database["public"]["Tables"]["applications"]["Row"]
 
 export type HeaderNotificationItem = Pick<
   Database["public"]["Tables"]["notifications"]["Row"],
-  "id" | "type" | "title" | "body" | "created_at" | "read_at"
->;
+  "id" | "type" | "title" | "body" | "read_at"
+> & {
+  created_at: string | null;
+  data?: unknown;
+  category?: string;
+  priority?: 1 | 2 | 3;
+  event_key?: string | null;
+  event_type?: string;
+  seen_at?: string | null;
+};
 
 export type AppHeaderProfile = Profile & {
   has_active_guardian?: boolean;

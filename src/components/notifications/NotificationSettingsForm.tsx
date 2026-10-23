@@ -6,8 +6,10 @@ import {
     CheckCircle2,
     Loader2,
     Mail,
+    MessageSquare,
     RefreshCw,
     ShieldCheck,
+    Smartphone,
 } from "lucide-react";
 import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import {
@@ -28,36 +30,36 @@ type PreferenceOption = {
 const IN_APP_OPTIONS: PreferenceOption[] = [
     {
         key: "in_app_application_updates",
-        label: "Bewerbungen",
-        description: "Neue Bewerbungen, Annahmen, Ablehnungen und Statusänderungen.",
+        label: "Zusammenarbeit",
+        description: "Bewerbungen und Änderungen an deinen Aufträgen.",
     },
     {
         key: "in_app_messages",
         label: "Nachrichten",
-        description: "Neue Nachrichten und Öffnungsanfragen in deinen Gesprächen.",
+        description: "Neue Nachrichten in deinen Gesprächen.",
     },
     {
         key: "in_app_appointments",
         label: "Termine",
-        description: "Vereinbarte, geänderte oder abgesagte Termine.",
+        description: "Anfragen, Bestätigungen und Änderungen.",
     },
 ];
 
 const EMAIL_OPTIONS: PreferenceOption[] = [
     {
         key: "email_application_updates",
-        label: "Bewerbungen",
-        description: "Wichtige Änderungen an Bewerbungen und vergebenen Jobs.",
+        label: "Zusammenarbeit",
+        description: "Bewerbungen und Änderungen an deinen Aufträgen.",
     },
     {
         key: "email_messages",
         label: "Nachrichten",
-        description: "Hinweise auf neue Nachrichten in deinen Gesprächen.",
+        description: "Neue Nachrichten in deinen Gesprächen.",
     },
     {
         key: "email_appointments",
         label: "Termine",
-        description: "Bestätigungen und Änderungen vereinbarter Termine.",
+        description: "Anfragen, Bestätigungen und Änderungen.",
     },
     {
         key: "email_job_updates",
@@ -174,7 +176,7 @@ export function NotificationSettingsForm({
                 <div role="alert" className="grid gap-3 rounded-2xl bg-red-500/10 px-4 py-3 shadow-[0_0_0_1px_color-mix(in_srgb,var(--danger)_24%,transparent)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <p className="flex min-w-0 items-start gap-2 text-pretty text-sm leading-5 text-red-700 dark:text-red-300">
                         <AlertCircle aria-hidden="true" className="mt-0.5 shrink-0" size={17} />
-                        Deine gespeicherten Einstellungen konnten nicht geladen werden. Bis das klappt, bleibt Speichern sicher gesperrt.
+                        Deine Einstellungen konnten nicht geladen werden. Bitte lade sie vor dem Bearbeiten erneut.
                     </p>
                     <button
                         type="button"
@@ -192,8 +194,8 @@ export function NotificationSettingsForm({
 
             <ChannelSection
                 icon={<BellRing aria-hidden="true" size={19} />}
-                title="In der Plattform"
-                description="Persönliche Hinweise im Benachrichtigungsbereich von Workfare."
+                title="In Workfare"
+                description="Hinweise im Benachrichtigungszentrum und in der geöffneten App."
                 enabled={prefs.in_app_enabled}
                 enabledKey="in_app_enabled"
                 options={IN_APP_OPTIONS}
@@ -201,10 +203,10 @@ export function NotificationSettingsForm({
                 pending={controlsDisabled}
                 onToggle={setBooleanPreference}
             >
-                <div className="mt-2 flex items-start gap-2.5 rounded-xl bg-[var(--surface-muted)] px-3.5 py-3 text-[var(--text-muted)] shadow-[0_0_0_1px_var(--border-subtle)]">
+                <div className="mt-4 flex items-start gap-2.5 rounded-2xl [background:var(--app-glass-selected)] px-3.5 py-3 text-[var(--text-muted)]">
                     <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--brand)]" size={17} />
                     <p className="text-pretty text-xs leading-5">
-                        Kritische System-, Konto- und Sicherheitshinweise bleiben unabhängig von dieser Auswahl aktiv.
+                        Wichtige Konto- und Sicherheitshinweise bleiben aktiv.
                     </p>
                 </div>
             </ChannelSection>
@@ -212,7 +214,8 @@ export function NotificationSettingsForm({
             <ChannelSection
                 icon={<Mail aria-hidden="true" size={19} />}
                 title="Per E-Mail"
-                description="Deine Auswahl wird gespeichert. Der Versand wird mit dem E-Mail-Dienst freigeschaltet."
+                description="Deine Auswahl wird gespeichert. Der E-Mail-Versand ist noch nicht freigeschaltet."
+                preparation
                 enabled={prefs.email_enabled}
                 enabledKey="email_enabled"
                 options={EMAIL_OPTIONS}
@@ -220,17 +223,17 @@ export function NotificationSettingsForm({
                 pending={controlsDisabled}
                 onToggle={setBooleanPreference}
             >
-                <fieldset disabled={!prefs.email_enabled || controlsDisabled} className="mt-5 border-t border-[var(--border-subtle)] pt-5 disabled:opacity-50">
+                <fieldset disabled={!prefs.email_enabled || controlsDisabled} className="mt-5 disabled:opacity-50">
                     <legend className="text-sm font-semibold text-[var(--text-strong)]">E-Mail-Häufigkeit</legend>
                     <p id="notification-frequency-description" className="mt-1 text-pretty text-sm leading-5 text-[var(--text-muted)]">
-                        Lege schon jetzt fest, ob E-Mails später direkt oder gesammelt verschickt werden.
+                        Wie möchtest du E-Mails später erhalten?
                     </p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3" aria-describedby="notification-frequency-description">
+                    <div className="mt-3 grid grid-cols-1 gap-2 min-[380px]:grid-cols-3" aria-describedby="notification-frequency-description">
                         {FREQUENCIES.map((frequency) => (
                             <label
                                 key={frequency.value}
                                 className={cn(
-                                    "relative flex min-h-14 cursor-pointer flex-col justify-center rounded-xl px-3.5 py-2.5 shadow-[0_0_0_1px_var(--border-subtle)] transition-[background-color,box-shadow,scale] duration-150 ease-out active:scale-[0.96] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--brand)] motion-reduce:transition-none motion-reduce:active:scale-100",
+                                    "relative flex min-h-11 cursor-pointer flex-col justify-center rounded-xl px-2.5 py-2.5 shadow-[0_0_0_1px_var(--border-subtle)] transition-[background-color,box-shadow] duration-150 ease-out focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--brand)] motion-reduce:transition-none sm:min-h-14",
                                     prefs.digest_frequency === frequency.value
                                         ? "bg-[color-mix(in_srgb,var(--brand)_10%,var(--surface-solid))] shadow-[0_0_0_1px_var(--brand)]"
                                         : "bg-[var(--surface-solid)] hover:bg-[var(--surface-muted)]",
@@ -245,13 +248,29 @@ export function NotificationSettingsForm({
                                     onChange={() => setFrequency(frequency.value)}
                                     className="sr-only"
                                 />
-                                <span className="text-sm font-semibold text-[var(--text-strong)]">{frequency.label}</span>
-                                <span className="mt-0.5 text-xs leading-4 text-[var(--text-muted)]">{frequency.description}</span>
+                                <span className="text-xs font-semibold text-[var(--text-strong)] sm:text-sm">{frequency.label}</span>
+                                <span className="mt-0.5 hidden text-xs leading-4 text-[var(--text-muted)] sm:block">{frequency.description}</span>
                             </label>
                         ))}
                     </div>
                 </fieldset>
             </ChannelSection>
+
+            <section aria-labelledby="notification-future-channels">
+                <div className="flex items-center gap-3">
+                    <span className="app-glass-control flex size-10 shrink-0 items-center justify-center rounded-2xl text-[var(--text-muted)]">
+                        <Smartphone size={19} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                        <h2 id="notification-future-channels" className="text-base font-medium text-[var(--text-strong)]">Push & SMS</h2>
+                        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Noch nicht verfügbar</p>
+                    </div>
+                    <MessageSquare size={18} aria-hidden="true" className="ml-auto shrink-0 text-[var(--text-muted)] opacity-60" />
+                </div>
+                <p className="mt-4 text-pretty text-sm leading-6 text-[var(--text-muted)]">
+                    Für diese Kanäle gibt es später eigene Einstellungen. Aktuell werden keine Push-Nachrichten oder SMS versendet.
+                </p>
+            </section>
 
             <div className="rounded-2xl bg-[var(--surface-solid)] p-4 shadow-[0_0_0_1px_var(--border-subtle)] sm:flex sm:items-center sm:justify-between sm:gap-4">
                 <div className="min-h-6 min-w-0" aria-live="polite">
@@ -268,14 +287,14 @@ export function NotificationSettingsForm({
                         </p>
                     ) : (
                         <p className="text-pretty text-xs leading-5 text-[var(--text-muted)]">
-                            Änderungen gelten nur für dein eigenes Konto.
+                            {dirty ? "Du hast ungespeicherte Änderungen." : "Keine ungespeicherten Änderungen."}
                         </p>
                     )}
                 </div>
                 <button
                     type="submit"
                     disabled={!dirty || controlsDisabled}
-                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 text-sm font-semibold text-white shadow-[0_8px_20px_color-mix(in_srgb,var(--brand)_22%,transparent)] transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-[var(--brand-strong)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100 sm:mt-0 sm:w-auto"
+                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 text-sm font-semibold text-white shadow-[0_8px_20px_color-mix(in_srgb,var(--brand)_22%,transparent)] transition-[background-color,box-shadow] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none motion-reduce:transition-none sm:mt-0 sm:w-auto"
                 >
                     {isSavePending ? <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" size={17} /> : null}
                     {isSavePending ? "Wird gespeichert …" : "Einstellungen speichern"}
@@ -296,6 +315,7 @@ function ChannelSection({
     pending,
     onToggle,
     children,
+    preparation = false,
 }: {
     icon: ReactNode;
     title: string;
@@ -307,6 +327,7 @@ function ChannelSection({
     pending: boolean;
     onToggle: (key: BooleanNotificationPreference, checked: boolean) => void;
     children?: ReactNode;
+    preparation?: boolean;
 }) {
     const titleId = `notification-channel-${enabledKey}`;
     const descriptionId = `${titleId}-description`;
@@ -319,7 +340,10 @@ function ChannelSection({
                         {icon}
                     </span>
                     <div className="min-w-0">
-                        <h2 id={titleId} className="text-balance text-base font-semibold text-[var(--text-strong)]">{title}</h2>
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <h2 id={titleId} className="text-balance text-base font-semibold text-[var(--text-strong)]">{title}</h2>
+                            {preparation ? <span className="rounded-full [background:var(--app-glass-selected)] px-2 py-0.5 text-[10px] font-medium leading-4 text-[var(--text-muted)]">Vorbereitung</span> : null}
+                        </div>
                         <p id={descriptionId} className="mt-1 text-pretty text-sm leading-5 text-[var(--text-muted)]">{description}</p>
                     </div>
                 </div>
@@ -332,9 +356,9 @@ function ChannelSection({
                 />
             </div>
 
-            <fieldset disabled={!enabled || pending} className="mt-5 border-t border-[var(--border-subtle)] pt-2 disabled:opacity-50">
+            <fieldset disabled={!enabled || pending} className="mt-4 disabled:opacity-50">
                 <legend className="sr-only">{title} auswählen</legend>
-                <div className="divide-y divide-[var(--border-subtle)]">
+                <div className="grid gap-1">
                     {options.map((option) => (
                         <PreferenceCheckbox
                             key={option.key}

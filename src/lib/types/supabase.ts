@@ -1027,6 +1027,8 @@ export type Database = {
           in_app_enabled: boolean
           in_app_messages: boolean
           in_app_waitlist_updates: boolean
+          push_enabled: boolean
+          sms_enabled: boolean
           quiet_hours_end: string | null
           quiet_hours_start: string | null
           timezone: string
@@ -1046,6 +1048,8 @@ export type Database = {
           in_app_enabled?: boolean
           in_app_messages?: boolean
           in_app_waitlist_updates?: boolean
+          push_enabled?: boolean
+          sms_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           timezone?: string
@@ -1065,6 +1069,8 @@ export type Database = {
           in_app_enabled?: boolean
           in_app_messages?: boolean
           in_app_waitlist_updates?: boolean
+          push_enabled?: boolean
+          sms_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           timezone?: string
@@ -1085,11 +1091,17 @@ export type Database = {
         Row: {
           body: string | null
           category: string
-          created_at: string | null
+          created_at: string
           data: Json | null
           dedupe_key: string | null
+          event_key: string
+          event_type: string
           id: string
+          in_app_visible: boolean
+          inserted_at: string
+          priority: number
           read_at: string | null
+          seen_at: string | null
           title: string
           type: string
           user_id: string
@@ -1097,11 +1109,17 @@ export type Database = {
         Insert: {
           body?: string | null
           category?: string
-          created_at?: string | null
+          created_at?: string
           data?: Json | null
           dedupe_key?: string | null
+          event_key?: string
+          event_type?: string
           id?: string
+          in_app_visible?: boolean
+          inserted_at?: string
+          priority?: number
           read_at?: string | null
+          seen_at?: string | null
           title: string
           type: string
           user_id: string
@@ -1109,11 +1127,17 @@ export type Database = {
         Update: {
           body?: string | null
           category?: string
-          created_at?: string | null
+          created_at?: string
           data?: Json | null
           dedupe_key?: string | null
+          event_key?: string
+          event_type?: string
           id?: string
+          in_app_visible?: boolean
+          inserted_at?: string
+          priority?: number
           read_at?: string | null
+          seen_at?: string | null
           title?: string
           type?: string
           user_id?: string
@@ -1711,6 +1735,18 @@ export type Database = {
       }
       mark_notification_read: {
         Args: { p_notification_id: string }
+        Returns: Json
+      }
+      mark_notifications_seen: {
+        Args: { p_notification_ids: string[] }
+        Returns: Json
+      }
+      mark_notifications_read_through: {
+        Args: { p_snapshot_at: string }
+        Returns: Json
+      }
+      get_notification_feed: {
+        Args: { p_limit?: number; p_before_created_at?: string; p_before_id?: string; p_unread_only?: boolean }
         Returns: Json
       }
       promote_waitlisted_application: {

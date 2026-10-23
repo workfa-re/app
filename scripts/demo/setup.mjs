@@ -5,7 +5,7 @@ import { parse } from "dotenv";
 import { API_URL, APP_URL, assertLocalEnvironment, assertLoopbackBindings, cli, dockerConnection, ENV_FILE, existingFile, fail, inspectProject, LABEL, NETWORK, PROJECT, ROOT, RUNTIME, sql, verifyProject } from "./common.mjs";
 
 const schemaDirectory = path.join(ROOT, "infrastructure/demo/schema");
-const schemaNames = ["platform.sql", "../../database/migrations/20261022181830_appointment_requests.sql", "../../database/migrations/20261022224929_exclusive_job_reservations.sql", "isolation.sql", "service-api.sql", "auth-guard.sql", "seed.sql", "cleanup-schedule.sql"];
+const schemaNames = ["platform.sql", "../../database/migrations/20261022181830_appointment_requests.sql", "../../database/migrations/20261022224929_exclusive_job_reservations.sql", "../../database/migrations/20261023215242_notification_delivery_foundation.sql", "../../database/migrations/20261023215919_index_notification_delivery_foreign_keys.sql", "isolation.sql", "service-api.sql", "auth-guard.sql", "seed.sql", "cleanup-schedule.sql"];
 const config = `project_id = "${PROJECT}"
 [api]
 enabled = true

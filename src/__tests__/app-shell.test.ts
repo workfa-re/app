@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/types";
 
-const state = vi.hoisted(() => ({ auth: vi.fn(), from: vi.fn(), queries: [] as Array<{ table: string; steps: Array<[string, ...unknown[]]> }> }));
+const state = vi.hoisted(() => ({ auth: vi.fn(), from: vi.fn(), rpc: vi.fn(), queries: [] as Array<{ table: string; steps: Array<[string, ...unknown[]]> }> }));
 vi.mock("@/lib/auth", () => ({ getAuthState: state.auth }));
-vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: async () => ({ from: state.from }) }));
+vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: async () => ({ from: state.from, rpc: state.rpc }) }));
 vi.mock("next/navigation", () => ({ redirect: (href: string) => { throw new Error(`REDIRECT:${href}`); } }));
 
 import { getAppHomeAccess, getAppHomeContext, getAppHomeSnapshot } from "@/lib/app-shell";
@@ -18,6 +18,8 @@ describe("app shell data and page access contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.queries = [];
+    state.rpc.mockResolvedValue({ data: { ok: true, notifications: [{ id: "synthetic-notification", title: "Test", type: "info", user_id: profile.id }],
+      unread_count: 17, has_more: false, snapshot_at: "2026-10-23T12:00:00Z" }, error: null });
     state.auth.mockResolvedValue({ state: "ready", profile, effectiveView: { viewRole: "job_seeker", roles: [] }, systemRoles: ["moderator"] });
     state.from.mockImplementation((table: string) => {
       const query = { table, steps: [] as Array<[string, ...unknown[]]> };
@@ -78,8 +80,35 @@ describe("app shell data and page access contract", () => {
     expect(snapshot).toMatchObject({ unreadCount: 17, notificationsPreview: [{ id: "synthetic-notification" }], canApply: true, guardianStatus: "linked", market: { id: profile.market_id } });
     expect(snapshot.profile).toBe(snapshot.profileLite);
     expect(snapshot.profile).toMatchObject({ guardian_status: "linked", has_active_guardian: true });
-    const preview = state.queries.find((query) => query.table === "notifications" && query.steps.some(([method]) => method === "limit"));
-    expect(preview?.steps).toContainEqual(["limit", 10]);
-    expect(preview?.steps).toContainEqual(["order", "id", { ascending: false }]);
+    expect(state.rpc).toHaveBeenCalledWith("get_notification_feed", { p_limit: 25 });
+    expect(state.queries.some(query => query.table === "notifications")).toBe(false);
+  });
+
+  it("keeps rolling-deployment fallback recipient-owned and visibility-filtered", async () => {
+    state.rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "RPC not found" } });
+    const snapshot = await getAppHomeSnapshot();
+    expect(snapshot.unreadCount).toBe(17);
+    const queries = state.queries.filter(query => query.table === "notifications");
+    expect(queries.length).toBe(2);
+    for (const query of queries) {
+      expect(query.steps).toContainEqual(["eq", "user_id", profile.id]);
+      expect(query.steps).toContainEqual(["eq", "in_app_visible", true]);
+    }
+  });
+
+  it("does not bypass the atomic feed after an authorization or transport error", async () => {
+    state.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Permission denied" } });
+    const snapshot = await getAppHomeSnapshot();
+    expect(snapshot.notificationsPreview).toEqual([]);
+    expect(snapshot.unreadCount).toBe(0);
+    expect(state.queries.some(query => query.table === "notifications")).toBe(false);
+  });
+
+  it("fails closed on a malformed feed or a mismatched recipient", async () => {
+    state.rpc.mockResolvedValue({ data: { ok: true, notifications: [{ id: "foreign", title: "Test", type: "info", user_id: "other" }],
+      unread_count: 1, has_more: false, snapshot_at: "2026-10-23T12:00:00Z" }, error: null });
+    expect((await getAppHomeSnapshot()).notificationsPreview).toEqual([]);
+    state.rpc.mockResolvedValue({ data: { ok: true, notifications: [] }, error: null });
+    expect((await getAppHomeSnapshot()).unreadCount).toBe(0);
   });
 });

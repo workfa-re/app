@@ -6,6 +6,8 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import type { Market } from "@/lib/types";
 import type { AccountType, Profile } from "@/lib/types";
 import type { AppHeaderProfile, AppHomeSnapshot, EffectiveViewSnapshot } from "@/lib/types/platform";
+import { normalizeNotificationItem, parseNotificationPage } from "@/components/notifications/notificationPayload";
+import type { NotificationItem } from "@/components/notifications/notificationTypes";
 
 export function getDefaultAppHomePath(viewRole: AccountType | null | undefined) {
   return viewRole === "job_provider" ? "/app-home/offers" : "/app-home/jobs";
@@ -126,21 +128,44 @@ export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
   const marketPromise = getMarketSummary(profile.market_id);
   const verificationPromise = getAppHomeAccess(context);
   const supabase = await supabaseServer();
-  const [market, verification, unreadResult, notificationsResult] = await Promise.all([
+  const notificationsPromise = (async () => {
+    const { data, error } = await supabase.rpc("get_notification_feed", { p_limit: 25 });
+    if (!error) {
+      try {
+        const page = parseNotificationPage(data);
+        return { unreadCount: page.unreadCount, notifications: page.notifications.filter(item => !item.user_id || item.user_id === profile.id) };
+      } catch { return { unreadCount: 0, notifications: [] }; }
+    }
+    // A rolling deployment may briefly run against the previous schema. Never
+    // broaden visibility when the new schema exists but the RPC is unavailable.
+    if (error.code !== "PGRST202" && error.code !== "42883") return { unreadCount: 0, notifications: [] };
+    const visibleRows = supabase.from("notifications").select("id, type, title, body, data, category, priority, event_key, event_type, seen_at, created_at, read_at")
+      .eq("user_id", profile.id).eq("in_app_visible", true).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(25);
+    const visibleCount = supabase.from("notifications").select("id", { count: "exact", head: true })
+      .eq("user_id", profile.id).eq("in_app_visible", true).is("read_at", null);
+    const [rows, count] = await Promise.all([visibleRows, visibleCount]);
+    if (!rows.error && !count.error) return { unreadCount: count.count ?? 0, notifications: (rows.data ?? []).map(normalizeNotificationItem).filter((item): item is NotificationItem => item !== null) };
+    if (![rows.error?.code, count.error?.code].some(code => code === "42703" || code === "PGRST204")) return { unreadCount: 0, notifications: [] };
+    const [compatibleRows, compatibleCount] = await Promise.all([
+      supabase.from("notifications").select("id, type, title, body, data, created_at, read_at").eq("user_id", profile.id).eq("in_app_visible", true)
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(25),
+      visibleCount,
+    ]);
+    if (!compatibleRows.error && !compatibleCount.error) return { unreadCount: compatibleCount.count ?? 0, notifications: compatibleRows.data ?? [] };
+    const visibilityMissing = [compatibleRows.error, compatibleCount.error].some(failure =>
+      (failure?.code === "42703" || failure?.code === "PGRST204") && failure.message.includes("in_app_visible"));
+    if (!visibilityMissing) return { unreadCount: 0, notifications: [] };
+    const [legacyRows, legacyCount] = await Promise.all([
+      supabase.from("notifications").select("id, type, title, body, data, created_at, read_at").eq("user_id", profile.id)
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(25),
+      supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", profile.id).is("read_at", null),
+    ]);
+    return { unreadCount: legacyCount.error ? 0 : legacyCount.count ?? 0, notifications: legacyRows.error ? [] : legacyRows.data ?? [] };
+  })();
+  const [market, verification, notifications] = await Promise.all([
     marketPromise,
     verificationPromise,
-    supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", profile.id)
-      .is("read_at", null),
-    supabase
-      .from("notifications")
-      .select("id, type, title, body, data, created_at, read_at")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(10),
+    notificationsPromise,
   ]);
 
   const normalizedProfile: AppHeaderProfile = {
@@ -158,7 +183,7 @@ export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {
     hasActiveGuardian: verification.hasActiveGuardian,
     isVerified: verification.isVerified,
     canApply: verification.canApply,
-    unreadCount: unreadResult.error ? 0 : unreadResult.count ?? 0,
-    notificationsPreview: notificationsResult.error ? [] : notificationsResult.data ?? [],
+    unreadCount: notifications.unreadCount,
+    notificationsPreview: notifications.notifications,
   };
 });
