@@ -82,5 +82,15 @@ Nach dem vom Betreiber abgeschlossenen Domainwechsel ist Mailgun mit
 SMTP-Zugänge für Supabase Auth und Elternfreigaben. Die privaten Appvariablen
 sind in Dokploy dauerhaft gespeichert und in einen neuen Container ausgerollt.
 Der Vergleich bestätigt unveränderte übrige Servicevariablen. Die TLS-/SMTP-
-Authentifizierung ist auch vom Produktionscontainer erfolgreich; kein
-Zustelltest und keine echten Elternzustimmungen wurden dabei ausgelöst.
+Authentifizierung ist auch vom Produktionscontainer erfolgreich.
+
+Ein separat freigegebener Zustelltest an den Betreiber zeigte zunächst eine
+endgültige Ablehnung wegen fehlender MX-Auflösung der neuen Sendedomain.
+Nur `m.workfa.re` erhielt die beiden EU-Mailgun-MX-Einträge mit Priorität 10;
+Root-Mail und Anwendungsdomains bleiben unverändert. Autoritative Nameserver,
+Cloudflare und Google bestätigen beide Einträge. Die Wiederholung der
+abgewiesenen Diagnose mit derselben Nachrichtenkennung wurde am 24.10.2026
+um 20:34 Uhr (Europe/Berlin) mit Mailgun `Delivered` und Antwort `2.0.0` vom
+Empfängerserver bestätigt. Das belegt die Annahme durch dessen Mailserver,
+keine Inbox-Platzierung oder abgeschlossene Registrierung. Die Diagnose hat
+kein Konto, keine echte Elternzustimmung und keine Zahlung erzeugt.

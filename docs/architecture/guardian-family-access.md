@@ -92,5 +92,10 @@ certificate validation. No message was sent during that connection check.
 Supabase Auth uses a separate domain credential and the sender
 `anmeldung@m.workfa.re`. Its saved configuration was independently reloaded.
 Normal registration and parental-permission mail remain separate transports.
-Inbox delivery requires a separately authorized recipient test; SMTP login
-success alone is not a delivery claim.
+The separately authorized operator diagnostic initially received a permanent
+sender-domain rejection because the new subdomain had no MX records. Adding
+only the two EU Mailgun MX records for `m.workfa.re` resolved the lookup. A retry
+of that rejected diagnostic with the same Message-ID reached Mailgun
+`Delivered`, with recipient-server response `2.0.0`, at 20:34 Europe/Berlin.
+This confirms remote-server acceptance, not inbox placement, an Auth signup
+or the granting of real parental permission. No further test mail was sent.
