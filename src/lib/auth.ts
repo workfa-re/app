@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "./supabaseServer";
 import { Profile, isProfileComplete, SystemRoleType, AccountType } from "./types";
 import type { EffectiveViewSnapshot } from "./types/platform";
+import { isFamilyOnlyProfile } from "@/lib/guardian/workspace";
 
 const emptySessionContext = {
   session: null,
@@ -24,6 +25,7 @@ export type AuthState =
   | { state: "no-session" }
   | { state: "email-unconfirmed"; session: Session; profile: Profile | null; systemRoles: string[]; effectiveView: EffectiveViewSnapshot | null }
   | { state: "incomplete-profile"; session: Session; profile: Profile | null; systemRoles: string[]; effectiveView: EffectiveViewSnapshot | null }
+  | { state: "family-only"; session: Session; profile: Profile; systemRoles: string[]; effectiveView: null }
   | { state: "ready"; session: Session; profile: Profile | null; systemRoles: string[]; effectiveView: EffectiveViewSnapshot | null };
 
 const getCurrentSessionAndProfileCached = cache(async (): Promise<{
@@ -76,14 +78,12 @@ const getCurrentSessionAndProfileCached = cache(async (): Promise<{
 
   let effectiveView: EffectiveViewSnapshot | null = null;
 
-  if (profile) {
-    const baseRole = (profile.account_type as AccountType | null) ?? "job_seeker";
+  if (profile?.account_type) {
+    const baseRole = profile.account_type;
     effectiveView = {
       viewRole: baseRole,
       roles: systemRoles,
     };
-
-    profile.account_type = effectiveView.viewRole;
   }
 
   return { session, profile: profile ?? null, systemRoles, effectiveView };
@@ -115,6 +115,9 @@ const getAuthStateCached = cache(async (): Promise<AuthState> => {
   }
 
   if (!isProfileComplete(profile)) {
+    if (profile && isFamilyOnlyProfile(profile)) {
+      return { state: "family-only", session, profile, systemRoles, effectiveView: null } as const;
+    }
     return { state: "incomplete-profile", session, profile, systemRoles, effectiveView } as const;
   }
 
@@ -138,10 +141,12 @@ export const requireCompleteProfile = async () => {
   if (state.state === "email-unconfirmed")
     redirect("/onboarding");
   if (state.state === "incomplete-profile") redirect("/onboarding");
+  if (state.state === "family-only") redirect("/guardian/access");
   return { session: state.session!, profile: state.profile!, systemRoles: state.systemRoles };
 };
 
 export const redirectIfAuthenticated = async () => {
   const state = await getAuthState();
   if (state.state === "ready") redirect("/app-home");
+  if (state.state === "family-only") redirect("/guardian/access");
 };

@@ -17,6 +17,7 @@ import { LocationStep } from "./onboarding/LocationStep";
 import { CinematicDateInput } from "@/components/ui/CinematicDateInput";
 import { getOnboardingCompanyError, getOnboardingProfileError } from "@/lib/onboarding-validation";
 import type { User } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import {
   getInitialOnboardingRole,
   getOnboardingEntryStep,
@@ -57,6 +58,7 @@ type OnboardingWizardProps = {
   isJustVerified?: boolean;
   reserveFooterSpace?: boolean;
   initialError?: string | null;
+  providerUpgrade?: boolean;
 };
 
 const getErrorMessage = (err: unknown, fallback: string) =>
@@ -190,7 +192,9 @@ export function OnboardingWizard({
   initialMode = null,
   isJustVerified = false,
   initialError = null,
+  providerUpgrade = false,
 }: OnboardingWizardProps) {
+  const router = useRouter();
   const safeRedirectTo = safeInternalRedirectOr(redirectTo, "/app-home");
   const [step, setStep] = useState<Step>(() => getOnboardingEntryStep({ forcedStep, initialMode }));
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -224,7 +228,7 @@ export function OnboardingWizard({
 
   // Initialwerte aus Session, Profil und lokalem Onboarding-Entwurf zusammenführen.
   const [profileData, setProfileData] = useState({
-    role: getInitialOnboardingRole({ profile: initialProfile, forcedStep, isJustVerified }),
+    role: providerUpgrade ? "adult" as const : getInitialOnboardingRole({ profile: initialProfile, forcedStep, isJustVerified }),
     fullName: initialProfile?.full_name || "",
     birthdate: initialProfile?.birthdate || "",
     region: initialProfile?.city || initialRegion || "",
@@ -256,7 +260,7 @@ export function OnboardingWizard({
     const normalizedDraftEmail = normalizeEmail(draft?.email);
     const draftMatchesSession = Boolean(draft && (!normalizedInitialEmail || normalizedDraftEmail === normalizedInitialEmail));
 
-    if (draft && draftMatchesSession && !initialMode) {
+    if (draft && draftMatchesSession && !initialMode && !providerUpgrade) {
       setEmail(draft.email);
       setMode(draft.mode);
       setProfileData((prev) => ({
@@ -273,7 +277,7 @@ export function OnboardingWizard({
     }
 
     setResumeChecked(true);
-  }, [forcedStep, initialEmail, initialProfile, isJustVerified, mustChooseRole, initialMode]);
+  }, [forcedStep, initialEmail, initialProfile, isJustVerified, mustChooseRole, initialMode, providerUpgrade]);
 
   useEffect(() => {
     if (!resumeChecked) return;
@@ -551,6 +555,9 @@ export function OnboardingWizard({
     setEmailConfirmed(false);
     setCodeError(null);
     try {
+      await import("@/components/payments/recipient-connect-lifecycle")
+        .then(({ logoutRecipientConnectSessions }) => logoutRecipientConnectSessions())
+        .catch(() => undefined);
       const { error: signOutError } = await supabaseBrowser.auth.signOut();
       if (signOutError) throw signOutError;
 
@@ -662,7 +669,7 @@ export function OnboardingWizard({
         setStep("location");
       }
     } else if (step === "location") {
-      setStep("auth");
+      setStep(providerUpgrade ? "summary" : "auth");
     } else if (step === "auth") {
       if (mode === "signup") {
         handleSignUp();
@@ -717,6 +724,7 @@ export function OnboardingWizard({
     if (step === "mode") {
       setStep("welcome");
     } else if (step === "location") {
+      if (providerUpgrade) { router.push("/guardian/access"); return; }
       setStep("welcome");
     } else if (step === "auth") {
       if (mode === "signup") {
@@ -732,7 +740,7 @@ export function OnboardingWizard({
         setStep("auth");
       }
     } else if (step === "profile") {
-      setStep("role");
+      setStep(providerUpgrade ? "location" : "role");
     } else if (step === "contact") {
       setStep("profile");
     } else if (step === "summary") {
@@ -806,7 +814,7 @@ export function OnboardingWizard({
                       region: regionData.city,
                       marketId: regionData.region_live_id ?? null,
                     }));
-                    setStep(editingFromSummary ? "summary" : "auth");
+                    setStep(editingFromSummary || providerUpgrade ? "summary" : "auth");
                     setEditingFromSummary(false);
                   }}
                 />
@@ -1154,7 +1162,12 @@ export function OnboardingWizard({
                   </div>
                   <div>
                     <p className="onboarding-field-label">Geburtsdatum</p>
-                    <CinematicDateInput
+                    {providerUpgrade ? <input
+                      aria-label="Geburtsdatum"
+                      value={new Date(`${profileData.birthdate}T12:00:00`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      readOnly
+                      aria-readonly="true"
+                    /> : <CinematicDateInput
                       value={profileData.birthdate}
                       role={profileData.role}
                       onChange={(val) => {
@@ -1162,9 +1175,9 @@ export function OnboardingWizard({
                         setErrorMsg(null);
                       }}
                       onErrorChange={(msg) => setErrorMsg(msg)}
-                    />
+                    />}
                     <p className="onboarding-field-hint">
-                      Für die Prüfung der Altersvoraussetzungen.
+                      {providerUpgrade ? "Aus deinem Elternkonto übernommen." : "Für die Prüfung der Altersvoraussetzungen."}
                     </p>
                   </div>
                   {errorMsg && <OnboardingInlineFeedback>{errorMsg}</OnboardingInlineFeedback>}
@@ -1307,7 +1320,7 @@ export function OnboardingWizard({
                             <dd>{profileData.role === "youth" ? "Jobs finden" : profileData.role === "adult" ? "Privatperson / Elternteil" : "Unternehmen / Organisation"}</dd>
                             {profileData.role === "youth" && <dd className="onboarding-summary-meta">14–20 Jahre</dd>}
                           </div>
-                          <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("role")} aria-label="Rolle bearbeiten" title="Rolle bearbeiten"><Pencil aria-hidden="true" /></button>
+                          {!providerUpgrade && <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("role")} aria-label="Rolle bearbeiten" title="Rolle bearbeiten"><Pencil aria-hidden="true" /></button>}
                         </div>
                         <div className="onboarding-summary-row">
                           <div>

@@ -1154,7 +1154,7 @@ export type Database = {
       }
       profiles: {
         Row: {
-          account_type: Database["public"]["Enums"]["account_type"]
+          account_type: Database["public"]["Enums"]["account_type"] | null
           availability_note: string | null
           avatar_url: string | null
           bio: string | null
@@ -1190,7 +1190,7 @@ export type Database = {
           zip: string | null
         }
         Insert: {
-          account_type?: Database["public"]["Enums"]["account_type"]
+          account_type?: Database["public"]["Enums"]["account_type"] | null
           availability_note?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -1226,7 +1226,7 @@ export type Database = {
           zip?: string | null
         }
         Update: {
-          account_type?: Database["public"]["Enums"]["account_type"]
+          account_type?: Database["public"]["Enums"]["account_type"] | null
           availability_note?: string | null
           avatar_url?: string | null
           bio?: string | null

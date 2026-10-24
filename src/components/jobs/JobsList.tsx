@@ -22,6 +22,7 @@ import { warmJobsUI } from "@/lib/ui-warmup";
 import { startPerfMark } from "@/lib/perf";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { getJobDiscoveryHref, type JobDiscoveryPreferences } from "@/lib/jobs/discovery";
+import type { RecipientApplicationGate } from "@/lib/payments/recipient-types";
 
 const JobDetailModal = dynamic(
     () => import("@/components/jobs/JobDetailModal").then((mod) => mod.JobDetailModal),
@@ -45,6 +46,9 @@ interface JobsListProps {
     hasLocation?: boolean;
     canApply: boolean;
     guardianStatus: string;
+    recipientGate?: RecipientApplicationGate | null;
+    initialJobId?: string | null;
+    overview?: React.ReactNode;
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -95,10 +99,13 @@ export function JobsList({
     hasLocation = true,
     canApply,
     guardianStatus,
+    recipientGate,
+    initialJobId,
+    overview,
 }: JobsListProps) {
     const router = useRouter();
-    const [selectedJob, setSelectedJob] = useState<JobsListItem | null>(null);
-    const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<JobsListItem | null>(() => [...localActiveJobs, ...extendedActiveJobs].find(job => job.id === initialJobId) ?? null);
+    const [isDetailOpen, setIsDetailOpen] = useState(() => Boolean(initialJobId && [...localActiveJobs, ...extendedActiveJobs].some(job => job.id === initialJobId)));
     const detailTriggerRef = useRef<HTMLElement | null>(null);
     const resultsRef = useRef<HTMLElement | null>(null);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -273,6 +280,8 @@ export function JobsList({
                 </button>
             </div>
 
+            {overview}
+
             <section ref={resultsRef} className="jobs-results" aria-label="Jobangebote" aria-busy={isUpdating} tabIndex={-1}>
                 <div className="space-y-12">
                     <JobsListSection title="Lokale Angebote" colorClass="text-current" jobs={filteredLocalJobs}
@@ -302,6 +311,7 @@ export function JobsList({
                     canApply={canApply}
                     availableForApplication={[...localActiveJobs, ...extendedActiveJobs].some(job => job.id === selectedJob.id && job.status === "open")}
                     guardianStatus={guardianStatus}
+                    recipientGate={recipientGate}
                 />
             )}
 

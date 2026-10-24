@@ -2,7 +2,6 @@
 
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createJob as createJobDAL, getEffectiveView } from "@/lib/dal/platform";
 import type { ErrorInfo } from "@/lib/types/platform";
@@ -10,6 +9,7 @@ import type { AccountType } from "@/lib/types";
 import { Database } from "@/lib/types/supabase";
 import { resolveLocationCoordinates } from "@/lib/location-privacy";
 import { parseCreateJobCompensation } from "./createJobValidation";
+import { getPaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 
 const RHEINBACH_CENTER_PUBLIC_COORDINATES = { lat: 50.63, lng: 6.95 } as const;
 
@@ -36,7 +36,8 @@ const createJobSchema = z.object({
 
 export type CreateJobActionState =
     | null
-    | { status: "error"; error: ErrorInfo };
+    | { status: "error"; error: ErrorInfo }
+    | { status: "success" };
 
 export async function createJob(_prevState: CreateJobActionState, formData: FormData): Promise<CreateJobActionState> {
     const supabase = await supabaseServer();
@@ -181,6 +182,16 @@ export async function createJob(_prevState: CreateJobActionState, formData: Form
 
     const jobStatus: Database["public"]["Enums"]["job_status"] = intent === "draft" ? "draft" : "open";
 
+    if (jobStatus === "open") {
+        const payment = await getPaymentSettingsSnapshot(user.id);
+        if (payment.featureEnabled && !payment.buyerReady) {
+            return {
+                status: "error",
+                error: { code: "buyer_payment_required", message: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Dein Entwurf bleibt erhalten." },
+            };
+        }
+    }
+
     const publicCoordinates = resolvedCoordinates.status === "valid"
         ? {
             lat: resolvedCoordinates.publicLatitude,
@@ -211,11 +222,14 @@ export async function createJob(_prevState: CreateJobActionState, formData: Form
     });
 
     if (!res.ok) {
+        if (res.error.message.includes("buyer_payment_required")) {
+            return { status: "error", error: { code: "buyer_payment_required", message: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Dein Entwurf bleibt erhalten." } };
+        }
         const state: CreateJobActionState = { status: "error", error: res.error };
         return state;
     }
 
     revalidatePath("/app-home/offers");
     revalidatePath("/app-home/jobs");
-    redirect("/app-home/offers");
+    return { status: "success" };
 }

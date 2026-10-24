@@ -30,7 +30,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_template constant jsonb := $template${
-  "version": "workfare-exclusive-reservations-v2",
+  "version": "workfare-family-purpose-v3",
   "synthetic": true,
   "description": "Gemeinsame Vorlage für die drei öffentlichen Demoansichten und ihre echten Datenbankbeispiele.",
   "public_roles": [
@@ -96,14 +96,14 @@ DECLARE
       "alias": "guardian",
       "name": "Sam Beispiel",
       "age": 44,
-      "account_type": "job_provider",
-      "provider_kind": "private",
-      "street": "Beispielweg",
-      "house_number": "4",
-      "bio": "Fiktive sorgeberechtigte Person für die geschützte Plattform-Demo.",
-      "interests": "Familie, Lesen und Nachbarschaft",
-      "skills": "Begleitung und klare Absprachen",
-      "availability": "Nach Vereinbarung"
+      "account_type": null,
+      "provider_kind": null,
+      "street": null,
+      "house_number": null,
+      "bio": null,
+      "interests": null,
+      "skills": null,
+      "availability": null
     },
     {
       "alias": "peer-seeker",
@@ -154,7 +154,7 @@ DECLARE
     },
     {
       "key": "phone-open",
-      "owner": "guardian",
+      "owner": "private-provider",
       "title": "Das neue Smartphone gemeinsam einrichten",
       "category": "it_help",
       "wage": 18,
@@ -330,7 +330,7 @@ DECLARE
     },
     {
       "key": "extended-tutoring",
-      "owner": "guardian",
+      "owner": "private-provider",
       "title": "Mathe verständlich erklären",
       "category": "tutoring",
       "wage": 18,
@@ -579,16 +579,16 @@ BEGIN
     ) VALUES (
       v_id, v_item->>'name',
       ((p_seed_at AT TIME ZONE 'Europe/Berlin')::date - make_interval(years => (v_item->>'age')::int, months => 3))::date,
-      'Musterstadt', 'DE',
+      CASE WHEN v_role='guardian' THEN NULL ELSE 'Musterstadt' END, 'DE',
       CASE WHEN v_item->>'account_type' = 'job_seeker' THEN 'youth' ELSE 'adult' END,
       (v_item->>'account_type')::public.account_type,
       (v_item->>'provider_kind')::public.provider_kind,
       'demo+' || p_session_id::text || '.' || v_role || '@example.test', p_seed_at,
-      v_local_market, 'system', 'top', v_item->>'company_name',
+      CASE WHEN v_role='guardian' THEN NULL ELSE v_local_market END, 'system', 'top', v_item->>'company_name',
       CASE WHEN v_role = 'company' THEN 'demo+' || p_session_id::text || '.company@example.test' END,
       CASE WHEN v_role = 'company' THEN 'Vollständig erfundene Organisation für die Workfare-Demo.' END,
       v_item->>'bio', v_item->>'interests', v_item->>'skills', v_item->>'availability',
-      v_item->>'street', v_item->>'house_number', '00000', NULL, NULL, NULL,
+      v_item->>'street', v_item->>'house_number', CASE WHEN v_role='guardian' THEN NULL ELSE '00000' END, NULL, NULL, NULL,
       p_seed_at - interval '30 days', p_seed_at
     ) ON CONFLICT (id) DO UPDATE SET
       full_name = EXCLUDED.full_name, birthdate = EXCLUDED.birthdate,

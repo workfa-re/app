@@ -8,6 +8,7 @@ import type { AccountType, Profile } from "@/lib/types";
 import type { AppHeaderProfile, AppHomeSnapshot, EffectiveViewSnapshot } from "@/lib/types/platform";
 import { normalizeNotificationItem, parseNotificationPage } from "@/components/notifications/notificationPayload";
 import type { NotificationItem } from "@/components/notifications/notificationTypes";
+import { getGuardianApplicationAccess } from "@/lib/guardian/access-state.server";
 
 export function getDefaultAppHomePath(viewRole: AccountType | null | undefined) {
   return viewRole === "job_provider" ? "/app-home/offers" : "/app-home/jobs";
@@ -41,7 +42,6 @@ export const getMarketSummary = cache(async (marketId: string | null | undefined
 });
 
 const getVerificationState = cache(async (
-  profileId: string,
   viewRole: AccountType,
   guardianStatus: string | null,
   providerVerificationStatus: string | null,
@@ -62,21 +62,8 @@ const getVerificationState = cache(async (
     };
   }
 
-  const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("guardian_relationships")
-    .select("child_id")
-    .eq("child_id", profileId)
-    .eq("status", "active")
-    .limit(1);
-
-  const hasActiveGuardian = !error && Boolean(data?.length);
-
-  return {
-    guardianStatus: hasActiveGuardian ? "linked" : "none",
-    hasActiveGuardian,
-    isVerified: hasActiveGuardian,
-    canApply: hasActiveGuardian,
+  return await getGuardianApplicationAccess() ?? {
+    guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: false,
   };
 });
 
@@ -95,6 +82,7 @@ export const getAppHomeContext = cache(async (): Promise<AppHomeContext> => {
   if (authState.state === "incomplete-profile") {
     redirect("/onboarding");
   }
+  if (authState.state === "family-only") redirect("/guardian/access");
 
   const profile = authState.profile!;
   const effectiveView = authState.effectiveView ?? buildFallbackView(profile);
@@ -113,7 +101,6 @@ export const getAppHomeContext = cache(async (): Promise<AppHomeContext> => {
 export function getAppHomeAccess(context: AppHomeContext) {
   const { profile, effectiveView } = context;
   return getVerificationState(
-    profile.id,
     effectiveView.viewRole,
     profile.guardian_status,
     profile.provider_verification_status,

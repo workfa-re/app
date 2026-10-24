@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, Clock, Eye, Loader2, LockKeyhole, MapPin, Pencil, Plus, ShieldCheck, Users, X } from "lucide-react";
 import type { Profile } from "@/lib/types";
+import type { GuardianApplicationAccess } from "@/lib/guardian/types";
 import { cn } from "@/lib/utils";
+import { isAdultBirthdate } from "@/lib/age";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { LocationAutocomplete, type LocationDetails } from "@/components/ui/LocationAutocomplete";
 import { UserProfileModal } from "./UserProfileModal";
@@ -21,6 +24,7 @@ type ProfileEditFormProps = {
     className?: string;
     isStaff?: boolean;
     guardians?: LinkedAccount[];
+    guardianAccess?: GuardianApplicationAccess | null;
     wards?: LinkedAccount[];
     guardianLoadError?: string | null;
     wardsLoadError?: string | null;
@@ -39,7 +43,7 @@ function tags(value: string) {
     return [...new Set(value.split(",").map(part => part.trim()).filter(Boolean))];
 }
 
-export function ProfileEditForm({ profile, className, isStaff = false, guardians = [], wards = [], guardianLoadError = null, wardsLoadError = null, emailConfirmed = false, lastLogin = null }: ProfileEditFormProps) {
+export function ProfileEditForm({ profile, className, isStaff = false, guardians = [], guardianAccess = null, wards = [], guardianLoadError = null, wardsLoadError = null, emailConfirmed = false, lastLogin = null }: ProfileEditFormProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isProvider = profile.account_type === "job_provider";
@@ -72,8 +76,8 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
     const wardsList = wardsResult?.people ?? wards;
     const guardianError = guardianResult ? guardianResult.error : guardianLoadError;
     const wardsError = wardsResult ? wardsResult.error : wardsLoadError;
-    const guardianRequired = !isProvider && !guardianError && guardiansList.length === 0;
-    const hasLinkedAccounts = guardiansList.length > 0 || wardsList.length > 0 || Boolean(guardianError || wardsError);
+    const consentRequired = !isProvider && !isAdultBirthdate(profile.birthdate);
+    const guardianRequired = consentRequired && !guardianError && guardianAccess?.isVerified !== true;
     const payload = useMemo(() => buildProfileUpdate(draft, isProvider), [draft, isProvider]);
     const isDirty = JSON.stringify(payload) !== JSON.stringify(buildProfileUpdate(savedDraft, isProvider));
     const visibleCity = isProvider ? profile.city : draft.city;
@@ -140,6 +144,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
             getWards().then(result => setWardsResult({ people: result.wards ?? [], error: result.error ?? null })).catch(() => setWardsResult({ people: [], error: "Die verknüpften Kinder konnten gerade nicht geladen werden." })),
         ]);
         setReloading(false);
+        router.refresh();
     }
 
     return <section className={cn(styles.page, className)}>
@@ -161,7 +166,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                         <div className={styles.identityFacts}>
                             {visibleCity && <p className={styles.identityMeta}><MapPin aria-hidden="true" /><span>{visibleCity}</span></p>}
                             {isProvider && isVerified && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>Adresse geprüft</span></p>}
-                            {!isProvider && guardiansList.length > 0 && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>Elternfreigabe aktiv</span></p>}
+                            {!isProvider && (consentRequired ? guardianAccess?.isVerified === true : guardiansList.length > 0) && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>{consentRequired ? "Elternfreigabe aktiv" : "Familie verknüpft"}</span></p>}
                         </div>
                     </div>
                 </div>
@@ -228,16 +233,18 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                             {isCompany && profile.company_message && <div className={styles.wide}><dt>Nachricht aus der Registrierung</dt><dd>{profile.company_message}</dd></div>}
                         </dl></details>
                     </section>
-                    {hasLinkedAccounts && <section className={styles.panel} aria-labelledby="linked-accounts-heading">
-                        <div className={styles.sectionHeading}><h2 id="linked-accounts-heading">Verknüpfte Konten</h2><span className={styles.visibility}><LockKeyhole aria-hidden="true" />Nur für dich sichtbar</span></div>
+                    <section className={styles.panel} aria-labelledby="linked-accounts-heading">
+                        <div className={styles.sectionHeading}><h2 id="linked-accounts-heading">Familie</h2><span className={styles.visibility}><LockKeyhole aria-hidden="true" />Privat</span></div>
                         {(guardiansList.length > 0 || guardianError) && <div className={styles.relationshipGroup}>
-                            <div className={styles.groupHeading}><h3>Deine Elternfreigaben</h3>{!isProvider && guardiansList.length > 0 && <button type="button" className={cn(styles.button, styles.smallButton)} onClick={() => setShowGuardian(true)} aria-label="Weitere Elternfreigabe hinzufügen"><Plus aria-hidden="true" />Hinzufügen</button>}</div>
+                            <div className={styles.groupHeading}><h3>{consentRequired ? "Deine Elternfreigaben" : "Deine Eltern"}</h3>{!isProvider && guardiansList.length > 0 && <button type="button" className={cn(styles.button, styles.smallButton)} onClick={() => setShowGuardian(true)} aria-label="Elternteil hinzufügen"><Plus aria-hidden="true" />Hinzufügen</button>}</div>
                             <LinkedPeople people={guardiansList} />
                             {guardianError && <p role="alert" className={styles.loadError}>{guardianError}</p>}
                         </div>}
                         {(wardsList.length > 0 || wardsError) && <div className={styles.relationshipGroup}><h3>Deine Kinder</h3><LinkedPeople people={wardsList} />{wardsError && <p role="alert" className={styles.loadError}>{wardsError}</p>}</div>}
+                        {!isProvider && guardiansList.length === 0 && !guardianError && <div className={styles.relationshipGroup}><p className={styles.empty}>{consentRequired ? "Ein Elternteil bestätigt deine Teilnahme. Einen vollständigen Anbieteraccount braucht er dafür nicht." : "Du kannst deine Eltern freiwillig verknüpfen. Für deine Bewerbungen brauchst du keine Elternfreigabe."}</p><button type="button" className={styles.button} onClick={() => setShowGuardian(true)}><Plus aria-hidden="true" />Eltern einladen</button></div>}
+                        {(isProvider || wardsList.length > 0) && <Link href="/guardian/access" className={styles.button}><Users aria-hidden="true" />Familienbereich öffnen</Link>}
                         {(guardianError || wardsError) && <button type="button" className={styles.button} disabled={reloading} onClick={() => void refreshRelationships()}>{reloading && <Loader2 className={styles.spinner} aria-hidden="true" />}{reloading ? "Wird geladen …" : "Erneut laden"}</button>}
-                    </section>}
+                    </section>
                 </fieldset>
                 {editing && <div className={styles.saveBar}>
                     <span className={styles.feedback} role={saveState?.type === "error" ? "alert" : "status"} data-state={saveState?.type}>{saveState?.message || (saving ? "Änderungen werden gespeichert …" : isDirty ? "Ungespeicherte Änderungen" : "Noch keine Änderungen")}</span>
@@ -247,7 +254,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
             </form>
         </div>
         <UserProfileModal isOpen={showPreview} onClose={() => setShowPreview(false)} isStaff={isStaff} isDraft={isDirty} profile={{ ...profile, city: visibleCity, bio: draft.bio, interests: isProvider ? null : draft.interests, skills: isProvider ? null : draft.skills }} />
-        <GuardianConsentModal isOpen={showGuardian} onClose={() => { setShowGuardian(false); void refreshRelationships(); }} variant={guardiansList.length > 0 ? "add" : "initial"} guardianStatus={guardiansList.length > 0 ? "linked" : profile.guardian_status === "pending" ? "pending" : "none"} />
+        <GuardianConsentModal isOpen={showGuardian} onClose={() => { setShowGuardian(false); void refreshRelationships(); }} variant={guardiansList.length > 0 ? "add" : "initial"} consentRequired={consentRequired} guardianStatus={guardiansList.length > 0 ? "linked" : profile.guardian_status === "pending" ? "pending" : "none"} />
         <ProviderVerificationModal isOpen={showVerification} onClose={() => setShowVerification(false)} onSubmitted={() => { setShowVerification(false); router.refresh(); }} />
     </section>;
 }
@@ -259,7 +266,7 @@ function ProfileTags({ title, values }: { title: string; values: string[] }) {
 function LinkedPeople({ people }: { people: LinkedAccount[] }) {
     return <ul className={styles.people}>{people.map(person => <li key={person.id} className={styles.person}>
         <ProfileAvatar url={null} name={person.full_name || "Verknüpftes Konto"} className={styles.personAvatar} />
-        <div className={styles.personCopy}><strong>{person.full_name || "Verknüpftes Konto"}</strong><span><ShieldCheck aria-hidden="true" />Freigabe aktiv</span>
+        <div className={styles.personCopy}><strong>{person.full_name || "Verknüpftes Konto"}</strong><span><ShieldCheck aria-hidden="true" />Verbunden</span>
             {(person.email || person.linked_at) && <details className={styles.personDetails}><summary>Kontaktdetails<ChevronDown aria-hidden="true" /></summary>{person.email && <p>{person.email}</p>}{person.linked_at && <p>Verknüpft seit {formatDate(person.linked_at)}</p>}</details>}
         </div>
     </li>)}</ul>;

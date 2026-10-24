@@ -4,6 +4,7 @@ import { CreateJobForm } from "@/components/jobs/CreateJobForm";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import styles from "@/components/jobs/JobForm.module.css";
+import { getPaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 
 type DefaultLocation = {
     id: string;
@@ -42,7 +43,10 @@ export default async function NewOfferPage() {
         }
         : null;
 
-    const region = await getMarketSummary(profile.market_id);
+    const [region, payment] = await Promise.all([
+        getMarketSummary(profile.market_id),
+        getPaymentSettingsSnapshot(profile.id),
+    ]);
     const marketName = region?.display_name || "deiner Stadt";
 
     return (
@@ -58,7 +62,8 @@ export default async function NewOfferPage() {
             </div>
 
             <div className={styles.panel}>
-                <CreateJobForm defaultLocation={defaultLocation} marketName={marketName} />
+                <CreateJobForm defaultLocation={defaultLocation} marketName={marketName}
+                    paymentRequired={payment.featureEnabled && !payment.buyerReady} />
             </div>
         </div>
     );

@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "@/components/jobs/JobForm.module.css";
 import type { Database } from "@/lib/types/supabase";
-import { updateJobAction } from "./actions";
-import { AlertTriangle, CalendarDays, Loader2, Lock, MapPin, Repeat2 } from "lucide-react";
+import { submitJobEdit } from "./jobEditSubmission";
+import { AlertTriangle, CalendarDays, CreditCard, Loader2, Lock, MapPin, Repeat2 } from "lucide-react";
 import { JOB_CATEGORIES } from "@/lib/constants/jobCategories";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -20,11 +20,15 @@ const STATUS_LABELS: Record<EditableJobStatus, string> = {
     closed: "Archiviert",
 };
 
-export function EditJobForm({ job, marketName }: { job: Job; marketName: string }) {
+export function EditJobForm({ job, marketName, paymentRequired = false, resumePublication = false }: {
+    job: Job; marketName: string; paymentRequired?: boolean; resumePublication?: boolean;
+}) {
     const router = useRouter();
     const reduceMotion = useReducedMotion();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [paymentBlocked, setPaymentBlocked] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState(resumePublication && !paymentRequired && ["draft", "closed"].includes(job.status) ? "open" : job.status);
     const [categoryId, setCategoryId] = useState(job.category || "");
     const [paymentType, setPaymentType] = useState<"hourly" | "fixed">(
         job.payment_type === "fixed" ? "fixed" : "hourly",
@@ -42,8 +46,9 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
     const [continuityPreferred, setContinuityPreferred] = useState(Boolean(job.continuity_preferred));
     const titleRef = useRef<HTMLDivElement>(null);
     const statusInfo = getProviderJobStatusMeta(job.status);
-    const statusIsProtected = isProtectedJobStatus(job.status);
+    const statusIsProtected = isProtectedJobStatus(job.status) || Boolean(job.completed_at) || (job.status === "closed" && Boolean(job.filled_by));
     const editableStatuses = getEditableStatuses(job.status);
+    const needsPayment = (paymentRequired || paymentBlocked) && selectedStatus === "open" && job.status !== "open";
 
     if (statusIsProtected) {
         return (
@@ -69,6 +74,7 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
     }
 
     async function handleSubmit(formData: FormData) {
+        if (isLoading) return;
         setIsLoading(true);
         setError(null);
         formData.set("category", categoryId);
@@ -78,11 +84,12 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
         formData.set("continuity_preferred", jobKind === "recurring" && continuityPreferred ? "true" : "false");
 
         try {
-            const result = await updateJobAction(job.id, formData);
+            const result = await submitJobEdit({ jobId: job.id, currentStatus: job.status, formData, preparePayment: needsPayment });
             if (result.success) {
-                router.push("/app-home/offers");
+                router.push(result.nextHref);
                 router.refresh();
             } else {
+                if ("code" in result && result.code === "buyer_payment_required") setPaymentBlocked(true);
                 setError(result.error || "Fehler beim Speichern");
             }
         } catch {
@@ -93,7 +100,8 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
     }
 
     return (
-        <form action={handleSubmit} className={cn(styles.form, "space-y-7")}>
+        <form onSubmit={event => { event.preventDefault(); void handleSubmit(new FormData(event.currentTarget)); }} className={styles.form} aria-busy={isLoading}>
+            <fieldset disabled={isLoading} className="min-w-0 space-y-7">
             {error ? (
                 <div className="flex items-start gap-3 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)]" role="alert">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0" />
@@ -337,7 +345,8 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                         <select
                             id="status"
                             name="status"
-                            defaultValue={job.status}
+                            value={selectedStatus}
+                            onChange={event => setSelectedStatus(event.target.value as Job["status"])}
                             required
                             className={styles.input}
                         >
@@ -348,6 +357,10 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                     )}
                 </div>
             </div>
+
+            {needsPayment && <div className={cn(styles.inset, styles.paymentNotice)}>
+                <CreditCard size={19} aria-hidden="true" /><div><strong>Vor dem Veröffentlichen</strong><p>Deine Änderungen werden zuerst gespeichert. Danach hinterlegst du ein Zahlungsmittel und kehrst zu diesem Job zurück. Der Job bleibt bis dahin unveröffentlicht.</p></div>
+            </div>}
 
             <div className={styles.actions}>
                 <button type="button" className={cn("app-glass-control", styles.action)} onClick={() => router.back()} disabled={isLoading}>
@@ -360,10 +373,11 @@ export function EditJobForm({ job, marketName }: { job: Job; marketName: string 
                             Speichern
                         </>
                     ) : (
-                        "Änderungen speichern"
+                        needsPayment ? "Speichern und Zahlungsmittel hinterlegen" : "Änderungen speichern"
                     )}
                 </button>
             </div>
+            </fieldset>
         </form>
     );
 }

@@ -33,7 +33,7 @@ const provider: Profile = { ...seeker, id: "own-provider", full_name: "Max Muste
 const guardian = { id: "parent-a", full_name: "Mara Schneider", email: "parent@example.invalid", linked_at: "2026-05-10T10:00:00Z" };
 const child = { id: "child-a", full_name: "Leon Schneider", email: "child@example.invalid", linked_at: "2026-05-11T10:00:00Z" };
 function renderProfile(overrides: Partial<Props> = {}) {
-    return renderToStaticMarkup(<ProfileEditForm profile={seeker} guardians={[guardian]} wards={[]} emailConfirmed {...overrides} />);
+    return renderToStaticMarkup(<ProfileEditForm profile={seeker} guardians={[guardian]} guardianAccess={{ guardianStatus: "linked", hasActiveGuardian: true, canApply: true, isVerified: true }} wards={[]} emailConfirmed {...overrides} />);
 }
 function section(html: string, headingId: string) {
     const index = html.indexOf(`aria-labelledby="${headingId}"`);
@@ -130,15 +130,24 @@ describe("profile trust and linked accounts", () => {
     });
 
     it("does not claim active parental approval from a stale profile flag", () => {
-        const html = text(renderProfile({ guardians: [], profile: { ...seeker, guardian_status: "linked" } }));
+        const html = text(renderProfile({ guardians: [], guardianAccess: null, profile: { ...seeker, guardian_status: "linked" } }));
         expect(html).not.toContain("Elternfreigabe aktiv");
         expect(html).toContain("Elternfreigabe ergänzen");
         expect(html).toContain("Einladung erstellen");
     });
 
-    it("explains the current application requirement for adult seekers without active relationships too", () => {
+    it("keeps parental links optional for adult seekers", () => {
         const html = text(renderProfile({ guardians: [], profile: { ...seeker, birthdate: "2000-05-10", guardian_status: "none" } }));
-        expect(html).toContain("Elternfreigabe ergänzen");
+        expect(html).not.toContain("Elternfreigabe ergänzen");
+        expect(html).not.toContain("Für Bewerbungen benötigst du eine Elternfreigabe.");
+        expect(html).toContain("freiwillig verknüpfen");
+        expect(html).toContain("Eltern einladen");
+    });
+
+    it("does not equate an existing family connection with valid minor consent", () => {
+        const html = text(renderProfile({ guardianAccess: { guardianStatus: "pending", hasActiveGuardian: false, canApply: false, isVerified: false } }));
+        expect(html).toContain("Mara Schneider");
+        expect(html).not.toContain("Elternfreigabe aktiv");
         expect(html).toContain("Für Bewerbungen benötigst du eine Elternfreigabe.");
     });
 
@@ -150,7 +159,7 @@ describe("profile trust and linked accounts", () => {
     });
 
     it("keeps pending invitations distinct from a confirmed relationship", () => {
-        const html = text(renderProfile({ profile: { ...seeker, guardian_status: "pending" }, guardians: [] }));
+        const html = text(renderProfile({ profile: { ...seeker, guardian_status: "pending" }, guardians: [], guardianAccess: null }));
         expect(html).toContain("Elternfreigabe ausstehend");
         expect(html).toContain("Link anzeigen");
         expect(html).not.toContain("Elternfreigabe aktiv");
@@ -160,7 +169,7 @@ describe("profile trust and linked accounts", () => {
         const html = renderProfile({ profile: provider, guardians: [], wards: [child], guardianLoadError: "Elternfreigaben gerade nicht verfügbar." });
         expect(html).toContain('role="alert"');
         expect(text(html)).toContain("Elternfreigaben gerade nicht verfügbar.");
-        expect(text(html)).toContain("Deine Elternfreigaben");
+        expect(text(html)).toContain("Deine Eltern");
         expect(text(html)).toContain("Deine Kinder");
         expect(text(html)).toContain("Leon Schneider");
         expect(text(html)).toContain("Erneut laden");
@@ -168,7 +177,7 @@ describe("profile trust and linked accounts", () => {
     });
 
     it("shows an unknown guardian load state without an invitation or false active approval", () => {
-        const html = text(renderProfile({ guardians: [], guardianLoadError: "Elternfreigaben nicht verfügbar." }));
+        const html = text(renderProfile({ guardians: [], guardianAccess: null, guardianLoadError: "Elternfreigaben nicht verfügbar." }));
         expect(html).toContain("Elternfreigaben nicht verfügbar.");
         expect(html).not.toContain("Elternfreigabe aktiv");
         expect(html).not.toContain("Einladung erstellen");

@@ -24,6 +24,7 @@ export type JobDraftData = {
     recurrenceRule?: "weekly" | "biweekly" | "monthly" | "flexible";
     continuityPreferred?: boolean;
     isDefaultLocation?: boolean;
+    reach?: "internal_rheinbach" | "extended";
 };
 
 type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -35,6 +36,7 @@ export function hasMeaningfulJobDraft(data: Partial<JobDraftData>, hasDefaultLoc
         || data.location || (data.paymentType && data.paymentType !== "hourly")
         || data.jobKind === "recurring" || (data.recurrenceRule && data.recurrenceRule !== "weekly")
         || data.continuityPreferred === false
+        || data.reach === "extended"
         || (typeof data.isDefaultLocation === "boolean" && data.isDefaultLocation !== hasDefaultLocation));
 }
 
@@ -46,6 +48,7 @@ export function createJobDraftPersistence(
     let snapshot: DraftSnapshot = { draft: null, hasRestoredDraft: false };
     let currentValue: string | null = null;
     let persistedValue: string | null = null;
+    let completed = false;
 
     function load() {
         try {
@@ -64,7 +67,9 @@ export function createJobDraftPersistence(
         return snapshot;
     }
 
-    function save(data: Partial<JobDraftData>) {
+    function persist(data: Partial<JobDraftData>) {
+        if (completed) return { snapshot, saved: false };
+        let saved = false;
         try {
             const updated = { ...(snapshot.draft || {}), ...data } as JobDraftData;
             const value = JSON.stringify(updated);
@@ -76,21 +81,36 @@ export function createJobDraftPersistence(
                 writeBrandStorage(storage(), STORAGE_KEY, value);
                 persistedValue = value;
             }
+            saved = true;
         } catch (error) { onError("Failed to save job draft", error); }
-        return snapshot;
+        return { snapshot, saved };
     }
 
-    function clear() {
+    function save(data: Partial<JobDraftData>) { return persist(data).snapshot; }
+    function flush(data: Partial<JobDraftData>) { return persist(data).saved; }
+
+    function discard() {
         try {
-            removeBrandStorage(storage(), STORAGE_KEY);
+            const store = storage();
+            removeBrandStorage(store, STORAGE_KEY);
+            // Verify both the current key and any recoverable legacy draft.
+            if (store.getItem(STORAGE_KEY) !== null || readBrandStorage(store, STORAGE_KEY) !== null) {
+                throw new Error("Job draft removal was blocked.");
+            }
             snapshot = { draft: null, hasRestoredDraft: false };
             currentValue = null;
             persistedValue = null;
+            return true;
         } catch (error) { onError("Failed to clear job draft", error); }
-        return snapshot;
+        return false;
+    }
+    function clear() { discard(); return snapshot; }
+    function complete() {
+        completed = true;
+        return discard();
     }
 
-    return { load, save, clear, getSnapshot: () => snapshot };
+    return { load, save, flush, clear, discard, complete, getSnapshot: () => snapshot };
 }
 
 export function useJobFormPersistence() {
@@ -104,11 +124,20 @@ export function useJobFormPersistence() {
     }, [persistence]);
 
     const saveDraft = useCallback((data: Partial<JobDraftData>) => {
-        setSnapshot(persistence.save(data));
+        const saved = persistence.flush(data);
+        setSnapshot(persistence.getSnapshot());
+        return saved;
     }, [persistence]);
     const clearDraft = useCallback(() => {
-        setSnapshot(persistence.clear());
+        const cleared = persistence.discard();
+        setSnapshot(persistence.getSnapshot());
+        return cleared;
+    }, [persistence]);
+    const completeDraft = useCallback(() => {
+        const cleared = persistence.complete();
+        setSnapshot(persistence.getSnapshot());
+        return cleared;
     }, [persistence]);
 
-    return { ...snapshot, isLoaded, saveDraft, clearDraft };
+    return { ...snapshot, isLoaded, saveDraft, clearDraft, completeDraft };
 }

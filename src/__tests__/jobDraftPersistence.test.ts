@@ -9,13 +9,14 @@ const empty: JobDraftData = {
 class MemoryStorage {
     values = new Map<string, string>();
     failWrites = false;
+    failRemovals = false;
     writes = vi.fn((name: string, value: string) => {
         if (this.failWrites) throw new Error("Quota exceeded");
         this.values.set(name, value);
     });
     getItem(name: string) { return this.values.get(name) ?? null; }
     setItem(name: string, value: string) { this.writes(name, value); }
-    removeItem(name: string) { this.values.delete(name); }
+    removeItem(name: string) { if (this.failRemovals) throw new Error("Removal blocked"); this.values.delete(name); }
 }
 
 describe("job draft persistence", () => {
@@ -75,6 +76,31 @@ describe("job draft persistence", () => {
         expect(storage.writes).toHaveBeenCalledTimes(2);
     });
 
+    it("flushes the latest description and choices synchronously before leaving for payment setup", () => {
+        const storage = new MemoryStorage();
+        const owner = createJobDraftPersistence(() => storage);
+        owner.save({ ...empty, description: "Älterer automatisch gespeicherter Text" });
+        const latest = { ...empty, title: "Gartenhilfe", description: "Diese gerade geschriebene Beschreibung darf nicht verloren gehen.", reach: "extended" as const };
+        expect(owner.flush(latest)).toBe(true);
+        const resumed = createJobDraftPersistence(() => storage).load();
+        expect(resumed.draft).toEqual(latest);
+        expect(resumed.hasRestoredDraft).toBe(true);
+    });
+
+    it("reports a failed flush so navigation can stay on the form until the current draft is saved", () => {
+        const storage = new MemoryStorage();
+        const owner = createJobDraftPersistence(() => storage, vi.fn());
+        owner.save({ ...empty, description: "Gespeicherter Text" });
+        storage.failWrites = true;
+        const latest = { ...empty, description: "Noch nicht gesicherte neue Beschreibung" };
+        expect(owner.flush(latest)).toBe(false);
+        expect(JSON.parse(storage.getItem(key)!).description).toBe("Gespeicherter Text");
+        expect(owner.getSnapshot().draft?.description).toBe(latest.description);
+        storage.failWrites = false;
+        expect(owner.flush(latest)).toBe(true);
+        expect(JSON.parse(storage.getItem(key)!).description).toBe(latest.description);
+    });
+
     it("catches browser storage getter failures for load, save and clear", () => {
         const onError = vi.fn();
         const owner = createJobDraftPersistence(() => { throw new Error("Storage is blocked"); }, onError);
@@ -102,6 +128,41 @@ describe("job draft persistence", () => {
         expect(storage.writes).not.toHaveBeenCalled();
     });
 
+    it("retires a server-confirmed draft so a delayed autosave cannot resurrect the published job", () => {
+        const storage = new MemoryStorage();
+        const saved = { ...empty, title: "Bereits veröffentlichter Job", description: "Gespeicherte Beschreibung" };
+        const owner = createJobDraftPersistence(() => storage);
+        owner.save(saved);
+        expect(owner.complete()).toBe(true);
+        owner.save(saved);
+        expect(owner.flush(saved)).toBe(false);
+        expect(storage.getItem(key)).toBeNull();
+        expect(createJobDraftPersistence(() => storage).load()).toEqual({ draft: null, hasRestoredDraft: false });
+        const nextForm = createJobDraftPersistence(() => storage);
+        expect(nextForm.flush({ ...empty, title: "Ein neuer Job" })).toBe(true);
+    });
+
+    it("does not falsely report removal and keeps autosave retired while failed cleanup is retried", () => {
+        const storage = new MemoryStorage();
+        const owner = createJobDraftPersistence(() => storage, vi.fn());
+        owner.save({ ...empty, title: "Serverbestätigter Job" });
+        storage.failRemovals = true;
+        expect(owner.complete()).toBe(false);
+        expect(owner.flush({ ...empty, title: "Veralteter Timer" })).toBe(false);
+        expect(JSON.parse(storage.getItem(key)!).title).toBe("Serverbestätigter Job");
+        storage.failRemovals = false;
+        expect(owner.complete()).toBe(true);
+        expect(storage.getItem(key)).toBeNull();
+    });
+
+    it("still lets an explicitly discarded unsent draft be replaced with new work", () => {
+        const storage = new MemoryStorage();
+        const owner = createJobDraftPersistence(() => storage);
+        owner.save({ ...empty, title: "Verworfen" });
+        owner.clear();
+        expect(owner.flush({ ...empty, title: "Weiterbearbeitet" })).toBe(true);
+    });
+
     it("can persist intentionally cleared fields of an existing draft", () => {
         const storage = new MemoryStorage(); storage.values.set(key, JSON.stringify({ ...empty, title: "Vorheriger Titel" }));
         const owner = createJobDraftPersistence(() => storage); owner.load(); owner.save(empty);
@@ -120,7 +181,7 @@ describe("fresh job form draft policy", () => {
     it.each([
         { title: "Gartenhilfe" }, { description: "Die Beete vorbereiten." }, { wage: "0" }, { category: "garden" },
         { paymentType: "fixed" }, { jobKind: "recurring" as const }, { recurrenceRule: "monthly" as const },
-        { continuityPreferred: false }, { isDefaultLocation: false }, { location: { address: "QA Beispielweg" } },
+        { continuityPreferred: false }, { isDefaultLocation: false }, { location: { address: "QA Beispielweg" } }, { reach: "extended" as const },
     ])("preserves a deliberate input or option change: %j", change => {
         expect(hasMeaningfulJobDraft({ ...empty, ...change }, true)).toBe(true);
     });

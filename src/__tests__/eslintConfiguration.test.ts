@@ -9,7 +9,8 @@ describe("repository ESLint coverage", () => {
         expect(result.messages).toEqual(expect.arrayContaining([
             expect.objectContaining({ ruleId: "@typescript-eslint/no-empty-object-type", severity: 2 }),
         ]));
-    });
+    // The first lint loads the TypeScript parser and React plugin toolchain.
+    }, 15_000);
 
     it("checks React hook correctness in TSX rather than silently ignoring the file", async () => {
         const [result] = await eslint.lintText('import { useState } from "react";\nexport function invalidFunction() { return useState(0); }\n', { filePath: "src/components/eslint-coverage-probe.tsx" });

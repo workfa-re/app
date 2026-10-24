@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 
-const state = vi.hoisted(() => ({ requireProfile: vi.fn(), guardians: vi.fn(), wards: vi.fn() }));
+const state = vi.hoisted(() => ({ requireProfile: vi.fn(), guardians: vi.fn(), wards: vi.fn(), access: vi.fn() }));
+vi.mock("@/lib/guardian/access-state.server", () => ({ getGuardianApplicationAccess: state.access }));
 vi.mock("@/lib/auth", () => ({ requireCompleteProfile: state.requireProfile }));
 vi.mock("@/app/actions/guardian", () => ({ getGuardians: state.guardians, getWards: state.wards }));
 vi.mock("@/components/profile/ProfileEditForm", () => ({ ProfileEditForm: () => null }));
@@ -13,6 +14,7 @@ describe("own profile server data", () => {
         state.requireProfile.mockResolvedValue({ profile: { id: "own-profile" }, systemRoles: [], session: { user: { last_sign_in_at: "2026-10-24T10:00:00Z", email_confirmed_at: "2026-10-20T12:00:00Z" } } });
         state.guardians.mockResolvedValue({ guardians: [] });
         state.wards.mockResolvedValue({ wards: [] });
+        state.access.mockResolvedValue(null);
     });
 
     it("loads both account directions concurrently after checking profile access", async () => {

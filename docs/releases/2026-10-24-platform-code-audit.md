@@ -103,4 +103,4 @@ Offene Punkte aus dieser Diagnose:
 3. Die verbleibenden Effect-/Typisierungsstellen nach messbarem Risiko bearbeiten. Große Komponenten nicht nur zur Verringerung ihrer Zeilenzahl zerlegen.
 4. Den Zahlungsentwurf zuerst auf Geschäftsmodell, minderjährige Empfänger und PSP-Freigabe prüfen; danach einen vollständig getrennten Sandbox-Pilot bauen.
 
-Produktprioritäten und Platzierung stehen in der [Plattform-Roadmap](../planning/platform-roadmap.md), das Finanzmodell in [JobBridge Pay](../planning/jobbridge-pay.md).
+Produktprioritäten und Platzierung stehen in der [Plattform-Roadmap](../planning/platform-roadmap.md), das Finanzmodell in [Workfare Pay](../planning/workfare-pay.md).

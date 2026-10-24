@@ -15,6 +15,7 @@ export default async function SettingsPage() {
             <SettingsSurface
                 mobileNavPreference={mobileNavPreference}
                 themePreference={themePreference}
+                accountType={profile.account_type}
             />
         </>
     );

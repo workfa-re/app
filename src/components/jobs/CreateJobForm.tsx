@@ -1,18 +1,20 @@
 "use client";
 
-import { createJob } from "@/app/app-home/offers/actions";
-import { AlertTriangle, CalendarDays, CheckCircle2, FileEdit, Loader2, MapPin, Repeat2, Save, Trash2 } from "lucide-react";
+import { createJob, type CreateJobActionState } from "@/app/app-home/offers/actions";
+import { AlertTriangle, CalendarDays, CheckCircle2, CreditCard, FileEdit, Loader2, MapPin, Repeat2, Save, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { useActionState, useState, useEffect, useRef } from "react";
+import { useActionState, useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import type { ErrorInfo } from "@/lib/types/platform";
 import { LocationAutocomplete, LocationDetails } from "@/components/ui/LocationAutocomplete";
 import { hasMeaningfulJobDraft, useJobFormPersistence, type JobDraftData } from "@/hooks/use-job-persistence";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { JOB_CATEGORIES, PaymentType } from "@/lib/constants/jobCategories";
+import { getPaymentSettingsHref } from "@/lib/payments/return-path";
 import styles from "./JobForm.module.css";
 
-function SubmitButtons() {
+function SubmitButtons({ paymentRequired, onPreparePayment }: { paymentRequired: boolean; onPreparePayment: () => boolean }) {
     const { pending } = useFormStatus();
     const [activeIntent, setActiveIntent] = useState<"draft" | "create" | null>(null);
 
@@ -36,7 +38,13 @@ function SubmitButtons() {
                 {draftPending ? <Loader2 size={17} className="animate-spin" /> : <FileEdit size={17} />}
                 <span>Entwurf</span>
             </button>
-            <button
+            {paymentRequired ? <Link
+                href={getPaymentSettingsHref("/app-home/offers/new?resume=payment")}
+                prefetch={false}
+                aria-disabled={pending || undefined}
+                onClick={event => { if (pending || !onPreparePayment()) event.preventDefault(); }}
+                className={cn("app-primary-action app-glass-control", styles.action)}
+            ><CreditCard size={17} aria-hidden="true" /><span>Zahlungsmittel hinterlegen</span></Link> : <button
                 type="submit"
                 name="intent"
                 value="create"
@@ -46,14 +54,10 @@ function SubmitButtons() {
             >
                 {publishPending ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
                 <span>Veröffentlichen</span>
-            </button>
+            </button>}
         </div>
     );
 }
-
-type CreateJobFormState =
-    | null
-    | { status: "error"; error: ErrorInfo; debug?: Record<string, unknown> };
 
 type DefaultLocation = {
     id: string;
@@ -67,12 +71,13 @@ const inputClass = styles.input;
 const fieldLabelClass = styles.label;
 const sectionClass = styles.section;
 
-export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation?: DefaultLocation | null, marketName: string }) {
-    const [state, formAction] = useActionState<CreateJobFormState, FormData>(createJob, null);
+export function CreateJobForm({ defaultLocation, marketName, paymentRequired = false }: { defaultLocation?: DefaultLocation | null, marketName: string; paymentRequired?: boolean }) {
+    const [state, formAction, actionPending] = useActionState<CreateJobActionState, FormData>(createJob, null);
+    const router = useRouter();
     const reduceMotion = useReducedMotion();
 
     // Persistence Hook
-    const { draft, hasRestoredDraft, isLoaded, saveDraft, clearDraft } = useJobFormPersistence();
+    const { draft, hasRestoredDraft, isLoaded, saveDraft, clearDraft, completeDraft } = useJobFormPersistence();
     const hasDraft = draft !== null;
     const hasDefaultLocation = Boolean(defaultLocation);
 
@@ -87,10 +92,37 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
     const [continuityPreferred, setContinuityPreferred] = useState(true);
     const [useCustomLocation, setUseCustomLocation] = useState(!defaultLocation);
     const [location, setLocation] = useState<LocationDetails | null>(null);
+    const [reach, setReach] = useState<"internal_rheinbach" | "extended">("internal_rheinbach");
+    const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+    const succeeded = state?.status === "success";
+    const needsPayment = paymentRequired || (state?.status === "error" && state.error.code === "buyer_payment_required");
+    const submittingRef = useRef(false);
+    const navigatedRef = useRef(false);
 
     // Cinematic Scroll Reference
     const titleRef = useRef<HTMLDivElement>(null);
     const hasAppliedInitialDraftRef = useRef(false);
+
+    const finishSavedJob = useCallback(() => {
+        if (navigatedRef.current) return;
+        if (!completeDraft()) {
+            setDraftSaveError("Dein Job ist gespeichert. Der lokale Entwurf konnte noch nicht entfernt werden. Bitte versuche es erneut; veröffentliche den Job nicht noch einmal.");
+            return;
+        }
+        navigatedRef.current = true;
+        router.push("/app-home/offers");
+        router.refresh();
+    }, [completeDraft, router]);
+
+    useEffect(() => {
+        if (!succeeded) return;
+        let active = true;
+        queueMicrotask(() => { if (active) finishSavedJob(); });
+        return () => { active = false; };
+    }, [succeeded, finishSavedJob]);
+    useEffect(() => {
+        if (!actionPending && !succeeded) submittingRef.current = false;
+    }, [actionPending, succeeded]);
 
     // Load from Draft on Mount
     useEffect(() => {
@@ -105,10 +137,10 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
             if (draft.jobKind === "recurring") setJobKind("recurring");
             if (draft.recurrenceRule) setRecurrenceRule(draft.recurrenceRule);
             if (typeof draft.continuityPreferred === "boolean") setContinuityPreferred(draft.continuityPreferred);
+            if (draft.reach === "extended") setReach("extended");
+            if (typeof draft.isDefaultLocation === "boolean") setUseCustomLocation(!draft.isDefaultLocation);
 
-            // Logic: If draft has a specific location stored, we use custom mode.
-            // If draft explicitly says "using default" (we'd need to store that boolean), currently we infer.
-            if (draft.location) {
+            if (draft.location && draft.isDefaultLocation !== true) {
                 setUseCustomLocation(true);
                 setLocation({
                     address_line1: draft.location.address,
@@ -118,17 +150,11 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                     postal_code: draft.location.zip || "",
                     public_label: draft.location.label || ""
                 });
-            } else if (draft.isDefaultLocation === false) {
-                // If we tracked this flag. For now, if location is missing but draft exists, maybe they cleared it?
-                // Let's stick to: if location present -> custom.
             }
         }
     }, [isLoaded, draft]);
 
-    // Save to Draft on Change (Debounced)
-    useEffect(() => {
-        if (!isLoaded) return;
-        const nextDraft: JobDraftData = {
+    const currentDraft = useMemo<JobDraftData>(() => ({
             title,
             description,
             wage,
@@ -137,7 +163,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
             jobKind,
             recurrenceRule,
             continuityPreferred,
-            location: location ? {
+            location: useCustomLocation && location ? {
                 address: location.address_line1,
                 lat: location.lat,
                 lng: location.lng,
@@ -147,14 +173,34 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                 isDefault: !useCustomLocation,
             } : undefined,
             isDefaultLocation: !useCustomLocation,
-        };
-        if (!hasDraft && !hasMeaningfulJobDraft(nextDraft, hasDefaultLocation)) return;
-        const timer = setTimeout(() => saveDraft(nextDraft), 800);
+            reach,
+        }), [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, reach]);
+
+    // Keep the normal debounce; leaving for payment explicitly flushes it below.
+    useEffect(() => {
+        if (!isLoaded || succeeded) return;
+        if (!hasDraft && !hasMeaningfulJobDraft(currentDraft, hasDefaultLocation)) return;
+        const timer = setTimeout(() => saveDraft(currentDraft), 800);
         return () => clearTimeout(timer);
-    }, [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, isLoaded, saveDraft, hasDraft, hasDefaultLocation]);
+    }, [currentDraft, isLoaded, saveDraft, hasDraft, hasDefaultLocation, succeeded]);
+
+    const preparePayment = () => {
+        const saved = isLoaded && saveDraft(currentDraft);
+        setDraftSaveError(saved ? null : "Dein Entwurf konnte auf diesem Gerät nicht gesichert werden. Bitte bleib hier und versuche es erneut.");
+        return saved;
+    };
+
+    if (succeeded) return <section className={styles.form} aria-label="Job gespeichert">
+        <p role="status">Dein Job ist gespeichert.</p>
+        {draftSaveError && <><p className={styles.saveError} role="alert">{draftSaveError}</p><button autoFocus type="button" className={cn("app-glass-control", styles.action)} onClick={finishSavedJob}>Entwurf entfernen und weiter</button></>}
+    </section>;
 
     return (
-        <form action={formAction} className={cn(styles.form, "space-y-7")}>
+        <form action={formAction} className={cn(styles.form, "space-y-7")} aria-busy={actionPending}
+            onSubmit={event => {
+                if (submittingRef.current || actionPending) { event.preventDefault(); return; }
+                submittingRef.current = true;
+            }}>
             <input type="hidden" name="use_default_location" value={(!useCustomLocation && defaultLocation) ? "true" : "false"} />
             <input type="hidden" name="category" value={categoryId} />
             <input type="hidden" name="payment_type" value={paymentType} />
@@ -180,7 +226,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                         </span>
                         <button
                             type="button"
-                            onClick={() => { clearDraft(); setTitle(""); setDescription(""); setWage(""); setCategoryId(""); setPaymentType("hourly"); setJobKind("one_time"); setRecurrenceRule("weekly"); setContinuityPreferred(true); setLocation(null); setUseCustomLocation(!defaultLocation); }}
+                            onClick={() => { clearDraft(); setTitle(""); setDescription(""); setWage(""); setCategoryId(""); setPaymentType("hourly"); setJobKind("one_time"); setRecurrenceRule("weekly"); setContinuityPreferred(true); setLocation(null); setUseCustomLocation(!defaultLocation); setReach("internal_rheinbach"); setDraftSaveError(null); }}
                             className={styles.discard}
                         >
                             <Trash2 size={12} />
@@ -516,14 +562,14 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                 <label className={fieldLabelClass}>Reichweite</label>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label className={styles.reach}>
-                        <input type="radio" name="reach" value="internal_rheinbach" defaultChecked className="peer sr-only" />
+                        <input type="radio" name="reach" value="internal_rheinbach" checked={reach === "internal_rheinbach"} onChange={() => setReach("internal_rheinbach")} className="peer sr-only" />
                         <div className={cn("app-glass-control", styles.choice)}>
                             <h4 className="text-sm font-semibold text-[var(--text-strong)]">Lokal in {marketName}</h4>
                             <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Nur für Nutzer aus {marketName} sichtbar. Perfekt für Nachbarschaftshilfe.</p>
                         </div>
                     </label>
                     <label className={styles.reach}>
-                        <input type="radio" name="reach" value="extended" className="peer sr-only" />
+                        <input type="radio" name="reach" value="extended" checked={reach === "extended"} onChange={() => setReach("extended")} className="peer sr-only" />
                         <div className={cn("app-glass-control", styles.choice)}>
                             <h4 className="text-sm font-semibold text-[var(--text-strong)]">Überregional</h4>
                             <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Auch für Nutzer aus umliegenden Städten sichtbar.</p>
@@ -533,7 +579,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
             </div>
 
             {
-                state?.status === "error" && (
+                state?.status === "error" && state.error.code !== "buyer_payment_required" && (
                     <div className="rounded-xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)]">
                         <div className="font-semibold flex items-center gap-2">
                             <AlertTriangle size={14} />
@@ -546,11 +592,17 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                 )
             }
 
+            {needsPayment && <div className={cn(styles.inset, styles.paymentNotice)}>
+                <CreditCard size={19} aria-hidden="true" />
+                <div><strong>Zahlungsmittel vor Veröffentlichung</strong><p>Hinterlege ein Zahlungsmittel und kehre danach zu deinem Entwurf zurück. Es wird jetzt nichts bezahlt.</p></div>
+            </div>}
+            {draftSaveError && <p className={styles.saveError} role="alert">{draftSaveError}</p>}
+
             <div className={styles.actions}>
                 <p className="max-w-xs text-xs leading-5 text-[var(--text-muted)]">
                     {`Nach dem Veröffentlichen ist der Job für passende Jobsuchende in ${marketName} sichtbar.`}
                 </p>
-                <SubmitButtons />
+                <SubmitButtons paymentRequired={needsPayment} onPreparePayment={preparePayment} />
             </div>
         </form >
     );

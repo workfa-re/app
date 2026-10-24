@@ -6,6 +6,9 @@ import { getAppHomeAccess, getAppHomeContext } from "@/lib/app-shell";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import { CumulativeLoadMoreLink } from "@/components/ui/CumulativeLoadMoreLink";
 import { hasJobDiscoveryQuery, hasValidJobCoordinates, readJobDiscoveryPreferences, selectJobDiscoveryPage } from "@/lib/jobs/discovery";
+import { readRecipientReturnJobId } from "@/lib/payments/recipient-return-path";
+import type { RecipientApplicationGate } from "@/lib/payments/recipient-types";
+import { RecipientPayHome } from "@/components/payments/RecipientOverview";
 
 type JobsSearchParams = Record<string, string | string[] | undefined>;
 
@@ -73,7 +76,14 @@ export default async function JobsPage({
     const preferences = readJobDiscoveryPreferences(params, hasLocation);
     const jobsPage = parsePage(params[JOBS_PAGE_PARAM]);
     const visibleJobLimit = jobsPage * JOBS_PAGE_SIZE;
-    const [candidatesRes, appsRes, access] = await Promise.all([
+    const returnJobId = readRecipientReturnJobId(params.job);
+    const recipientStatePromise = profile.account_type === "job_seeker"
+        && ["local_simulation", "sandbox", "live"].includes(process.env.WORKFARE_PAY_MODE ?? "")
+        ? import("@/lib/payments/recipient-repository.server").then(({ getRecipientSettingsSnapshot }) => getRecipientSettingsSnapshot(profile.id))
+            // The database remains the authority when the optional projection is unavailable.
+            .catch(() => null)
+        : Promise.resolve(null);
+    const [candidatesRes, appsRes, access, recipientState, returnJobRes] = await Promise.all([
         fetchJobDiscoveryCandidates({
             marketId: profile.market_id,
             userCoordinates,
@@ -81,7 +91,12 @@ export default async function JobsPage({
         }),
         fetchCandidateApplicationLinks(profile.id),
         getAppHomeAccess(context),
+        recipientStatePromise,
+        returnJobId ? fetchJobs({ mode: "feed", userId: profile.id, marketId: profile.market_id, userCoordinates,
+            jobIds: [returnJobId], includeApplicationState: false, status: "open", limit: 1, offset: 0 }) : Promise.resolve(null),
     ]);
+    const recipientGate: RecipientApplicationGate | null = recipientState
+        ? { required: recipientState.featureEnabled, ready: recipientState.status === "ready" } : null;
     const snapshot = { ...context, ...access };
 
     const allApps = appsRes.ok ? appsRes.data : [];
@@ -96,7 +111,10 @@ export default async function JobsPage({
         : { ok: true as const, data: [] as JobsListItem[] };
     const jobsError = !candidatesRes.ok ? candidatesRes.error : !appsRes.ok ? appsRes.error : !jobsRes.ok ? jobsRes.error : null;
     const canLoadMoreJobs = jobsPage < MAX_JOBS_PAGE && discovery.hasMore;
-    const rawActiveJobs = jobsRes.ok ? jobsRes.data : [];
+    const rawActiveJobs = jobsRes.ok ? [...jobsRes.data] : [];
+    // Returning from setup opens a freshly authorized offer, even beyond page 1.
+    const returnedJob = returnJobRes?.ok ? returnJobRes.data.find(job => job.id === returnJobId && job.status === "open") : null;
+    if (returnedJob && !rawActiveJobs.some(job => job.id === returnedJob.id)) rawActiveJobs.unshift(returnedJob);
     const allActiveJobs = rawActiveJobs.filter((job) => (
         !Object.hasOwn(applicationConversations, job.id)
         && job.status === "open"
@@ -131,6 +149,10 @@ export default async function JobsPage({
                             hasLocation={hasLocation}
                             canApply={snapshot.canApply}
                             guardianStatus={snapshot.guardianStatus}
+                            recipientGate={recipientGate}
+                            initialJobId={returnJobId}
+                            overview={recipientState && recipientState.kind !== "disabled"
+                                ? <RecipientPayHome key={profile.id} ownerId={profile.id} /> : undefined}
                         />
                         {canLoadMoreJobs ? (
                             <CumulativeLoadMoreLink

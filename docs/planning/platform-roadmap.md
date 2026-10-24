@@ -2,7 +2,11 @@
 
 Stand: **24.10.2026**. **98 konkrete Backlogpunkte in zehn Bereichen.** Dies ist ein Planungs- und Entscheidungskatalog, keine Behauptung, dass die Funktionen entwickelt, freigegeben oder live sind.
 
-**Angefragt sind JobBridgePay, Treue/Vorteile und Freunde/Einladungen.** Deren fachliche und technische Freigaben stehen teilweise noch aus. Die übrigen Bereiche sind Vorschläge für sinnvolle Ergänzungen oder Abnahmen bestehender Funktionen; sie sind nicht pauschal zur Umsetzung beauftragt. Bereits vorhandene Funktionen werden nur dort erneut aufgeführt, wo eine konkrete Qualitäts-, Sicherheits- oder Ausbaustufe gemeint ist.
+Aktiv vorbereitet wird jetzt **Workfare Pay**. Die anderen Features bleiben für spätere Pakete dokumentiert; notwendige Sicherheits-/Betriebsaufgaben laufen als Voraussetzung des Zahlungspakets mit. Den konkreten nächsten Umfang beschreibt der [Planungsindex](README.md).
+
+**Zuerst lesbar:** Die [Feature-Übersicht](feature-overview.md) bündelt die echten Nutzerfunktionen und stellt Elternübersicht, Zahlungen und SMS heraus. Dieser Katalog bleibt die technische Vertiefung. Der [Zahlungsanbieter-Vergleich](payment-provider-comparison.md) erklärt das präzisierte Gebührenmodell: voller Jugendverdienst, zusätzliche Anbieter-Servicegebühr und ca. 5 % Zielbeitrag nach direkten Zahlungskosten.
+
+**Angefragt sind Workfare Pay, Treue/Vorteile und Freunde/Einladungen.** Deren fachliche und technische Freigaben stehen teilweise noch aus. Die übrigen Bereiche sind Vorschläge für sinnvolle Ergänzungen oder Abnahmen bestehender Funktionen; sie sind nicht pauschal zur Umsetzung beauftragt. Bereits vorhandene Funktionen werden nur dort erneut aufgeführt, wo eine konkrete Qualitäts-, Sicherheits- oder Ausbaustufe gemeint ist.
 
 ## Produktbild und Grenzen
 
@@ -95,9 +99,9 @@ Bestehende Orte sind konkret genannt. Neue Routen, Module und Tabellen sind ausd
 | C-11 | Relevante Absprachen als gut lesbare Termin-/Statuszeile statt Nachricht vortäuschen; verständliche Zeitpunkte | Systemereignisse im Verlauf und Statusleiste; vorhandene Event-IDs, Formatierung/Zeitzonen | P2 | C-04, C-05 |
 | C-12 | Verbindlichen Abschluss mit noch offenen Terminen und später Pay-Fällen zusammenführen; kein stiller Datenverlust | Abschlussdialog in Details; Engagement-/Appointment-Status, später Zahlungsprojektion | P1 | C-03, C-04; P-10 vor Pay-Aktivierung |
 
-## 4. JobBridgePay — angefragt, sechzehn Punkte
+## 4. Workfare Pay — angefragt, sechzehn Punkte
 
-Der ausführliche Geldfluss, Primärquellen und offene Zulässigkeitsfragen stehen in [JobBridgePay](jobbridge-pay.md). Alle folgenden Pay-Orte sind geplant; es gibt noch keine fertige Zahlungsintegration.
+Der ausführliche Geldfluss, Primärquellen und offene Zulässigkeitsfragen stehen in [Workfare Pay](workfare-pay.md). Alle folgenden Pay-Orte sind geplant; es gibt noch keine fertige Zahlungsintegration.
 
 | ID | Funktion und konkreter Nutzen | UI-/Backend-Ort | Priorität | Abhängigkeit |
 | --- | --- | --- | --- | --- |
@@ -155,7 +159,7 @@ Freundschaft ist eine beidseitig bestätigte private Beziehung. Referral ist ein
 | U-01 | Eine gemeinsame öffentliche Profilansicht aus Jobs, Chat und eigener Vorschau nutzen; Informationen und Layout widersprechen sich nicht | `UserProfileModal`, `public-profile.ts`, einheitliche Avatar-/Namensdarstellung | P1 | S-08 |
 | U-02 | Öffentliche, private und Compliance-Daten in getrennten Projektionen halten; keine Kontaktdaten aus Versehen veröffentlichen | Profil/DAL; vorhandene Creator-/Partner-RPCs, zukünftige Pay-/Friends-Projektionen mit eigener RLS | P0 vor neuen persönlichen Daten | S-02, U-01 |
 | U-03 | Eigene Übersicht kompakt und erst auf Wunsch bearbeitbar machen; Adresse, Kontakt und Bio schnell finden | `ProfileEditForm`, Identitätskopf, geschlossene weitere Kontodaten und expliziter Bearbeiten-Modus | P1 | U-01, U-02 |
-| U-04 | Elternverknüpfung, Arbeitszustimmung und PSP-Vertretung fachlich auseinanderhalten; kein falscher „alles geprüft“-Status | Elternbereich, `GuardianConsentModal`, Rollen-/Consentmodell und Apply-Berechtigung | P0 vor Minderjährigen-Pay/Friends | D-01, D-02, S-02 |
+| U-04 | Vollständige berechtigte Elternübersicht pro Kind mit Jobs, Terminen, Vergütung, später Pay-Status und offenen Freigaben schaffen; Verknüpfung, Arbeitszustimmung und PSP-Vertretung getrennt erklären | Elternrolle im Jobs-Tab, Kinderauswahl und Einstellungen/Familie; `GuardianConsentModal`, minimale Rollen-/Consentprojektionen und Apply-Berechtigung. Keine pauschale Offenlegung privater Chats | P1; P0 vor Minderjährigen-Pay/Friends | D-01, D-02 für Pay, D-08, S-02 |
 | U-05 | Volljährigkeitsübergang und Widerruf von Berechtigungen behandeln; private Daten bleiben nicht unbegrenzt für Eltern sichtbar | Geplanter Berechtigungsprozess; Profil-/Guardian-RPCs und Pay-Authorities ohne automatisches Löschen nötiger Belege | P1 | U-04, D-08; P-02 bei Pay |
 | U-06 | Anforderungsbezogene Verifizierung und nächste Aktion erklären; Adresse, Elternfreigabe und Auszahlung sind keine austauschbaren Badges | Identitätskarte und relevante Formulare; benannte vorhandene/neu geplante Verifizierungsprojektionen | P1 | U-02, U-04 |
 | U-07 | Avatar optional lassen und Initialen hochwertig darstellen; kein Fotozwang für ältere Anbieter oder Minderjährige | `ProfileAvatar`, Profilbearbeitung und Upload-/Löschpfad mit geprüfter Dateigröße/-art | P2 | U-02, S-08 |
@@ -169,7 +173,7 @@ Freundschaft ist eine beidseitig bestätigte private Beziehung. Referral ist ein
 | N-02 | Neue Aufgaben direkt an den passenden Detailabschnitt binden; kein zusätzliches Fenster ohne Zweck | `notificationRouting.ts`, `ChatDetails`-Fokusziel und berechtigungsgeprüfte Job-/Termindeep-Links | P1 | C-04, C-05; P-14 bei Pay |
 | N-03 | In-App-Livehinweise sichtbar, zurückhaltend und zugänglich halten; keine konkurrierenden Banner im offenen Chat | Bestehender Header/Livebanner, Fokus-/Interaktionspausen und Reduced Motion | P1 | N-01, S-08 |
 | N-04 | Web-Push als separat aktivierbaren Kanal planen; nur nach echter Einwilligung und überprüftem Gerät zustellen | Einstellungen/Benachrichtigungen; geplanter Service Worker/Provider, private Endpoints/Outbox, Revoke und Retry | P2 | D-10, N-01, S-02, S-03; derzeit deaktiviert lassen |
-| N-05 | E-Mail-Digests oder SMS nur mit verifizierten Zielen und klaren Kosten einführen; Präferenzfeld nicht als Versandfunktion ausgeben | Vorhandene private Delivery-Grundlage, geplanter Worker/Scheduler; Quiet Hours, Consent und Delivery-Status | P3 | D-10, N-01, S-02, S-03; gemeinsame Zustellgrundlage, Web-Push selbst keine Voraussetzung |
+| N-05 | SMS als eigenständiges Feature für ausgewählte wichtige Ereignisse anbieten; Nummer verifizieren, Kanal bewusst aktivieren/deaktivieren und Häufigkeit begrenzen. E-Mail-Digests getrennt ergänzen | Einstellungen/Benachrichtigungen, vorhandene private Delivery-Grundlage, geplanter Provider/Worker/Scheduler; Consent, Kostenlimit und Zustellstatus | SMS P1; E-Mail-Digests P2 | D-10, N-01, S-02, S-03; gemeinsame Zustellgrundlage, Web-Push selbst keine Voraussetzung |
 | N-06 | Support aus dem jeweiligen Problem mit Kontext öffnen; Nutzer müssen Job/Termin nicht erneut suchen | Bestehender Hilfe-Einstieg, geplanter kompakter Supportfall; keine automatischen Vollchat-Anhänge | P1 | C-09, A-02, U-02 |
 | N-07 | Unterstützung bei Registrierung und wichtigste Fragen schrittweise veröffentlichen; nur verfügbare Hilfen aktiv zeigen | Onboarding-Hilfepanel und Support; kleine gepflegte FAQ statt inaktiver falscher Versprechen | P2 | D-10, N-06 |
 | N-08 | Benachrichtigungspräferenzen und Eskalationen verständlich gestalten; Nutzer steuern normale Hinweise, dringende Zustände bleiben erreichbar | Einstellungen/Benachrichtigungen und bestehende interne Prioritäten 1–3; keinerlei P1/P2-Labels für Endnutzer | P1 | N-01, D-10; P-13 für finanzielle Eskalationen |
@@ -256,7 +260,7 @@ Neue Datenmodelle werden additiv und mit Schema-/Ledgerabgleich eingeführt. Ber
 
 Die Planung orientiert sich an den am 24.10.2026 gelesenen lokalen Quellen. Ein vorhandener Pfad oder eine Migrationsdatei belegt allein keinen Live-Status.
 
-- [Pay-Konzept mit Stripe-/Behördenquellen](jobbridge-pay.md): Zulässigkeit, Geldfluss, Gebühren, KYC, Minderjährige, DSGVO/PStTG, Schema und Zahlungsabnahme.
+- [Pay-Konzept mit Stripe-/Behördenquellen](workfare-pay.md): Zulässigkeit, Geldfluss, Gebühren, KYC, Minderjährige, DSGVO/PStTG, Schema und Zahlungsabnahme.
 - [Activities-Domäne](../architecture/activities-domain.md): exklusive Reservierung, Jobs/Engagements/Termine, Profile, Meldungen und Consumer-/Admin-Grenze.
 - [Benachrichtigungsarchitektur](../architecture/notifications.md): ein Feed, Prioritäten, Read/Seen, private externe Kanäle und deaktivierter Versand.
 - [Datenbankworkflow](../../infrastructure/database/README.md) und [Rollout-Runbook](../operations/database-rollout.md): geschützte Daten, additive Migrationen, Recovery und reale Abnahme.

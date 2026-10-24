@@ -45,6 +45,7 @@ import { ChatAppointments } from "./ChatAppointments";
 import { useAppointmentRequests } from "./useAppointmentRequests";
 import detailsStyles from "./ChatDetails.module.css";
 import { ReportDialog } from "./ReportDialog";
+import { AppointmentPaymentsProvider, PaymentConversationShortcut } from "@/components/payments/AppointmentPayment";
 import { getReportableContent, type ActivityReportInput } from "@/lib/activity/reporting";
 import { createChatReconnectHandler, createChatRefreshQueue, mergeChatHistory, mergeChatMessages as mergeMessages } from "./chat-sync";
 
@@ -80,6 +81,7 @@ interface ApplicationChatProps {
     embedded?: boolean;
     premiumComposer?: boolean;
     readOnly?: boolean;
+    paymentOrdersEnabled?: boolean;
 }
 
 type TimelineMessage = ActivityMessage & { isApplicationMessage?: boolean; isSystemMessage?: boolean };
@@ -167,6 +169,7 @@ export function ApplicationChat({
     embedded = false,
     premiumComposer: _premiumComposer = false,
     readOnly = false,
+    paymentOrdersEnabled = false,
 }: ApplicationChatProps) {
     void _premiumComposer;
 
@@ -185,6 +188,7 @@ export function ApplicationChat({
     const [sending, setSending] = useState(false);
     const [realtimeState, setRealtimeState] = useState<RealtimeState>("connecting");
     const [detailsOpen, setDetailsOpen] = useState(false);
+    const [paymentFocus, setPaymentFocus] = useState<{ appointmentId: string; nonce: number } | null>(null);
     const [profileOpen, setProfileOpen] = useState(false);
     const [compactDetails, setCompactDetails] = useState(true);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -332,6 +336,7 @@ export function ApplicationChat({
         setLocalDraft("");
         setSendError(null);
         setDetailsOpen(false);
+        setPaymentFocus(null);
         setProfileOpen(false);
         setSearchOpen(false);
         setAppointmentFocusKey(0);
@@ -659,6 +664,7 @@ export function ApplicationChat({
     };
 
     const openAppointmentRequests = () => {
+        setPaymentFocus(null);
         appointmentTargetGenerationRef.current++;
         setFocusedAppointmentRequest(undefined);
         setAppointmentTargetLoading(false);
@@ -670,6 +676,7 @@ export function ApplicationChat({
     };
 
     const openAppointmentMessage = async (messageId: string) => {
+        setPaymentFocus(null);
         const generation = ++appointmentTargetGenerationRef.current;
         setFocusedAppointmentRequest(null);
         setAppointmentTargetLoading(true);
@@ -1090,10 +1097,14 @@ export function ApplicationChat({
 
     return (
         <MotionConfig reducedMotion="user">
+        <AppointmentPaymentsProvider
+            key={`${liveApplication.id}:${currentUserId}:${currentUserRole}`}
+            context={paymentOrdersEnabled && !readOnly && currentUserId ? { applicationId: liveApplication.id, currentUserId, isProvider: currentUserRole === "provider" } : null}>
         <div className={cn(styles.chat, detailsStyles.workspace, "application-chat activity-modern-chat", embedded ? "" : "activity-modern-chat-modal")} data-ui="conversation" data-chat-tools data-details-open={detailsOpen}
             onKeyDown={event => {
                 if (!profileOpen && !reportOpen && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
                     event.preventDefault();
+                    setPaymentFocus(null);
                     setAppointmentFocusKey(0);
                     setSearchOpen(true);
                     setDetailsOpen(true);
@@ -1150,7 +1161,14 @@ export function ApplicationChat({
                         aria-haspopup="dialog" aria-expanded={detailsOpen && appointmentFocusKey > 0} onClick={openAppointmentRequests}>
                         <CalendarClock size={17} aria-hidden="true" /><span>{currentUserRole === "provider" ? "Anfrage prüfen" : "Dein Vorschlag"}</span>
                     </button> : null}
-                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { appointmentTargetGenerationRef.current++; setAppointmentFocusKey(0); setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen" title="Jobdetails und Aktionen">
+                    <PaymentConversationShortcut onOpen={appointmentId => {
+                        appointmentTargetGenerationRef.current++;
+                        setAppointmentFocusKey(0);
+                        setPaymentFocus(current => ({ appointmentId, nonce: (current?.nonce ?? 0) + 1 }));
+                        setSearchOpen(false);
+                        setDetailsOpen(true);
+                    }} />
+                    <button ref={detailsTriggerRef} type="button" className="activity-details-button" onClick={() => { appointmentTargetGenerationRef.current++; setPaymentFocus(null); setAppointmentFocusKey(0); setSearchOpen(false); setDetailsOpen(true); }} aria-expanded={detailsOpen} aria-label="Jobdetails und Aktionen öffnen" title="Jobdetails und Aktionen">
                         <Info size={18} aria-hidden="true" /><span>Details</span>
                     </button>
                 </div>
@@ -1446,6 +1464,7 @@ export function ApplicationChat({
                     <motion.button type="button" className={detailsStyles.backdrop} aria-label="Details schließen" tabIndex={-1}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsOpen(false)} />
                     <ChatDetails dialogRef={detailsDialogRef} compact={compactDetails} onClose={() => setDetailsOpen(false)}
+                        paymentFocus={paymentFocus}
                         appointmentFocusKey={appointmentFocusKey} appointmentFocusReady={!appointmentTargetLoading}
                         name={headerName} profile={headerProfile ?? null} partnerRole={currentUserRole === "seeker" ? "Auftraggeber" : "Bewerber"}
                         onOpenProfile={() => setProfileOpen(true)}
@@ -1474,7 +1493,7 @@ export function ApplicationChat({
                                     return { ...current, appointments: updated, scheduled_for: next?.starts_at ?? null, agreement: next ? { ...current.agreement, starts_at: next.starts_at, note: next.note } : null };
                                 });
                             }} /> : null}
-                        formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={open => { if (open) setAppointmentFocusKey(0); setSearchOpen(open); }} query={searchQuery} onQuery={setSearchQuery}
+                        formatSchedule={formatSchedule} searchOpen={searchOpen} onSearchOpen={open => { if (open) { setPaymentFocus(null); setAppointmentFocusKey(0); } setSearchOpen(open); }} query={searchQuery} onQuery={setSearchQuery}
                         messages={messages} loading={loadingMessages} hasOlder={hasOlderMessages} loadingOlder={loadingOlderMessages} loadError={loadError}
                         onLoadOlder={() => void loadOlderMessages()} onJump={jumpToMessage}
                         actions={canSchedule || canComplete || canDirectReopen || canRequestReopen || canReport ? <>
@@ -1591,6 +1610,7 @@ export function ApplicationChat({
             </AnimatePresence>
         </div>
         <UserProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={headerProfile ?? null} />
+        </AppointmentPaymentsProvider>
         </MotionConfig>
     );
 }

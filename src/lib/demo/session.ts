@@ -4,7 +4,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireDemoEnvironment } from "./environment";
-import { DEMO_IDENTITIES, type DemoIdentity, type DemoRole } from "./roles";
+import { DEMO_IDENTITIES, type DemoIdentity } from "./roles";
 
 export const DEMO_VISITOR_COOKIE = "wf-demo-visitor";
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
@@ -100,7 +100,7 @@ export async function getOrCreateDemoVisit(token: string | undefined, headers: H
   }
 }
 
-export async function getDemoLoginToken(visit: DemoVisit & { identities: NonNullable<DemoVisit["identities"]> }, role: DemoRole): Promise<string> {
+export async function getDemoLoginToken(visit: DemoVisit & { identities: NonNullable<DemoVisit["identities"]> }, role: DemoIdentity): Promise<string> {
   requireDemoEnvironment();
   const userId = visit.identities[role];
   const email = `demo+${visit.id}.${role}@example.test`;

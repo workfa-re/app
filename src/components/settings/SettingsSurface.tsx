@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Compass, Monitor, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, ChevronRight, Compass, CreditCard, Monitor, ShieldCheck, UserRound, Users, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { MobileNavPreferenceControl } from "@/components/settings/MobileNavPreferenceControl";
 import { ThemePreferenceControl } from "@/components/settings/ThemePreferenceControl";
 import type { MobileNavPreference } from "@/lib/mobile-nav-preference";
 import type { ThemePreference } from "@/lib/theme-preference";
+import type { AccountType } from "@/lib/types";
 import styles from "./Settings.module.css";
 
 type SettingsSurfaceProps = {
     mobileNavPreference: MobileNavPreference;
     themePreference: ThemePreference;
+    accountType?: AccountType | null;
 };
 
-export function SettingsSurface({ mobileNavPreference, themePreference }: SettingsSurfaceProps) {
+export function SettingsSurface({ mobileNavPreference, themePreference, accountType }: SettingsSurfaceProps) {
     return (
         <div className={styles.page}>
             <header className={styles.header}>
@@ -39,6 +41,10 @@ export function SettingsSurface({ mobileNavPreference, themePreference }: Settin
                         description="Persönliche Daten, Sichtbarkeit und Verifizierung" />
                     <SettingsLinkRow href="/app-home/settings/notifications" icon={Bell} title="Benachrichtigungen"
                         description="Persönliche Hinweise und E-Mails" />
+                    <SettingsLinkRow href="/app-home/settings/payments" icon={CreditCard} title="Workfare Pay"
+                        description={accountType === "job_provider" ? "Zahlungsmittel verwalten" : accountType === "job_seeker" ? "Informationen zur Auszahlung" : "Zahlungsmittel und Auszahlung"} />
+                    <SettingsLinkRow href="/guardian/access" icon={Users} title="Familie"
+                        description="Einladungen und Elternfreigaben" />
                     <SettingsLinkRow href="/app-home/settings/security" icon={ShieldCheck} title="Sicherheit"
                         description="Passwort und Sicherheitsaktivität" />
                 </div>

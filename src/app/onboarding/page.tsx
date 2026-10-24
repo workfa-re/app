@@ -3,6 +3,7 @@ import { getAuthState } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getSafeInternalRedirect } from "@/lib/safe-redirect";
 import type { OnboardingStep } from "@/lib/onboardingFlow";
+import { isIncompletePrivateProviderProfile } from "@/lib/guardian/workspace";
 
 // server component
 export default async function OnboardingPage(props: {
@@ -10,11 +11,14 @@ export default async function OnboardingPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const authState = await getAuthState();
+  const providerUpgrade = searchParams.purpose === "provider" && (authState.state === "family-only"
+    || (authState.state === "incomplete-profile" && isIncompletePrivateProviderProfile(authState.profile)));
+  if (authState.state === "family-only" && !providerUpgrade) redirect("/guardian/access");
 
   // Special handling: If we just came from email verification, we might have a race condition
   // where the session is ready but we want to show the "Email Confirmed" state briefly
   // or ensure the user lands on the right step.
-  const isJustVerified = searchParams?.verified === "true";
+  const isJustVerified = !providerUpgrade && searchParams?.verified === "true";
   const redirectTo = getSafeInternalRedirect(searchParams?.redirectTo) ?? undefined;
   const initialMode =
     searchParams?.authMode === "signup" || searchParams?.authMode === "signin"
@@ -32,9 +36,9 @@ export default async function OnboardingPage(props: {
   }
 
   const initialProfile =
-    authState.state === "incomplete-profile" ? authState.profile : null;
+    authState.state === "incomplete-profile" || authState.state === "family-only" ? authState.profile : null;
   const wizardProfile =
-    authState.state === "incomplete-profile" && initialProfile
+    !providerUpgrade && authState.state === "incomplete-profile" && initialProfile
       ? {
           ...initialProfile,
           account_type: null,
@@ -49,18 +53,19 @@ export default async function OnboardingPage(props: {
   if (authState.state === "incomplete-profile" && !forcedStep) {
     forcedStep = "role";
   }
+  if (providerUpgrade) forcedStep = initialProfile?.market_id && initialProfile.city ? "summary" : "location";
 
   if (isJustVerified) {
     forcedStep = "email-confirm";
   }
 
   const initialEmail =
-    authState.state === "email-unconfirmed" || authState.state === "incomplete-profile" || authState.state === "ready"
+    authState.state !== "no-session"
       ? authState.session.user.email ?? ""
       : "";
 
   const initialRegion =
-    (authState.state === "email-unconfirmed" || authState.state === "incomplete-profile" || authState.state === "ready")
+    authState.state !== "no-session"
       ? authState.session.user.user_metadata?.city
       : "";
 
@@ -73,6 +78,7 @@ export default async function OnboardingPage(props: {
       redirectTo={redirectTo}
       initialMode={initialMode}
       isJustVerified={isJustVerified}
+      providerUpgrade={providerUpgrade}
       initialError={searchParams.error === "auth_code_error" ? "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an, um einen neuen Code anzufordern." : null}
     />
   );

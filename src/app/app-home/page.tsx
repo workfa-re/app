@@ -12,6 +12,7 @@ export default async function AppHomePage() {
   if (authState.state === "incomplete-profile") {
     redirect("/onboarding");
   }
+  if (authState.state === "family-only") redirect("/guardian/access");
 
   const viewRole = authState.effectiveView?.viewRole ?? authState.profile?.account_type;
   redirect(getDefaultAppHomePath(viewRole));

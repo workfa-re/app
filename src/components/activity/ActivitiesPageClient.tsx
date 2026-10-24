@@ -16,9 +16,10 @@ interface ActivitiesPageClientProps {
     applications: any[];
     userId: string;
     readOnly?: boolean;
+    paymentOrdersEnabled?: boolean;
 }
 
-export function ActivitiesPageClient({ applications, userId, readOnly = false }: ActivitiesPageClientProps) {
+export function ActivitiesPageClient({ applications, userId, readOnly = false, paymentOrdersEnabled = false }: ActivitiesPageClientProps) {
     const router = useRouter();
 
     const refresh = () => {
@@ -38,6 +39,7 @@ export function ActivitiesPageClient({ applications, userId, readOnly = false }:
             role="seeker"
             currentUserId={userId}
             readOnly={readOnly}
+            paymentOrdersEnabled={paymentOrdersEnabled}
             onSendMessage={sendMessage}
             onWithdraw={handleWithdraw}
             onReopen={async (applicationId) => {

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Profile } from "@/lib/types";
 
-const state = vi.hoisted(() => ({ auth: vi.fn(), from: vi.fn(), rpc: vi.fn(), queries: [] as Array<{ table: string; steps: Array<[string, ...unknown[]]> }> }));
+const state = vi.hoisted(() => ({ auth: vi.fn(), access: vi.fn(), from: vi.fn(), rpc: vi.fn(), queries: [] as Array<{ table: string; steps: Array<[string, ...unknown[]]> }> }));
+vi.mock("@/lib/guardian/access-state.server", () => ({ getGuardianApplicationAccess: state.access }));
 vi.mock("@/lib/auth", () => ({ getAuthState: state.auth }));
 vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: async () => ({ from: state.from, rpc: state.rpc }) }));
 vi.mock("next/navigation", () => ({ redirect: (href: string) => { throw new Error(`REDIRECT:${href}`); } }));
@@ -10,6 +11,7 @@ import { getAppHomeAccess, getAppHomeContext, getAppHomeSnapshot } from "@/lib/a
 
 const profile = {
   id: "synthetic-user", account_type: "job_seeker", provider_kind: null,
+  birthdate: `${new Date().getUTCFullYear() - 16}-01-01`,
   market_id: "synthetic-market", guardian_status: "pending", email: " synthetic@example.test ",
   provider_verification_status: null, provider_verified_at: null,
 } as Profile;
@@ -18,6 +20,7 @@ describe("app shell data and page access contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.queries = [];
+    state.access.mockResolvedValue({ guardianStatus: "linked", hasActiveGuardian: true, isVerified: true, canApply: true });
     state.rpc.mockResolvedValue({ data: { ok: true, notifications: [{ id: "synthetic-notification", title: "Test", type: "info", user_id: profile.id }],
       unread_count: 17, has_more: false, snapshot_at: "2026-10-23T12:00:00Z" }, error: null });
     state.auth.mockResolvedValue({ state: "ready", profile, effectiveView: { viewRole: "job_seeker", roles: [] }, systemRoles: ["moderator"] });
@@ -52,11 +55,12 @@ describe("app shell data and page access contract", () => {
     expect(state.from).not.toHaveBeenCalled();
   });
 
-  it("uses a bounded existence query and preserves guardian access semantics", async () => {
+  it("uses the shared server-owned consent decision rather than treating a family link as approval", async () => {
     const context = await getAppHomeContext();
     const access = await getAppHomeAccess(context);
     expect(access).toEqual({ guardianStatus: "linked", hasActiveGuardian: true, isVerified: true, canApply: true });
-    expect(state.queries).toEqual([{ table: "guardian_relationships", steps: [["select", "child_id"], ["eq", "child_id", profile.id], ["eq", "status", "active"], ["limit", 1]] }]);
+    expect(state.access).toHaveBeenCalledOnce();
+    expect(state.queries).toEqual([]);
   });
 
   it("does not query guardian relationships for provider views", async () => {
@@ -64,6 +68,19 @@ describe("app shell data and page access contract", () => {
     const access = await getAppHomeAccess(await getAppHomeContext());
     expect(access).toMatchObject({ canApply: false, isVerified: true, hasActiveGuardian: false });
     expect(state.from).not.toHaveBeenCalled();
+    expect(state.access).not.toHaveBeenCalled();
+  });
+
+  it("allows adult seekers without a guardian without claiming verification", async () => {
+    state.auth.mockResolvedValue({ state: "ready", profile: { ...profile, birthdate: `${new Date().getUTCFullYear() - 19}-01-01` }, effectiveView: { viewRole: "job_seeker", roles: [] }, systemRoles: [] });
+    state.access.mockResolvedValue({ guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: true });
+    expect(await getAppHomeAccess(await getAppHomeContext())).toEqual({ guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: true });
+  });
+
+  it.each([null, "invalid", "2030-01-01", "1990-01-01"])("does not turn a family link into seeker age eligibility: %s", birthdate => {
+    state.auth.mockResolvedValue({ state: "ready", profile: { ...profile, birthdate }, effectiveView: { viewRole: "job_seeker", roles: [] }, systemRoles: [] });
+    state.access.mockResolvedValue({ guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: false });
+    return getAppHomeContext().then(getAppHomeAccess).then(access => expect(access.canApply).toBe(false));
   });
 
   it.each([
@@ -77,11 +94,8 @@ describe("app shell data and page access contract", () => {
     expect(state.from).not.toHaveBeenCalled();
   });
 
-  it.each([{ data: [], error: null }, { data: null, error: { message: "Synthetic query failure" } }])("keeps applying disabled without a confirmed active relationship: %o", async (response) => {
-    state.from.mockImplementation(() => {
-      const builder = { select: () => builder, eq: () => builder, limit: async () => response };
-      return builder;
-    });
+  it.each([null, { guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: false }])("keeps applying disabled without a confirmed access decision: %o", async (response) => {
+    state.access.mockResolvedValue(response);
     const access = await getAppHomeAccess(await getAppHomeContext());
     expect(access).toEqual({ guardianStatus: "none", hasActiveGuardian: false, isVerified: false, canApply: false });
   });

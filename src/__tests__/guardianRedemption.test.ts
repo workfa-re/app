@@ -1,77 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { getUser, rpc } = vi.hoisted(() => ({
-    getUser: vi.fn(),
-    rpc: vi.fn(),
-}));
-
-vi.mock("@/lib/supabaseServer", () => ({
-    supabaseServer: vi.fn(async () => ({
-        auth: { getUser },
-        rpc,
-    })),
-}));
-
-import { redeemGuardianInvitation } from "@/app/guardian/access/actions";
-
-describe("guardian invitation redemption", () => {
-    beforeEach(() => {
-        getUser.mockReset();
-        rpc.mockReset();
-        vi.spyOn(console, "error").mockImplementation(() => undefined);
-    });
-
-    afterEach(() => {
-        vi.restoreAllMocks();
-    });
-
-    it("rejects malformed tokens before accessing Supabase", async () => {
-        const result = await redeemGuardianInvitation("  ");
-
-        expect(result.success).toBe(false);
-        expect(getUser).not.toHaveBeenCalled();
-        expect(rpc).not.toHaveBeenCalled();
-    });
-
-    it("completes a valid redemption", async () => {
-        getUser.mockResolvedValue({ data: { user: { id: "guardian-1" } }, error: null });
-        rpc.mockResolvedValue({ data: { success: true }, error: null });
-
-        await expect(redeemGuardianInvitation("valid-token")).resolves.toEqual({ success: true });
-        expect(rpc).toHaveBeenCalledWith("redeem_guardian_invitation", {
-            token_input: "valid-token",
-        });
-    });
-
-    it("keeps RPC diagnostics out of the browser-facing result", async () => {
-        const technicalMessage = "permission denied for relation guardian_relationships";
-        getUser.mockResolvedValue({ data: { user: { id: "guardian-1" } }, error: null });
-        rpc.mockResolvedValue({
-            data: null,
-            error: {
-                code: "42501",
-                message: technicalMessage,
-                details: "internal policy details",
-                hint: "internal hint",
-            },
-        });
-
-        const result = await redeemGuardianInvitation("valid-token");
-
-        expect(result.success).toBe(false);
-        expect(result.success ? "" : result.message).not.toContain(technicalMessage);
-        expect(console.error).toHaveBeenCalled();
-    });
-
-    it("does not expose a rejection reason returned by the RPC", async () => {
-        const internalReason = "invitation row failed internal policy check";
-        getUser.mockResolvedValue({ data: { user: { id: "guardian-1" } }, error: null });
-        rpc.mockResolvedValue({ data: { success: false, error: internalReason }, error: null });
-
-        const result = await redeemGuardianInvitation("valid-token");
-
-        expect(result.success).toBe(false);
-        expect(result.success ? "" : result.message).not.toContain(internalReason);
-        expect(console.error).toHaveBeenCalled();
-    });
+const mock=vi.hoisted(()=>({getUser:vi.fn(),rpc:vi.fn(),send:vi.fn(),verify:vi.fn(),adminRpc:vi.fn(),cookie:vi.fn(),schema:vi.fn()}));
+vi.mock("server-only",()=>({}));
+vi.mock("@/lib/guardian/schema-readiness.server",()=>({readGuardianSchemaState:mock.schema}));
+vi.mock("next/headers",()=>({cookies:async()=>({get:mock.cookie})}));
+vi.mock("@/lib/supabaseServer",()=>({supabaseServer:async()=>({auth:{getUser:mock.getUser,signInWithOtp:mock.send,verifyOtp:mock.verify},rpc:mock.rpc})}));
+vi.mock("@/lib/supabase/admin",()=>({getSupabaseAdminClient:()=>({rpc:mock.adminRpc})}));
+vi.mock("@/lib/demo/environment",()=>({requireDemoEnvironment:()=>({mode:"local"})}));
+vi.mock("@/lib/demo/session",()=>({DEMO_VISITOR_COOKIE:"wf-demo-visitor",demoTokenHash:()=>"b".repeat(64)}));
+import { completeGuardianProfile, getGuardianAccessContext, redeemGuardianInvitation, requestGuardianOtp, verifyGuardianOtp } from "@/app/guardian/access/actions";
+import { GUARDIAN_DECLARATION_VERSION } from "@/lib/guardian/types";
+const owner="84d4b52a-759c-4ecd-aa2b-8973fbed2570", child="f8555877-3727-4682-bb4b-75f74b088820";
+const token="a".repeat(64),email="parent@example.invalid";
+const consent={accepted:true,declarationVersion:GUARDIAN_DECLARATION_VERSION,relationshipType:"mother"} as const;
+const user={id:owner,email,email_confirmed_at:"2026-10-24T09:00:00Z"};
+const signedIn=()=>({data:{user},error:null});
+const signedOut=()=>({data:{user:null},error:null});
+describe("purpose-scoped guardian server actions",()=>{
+ beforeEach(()=>{vi.resetAllMocks();mock.schema.mockResolvedValue("ready");vi.stubEnv("WORKFARE_DEMO_ENABLED","false");vi.stubEnv("NEXT_PUBLIC_SITE_URL","http://127.0.0.1:3001");mock.getUser.mockResolvedValue(signedIn());vi.spyOn(console,"error").mockImplementation(()=>undefined);});
+ afterEach(()=>{vi.unstubAllEnvs();vi.restoreAllMocks();});
+ it("rejects malformed links before reaching auth",async()=>{expect((await redeemGuardianInvitation("  ",consent)).success).toBe(false);expect(mock.getUser).not.toHaveBeenCalled();expect(mock.rpc).not.toHaveBeenCalled();});
+ it("does not infer acceptance from the legacy one-argument call",async()=>{expect((await redeemGuardianInvitation(token)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("requires the current declaration version and explicit consent",async()=>{expect((await redeemGuardianInvitation(token,{...consent,accepted:false} as never)).success).toBe(false);expect((await redeemGuardianInvitation(token,{...consent,declarationVersion:"old"} as never)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("redeems only through the explicit family consent RPC",async()=>{const result={success:true,state:"linked",childId:child,consentRequired:true};mock.rpc.mockResolvedValue({data:result,error:null});expect(await redeemGuardianInvitation(token,consent)).toEqual(result);expect(mock.rpc).toHaveBeenCalledWith("redeem_family_invitation",{p_token:token,p_accepted:true,p_version:GUARDIAN_DECLARATION_VERSION,p_relationship:"mother"});});
+ it("keeps reverse invitation pending instead of claiming parent approval",async()=>{mock.rpc.mockResolvedValue({data:{success:true,state:"pending_guardian_confirmation",childId:child,consentRequired:true},error:null});expect(await redeemGuardianInvitation(token,consent)).toMatchObject({success:true,state:"pending_guardian_confirmation"});});
+ it("requires a confirmed email even if a session object exists",async()=>{mock.getUser.mockResolvedValue({data:{user:{...user,email_confirmed_at:null}},error:null});expect((await redeemGuardianInvitation(token,consent)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("fails closed on auth errors without trusting the included user",async()=>{mock.getUser.mockResolvedValue({data:{user},error:{name:"AuthError"}});expect((await redeemGuardianInvitation(token,consent)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("does not expose SQL diagnostics",async()=>{mock.rpc.mockResolvedValue({data:null,error:{code:"42501",message:"private SQL details"}});expect(JSON.stringify(await redeemGuardianInvitation(token,consent))).not.toContain("private SQL");expect(console.error).toHaveBeenCalledWith("Guardian workflow unavailable","42501");});
+ it("does not return arbitrary internal RPC errors",async()=>{mock.rpc.mockResolvedValue({data:{success:false,error:"secret internal reason"},error:null});expect(JSON.stringify(await redeemGuardianInvitation(token,consent))).not.toContain("secret");});
+ it("does not expose the invitation or family names before auth",async()=>{mock.getUser.mockResolvedValue(signedOut());expect(await getGuardianAccessContext(token)).toMatchObject({ok:true,context:{authenticated:false,userId:null,invitation:null,relationships:[]}});expect(mock.rpc).not.toHaveBeenCalled();});
+ it("requires a real adult date and name rather than a checkbox alone",async()=>{expect((await completeGuardianProfile({fullName:"Paula Beispiel",birthdate:"2012-01-01",adultConfirmed:true})).ok).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("saves only own minimal profile fields without provider metadata",async()=>{mock.rpc.mockResolvedValue({data:{ok:true},error:null});expect(await completeGuardianProfile({fullName:" Paula Beispiel ",birthdate:"1982-03-12",adultConfirmed:true})).toEqual({ok:true});expect(mock.rpc).toHaveBeenCalledWith("complete_guardian_profile",{p_name:"Paula Beispiel",p_birthdate:"1982-03-12",p_adult_confirmed:true});});
+ it("sends OTP only after the explicit request using a fixed safe callback",async()=>{mock.getUser.mockResolvedValue(signedOut());mock.send.mockResolvedValue({error:null});expect(await requestGuardianOtp({email:" PARENT@example.invalid ",token})).toEqual({ok:true});const sent=mock.send.mock.calls[0][0];expect(sent.email).toBe(email);expect(sent.options.shouldCreateUser).toBe(true);const callback=new URL(sent.options.emailRedirectTo);expect(callback.origin).toBe("http://127.0.0.1:3001");expect(callback.pathname).toBe("/auth/callback");expect(callback.searchParams.get("next")).toBe(`/guardian/access?token=${token}`);expect(mock.rpc).not.toHaveBeenCalled();});
+ it("does not silently switch the currently logged-in account",async()=>{expect((await requestGuardianOtp({email:"someone@example.invalid"})).ok).toBe(false);expect((await verifyGuardianOtp({email:"someone@example.invalid",code:"123456"})).ok).toBe(false);expect(mock.send).not.toHaveBeenCalled();expect(mock.verify).not.toHaveBeenCalled();});
+ it("verification proves only email, with no automatic redemption",async()=>{mock.getUser.mockResolvedValueOnce(signedOut()).mockResolvedValueOnce(signedIn());mock.verify.mockResolvedValue({error:null});expect(await verifyGuardianOtp({email,code:"123456"})).toEqual({ok:true});expect(mock.verify).toHaveBeenCalledWith({email,token:"123456",type:"email"});expect(mock.rpc).not.toHaveBeenCalled();});
+ it.each(["12345678","1234567890"])("delegates configured non-local OTP length to Auth: %s",async(code)=>{mock.getUser.mockResolvedValueOnce(signedOut()).mockResolvedValueOnce(signedIn());mock.verify.mockResolvedValue({error:null});expect(await verifyGuardianOtp({email,code})).toEqual({ok:true});expect(mock.verify).toHaveBeenCalledWith({email,token:code,type:"email"});});
+ it("rejects an expired code or mismatching fresh authenticated owner",async()=>{mock.getUser.mockResolvedValue(signedOut());mock.verify.mockResolvedValue({error:{message:"expired"}});expect((await verifyGuardianOtp({email,code:"123456"})).ok).toBe(false);mock.verify.mockResolvedValue({error:null});mock.getUser.mockResolvedValueOnce(signedOut()).mockResolvedValueOnce({data:{user:{...user,email:"wrong@example.invalid"}},error:null});expect((await verifyGuardianOtp({email,code:"123456"})).ok).toBe(false);});
+ it("never sends demo mail to an external address or creates arbitrary users",async()=>{vi.stubEnv("WORKFARE_DEMO_ENABLED","true");mock.getUser.mockResolvedValue(signedOut());mock.cookie.mockReturnValue({value:"c".repeat(64)});mock.adminRpc.mockResolvedValue({data:{id:child},error:null});expect((await requestGuardianOtp({email})).ok).toBe(false);expect(mock.send).not.toHaveBeenCalled();const local=`demo+${child}.guardian@example.test`;mock.send.mockResolvedValue({error:null});expect(await requestGuardianOtp({email:local})).toEqual({ok:true});expect(mock.send.mock.calls[0][0].options.shouldCreateUser).toBe(false);});
 });

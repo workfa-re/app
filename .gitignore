@@ -14,6 +14,9 @@
 /coverage
 /test-results
 
+# Local Supabase CLI metadata
+**/supabase/.temp/
+
 # next.js
 /.next/
 /out/
@@ -33,6 +36,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.payments.example
 
 # typescript
 *.tsbuildinfo

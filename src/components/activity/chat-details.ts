@@ -39,7 +39,7 @@ export function chatSearchExcerpt(content: string, query: string) {
     return `${start ? "…" : ""}${content.slice(start, end)}${end < content.length ? "…" : ""}`;
 }
 
-export type ChatAppointment = { id: string; starts_at: string; status: string; note?: string | null };
+export type ChatAppointment = { id: string; starts_at: string; status: string; note?: string | null; ends_at?: string | null; updated_at?: string | null };
 
 export function orderChatAppointments(appointments: ChatAppointment[], fallback?: string | null, note?: string | null, now = Date.now()) {
     const valid = appointments.filter(item => Number.isFinite(new Date(item.starts_at).getTime()));

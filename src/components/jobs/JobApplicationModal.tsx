@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { Dialog, Transition } from "@headlessui/react";
-import { X, Send, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { X, Send, Lock, AlertTriangle, CheckCircle2, WalletCards } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./JobApplicationModal.module.css";
 import { applyToJob } from "@/app/app-home/jobs/actions";
@@ -11,6 +11,8 @@ import { GuardianConsentModal } from "@/components/GuardianConsentModal";
 import { endPerfMark, startPerfMark } from "@/lib/perf";
 import type { GuardianStatus } from "@/lib/types";
 import { getActivityConversationHref } from "@/lib/activity/navigation";
+import { getRecipientSettingsHref } from "@/lib/payments/recipient-return-path";
+import type { RecipientApplicationGate } from "@/lib/payments/recipient-types";
 
 interface JobApplicationModalProps {
     isOpen: boolean;
@@ -19,15 +21,20 @@ interface JobApplicationModalProps {
     jobId: string;
     canApply: boolean;
     guardianStatus: string;
+    recipientGate?: RecipientApplicationGate | null;
 }
 
-export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply, guardianStatus }: JobApplicationModalProps) {
+export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply, guardianStatus, recipientGate }: JobApplicationModalProps) {
     const router = useRouter();
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
     const [showGuardianModal, setShowGuardianModal] = useState(false);
     const [submissionOutcome, setSubmissionOutcome] = useState<{ href: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [serverRequiresPayout, setServerRequiresPayout] = useState(false);
+    const [serverRequiresGuardian, setServerRequiresGuardian] = useState(false);
+    const hasGuardianAccess = canApply && !serverRequiresGuardian;
+    const needsPayout = hasGuardianAccess && (serverRequiresPayout || (recipientGate?.required === true && !recipientGate.ready));
 
     const handleClose = () => {
         if (loading) return;
@@ -35,6 +42,8 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
         setSubmissionOutcome(null);
         setMessage("");
         setError(null);
+        setServerRequiresPayout(false);
+        setServerRequiresGuardian(false);
     };
 
     useEffect(() => {
@@ -48,10 +57,11 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!canApply) {
+        if (!hasGuardianAccess) {
             setShowGuardianModal(true);
             return;
         }
+        if (needsPayout) return;
 
         setLoading(true);
         setError(null);
@@ -74,6 +84,12 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                 setSubmissionOutcome({ href });
                 router.push(href);
             } else {
+                if (result.code === "GUARDIAN_CONSENT_REQUIRED") {
+                    setServerRequiresGuardian(true);
+                    setShowGuardianModal(true);
+                    return;
+                }
+                if (result.code === "RECIPIENT_SETUP_REQUIRED") setServerRequiresPayout(true);
                 setError(result.error || "Ein unbekannter Fehler ist aufgetreten.");
             }
         } catch {
@@ -143,13 +159,14 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                                 as="h2"
                                                 className={styles.title}
                                             >
-                                                Auf diesen Job bewerben
+                                                {needsPayout ? "Auszahlung einrichten" : "Auf diesen Job bewerben"}
                                             </Dialog.Title>
                                             <p className={styles.jobTitle}>
                                                 {jobTitle}
                                             </p>
+                                            {needsPayout && <p className={styles.copy}>Hinterlege dein Auszahlkonto. Danach kommst du zu diesem Job zurück und kannst dich bewerben.</p>}
 
-                                            {!canApply && (
+                                            {!hasGuardianAccess && (
                                                 <div className={styles.notice}>
                                                     <AlertTriangle className={styles.noticeIcon} size={18} />
                                                     <div className="text-sm">
@@ -162,7 +179,7 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                             )}
 
                                             <form onSubmit={handleSubmit} className={styles.form}>
-                                                {canApply && (
+                                                {hasGuardianAccess && !needsPayout && (
                                                     <div>
                                                         <label htmlFor="message" className={styles.label}>
                                                             Deine Nachricht (optional)
@@ -185,12 +202,15 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                                 )}
 
                                                 <div className="pt-2">
+                                                    {needsPayout ? <Link href={getRecipientSettingsHref(jobId)} className={styles.submit}>
+                                                        <WalletCards size={18} aria-hidden="true" />Auszahlkonto einrichten
+                                                    </Link> :
                                                     <button
                                                         type="submit"
                                                         disabled={loading}
                                                         className={styles.submit}
                                                         onClick={(e) => {
-                                                            if (!canApply) {
+                                                            if (!hasGuardianAccess) {
                                                                 e.preventDefault();
                                                                 setShowGuardianModal(true);
                                                             }
@@ -198,11 +218,12 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
                                                     >
                                                         {loading ? "Wird gespeichert..." : (
                                                             <>
-                                                                {canApply ? <Send size={16} className="mr-2" /> : <Lock size={16} className="mr-2" />}
-                                                                {canApply ? "Bewerben und reservieren" : "Bestätigung starten"}
+                                                                {hasGuardianAccess ? <Send size={16} className="mr-2" /> : <Lock size={16} className="mr-2" />}
+                                                                {hasGuardianAccess ? "Bewerben und reservieren" : "Bestätigung starten"}
                                                             </>
                                                         )}
                                                     </button>
+                                                    }
                                                 </div>
                                             </form>
                                         </>
@@ -217,7 +238,7 @@ export function JobApplicationModal({ isOpen, onClose, jobTitle, jobId, canApply
             <GuardianConsentModal
                 isOpen={showGuardianModal}
                 onClose={() => setShowGuardianModal(false)}
-                guardianStatus={guardianStatus as GuardianStatus}
+                guardianStatus={serverRequiresGuardian ? "pending" : guardianStatus as GuardianStatus}
             />
         </>
     );

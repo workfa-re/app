@@ -5,11 +5,13 @@ import { EditJobForm } from "./components/EditJobForm";
 import styles from "@/components/jobs/JobForm.module.css";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { getPaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 
 export default async function EditJobPage({
-    params
+    params, searchParams,
 }: {
-    params: Promise<{ jobId: string }>
+    params: Promise<{ jobId: string }>;
+    searchParams?: Promise<{ resume?: string }>;
 }) {
     const { jobId } = await params;
     const { profile } = await requireCompleteProfile();
@@ -37,10 +39,11 @@ export default async function EditJobPage({
         );
     }
 
-    const { data: region } = await supabase.from("regions_live")
-        .select("display_name")
-        .eq("id", profile.market_id as string)
-        .single();
+    const [{ data: region }, payment, search] = await Promise.all([
+        supabase.from("regions_live").select("display_name").eq("id", profile.market_id as string).single(),
+        getPaymentSettingsSnapshot(profile.id),
+        searchParams ?? Promise.resolve({ resume: undefined }),
+    ]);
     const marketName = region?.display_name || "deiner Stadt";
 
     return (
@@ -57,7 +60,9 @@ export default async function EditJobPage({
             </div>
 
             <div className={styles.panel}>
-                <EditJobForm job={job} marketName={marketName} />
+                <EditJobForm job={job} marketName={marketName}
+                    paymentRequired={payment.featureEnabled && !payment.buyerReady}
+                    resumePublication={search.resume === "payment" && payment.featureEnabled && payment.buyerReady} />
             </div>
         </div>
     );

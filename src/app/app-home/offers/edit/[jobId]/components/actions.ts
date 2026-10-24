@@ -3,13 +3,14 @@
 import { requireCompleteProfile } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { getPaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 import {
     parseJobEditFormData,
     resolveJobStatusTransition,
     validateJobId,
 } from "./jobEditValidation";
 
-export async function updateJobAction(jobId: string, formData: FormData) {
+export async function updateJobAction(jobId: string, formData: FormData): Promise<{ success: true } | { success: false; error: string; code?: string }> {
     const { profile } = await requireCompleteProfile();
 
     if (!validateJobId(jobId).success) {
@@ -48,6 +49,13 @@ export async function updateJobAction(jobId: string, formData: FormData) {
         };
     }
 
+    if (statusResult.status === "open" && existingJob.status !== "open") {
+        const payment = await getPaymentSettingsSnapshot(profile.id);
+        if (payment.featureEnabled && !payment.buyerReady) {
+            return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
+        }
+    }
+
     const { data: result, error } = await supabase.rpc("update_owned_job_details", {
         p_job_id: jobId,
         p_expected_status: existingJob.status,
@@ -68,6 +76,12 @@ export async function updateJobAction(jobId: string, formData: FormData) {
     });
 
     if (error) {
+        if (error.message.includes("buyer_payment_required")) {
+            return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
+        }
+        if (error.message.includes("provider_verification_required")) {
+            return { success: false, code: "provider_verification_required", error: "Lass deine Adresse im Profil prüfen, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
+        }
         console.error("Job update error:", error);
         return { success: false, error: "Datenbankfehler beim Speichern." };
     }
@@ -76,6 +90,12 @@ export async function updateJobAction(jobId: string, formData: FormData) {
         ? result as { ok?: boolean; error?: string }
         : null;
     if (!response?.ok) {
+        if (response?.error === "buyer_payment_required") {
+            return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
+        }
+        if (response?.error === "provider_verification_required") {
+            return { success: false, code: "provider_verification_required", error: "Lass deine Adresse im Profil prüfen, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
+        }
         const messages: Record<string, string> = {
             status_changed: "Der Jobstatus hat sich inzwischen geändert. Bitte lade die Seite neu.",
             workflow_status_locked: "Dieser Job wird bereits über den Bewerbungsablauf verwaltet.",
@@ -93,6 +113,7 @@ export async function updateJobAction(jobId: string, formData: FormData) {
 
     revalidatePath("/app-home/offers");
     revalidatePath(`/app-home/offers/${jobId}`);
+    revalidatePath(`/app-home/offers/edit/${jobId}`);
 
     return { success: true };
 }

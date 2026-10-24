@@ -97,6 +97,9 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
     const name = profile.full_name || "Dein Konto";
 
     const handleLogout = async () => {
+        await import("@/components/payments/recipient-connect-lifecycle")
+            .then(({ logoutRecipientConnectSessions }) => logoutRecipientConnectSessions())
+            .catch(() => undefined);
         await supabaseBrowser.auth.signOut();
         router.push("/");
         router.refresh();

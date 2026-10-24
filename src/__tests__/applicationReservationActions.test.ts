@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: async () => ({ rpc: mocks.rpc, auth: { getUser: mocks.getUser } }) }));
 
 import { applyToJob } from "@/app/app-home/jobs/actions";
-import { rejectApplication, withdrawApplication } from "@/app/app-home/applications/actions";
+import { rejectApplication, reopenApplication, withdrawApplication } from "@/app/app-home/applications/actions";
 
 const jobId = "00000000-0000-4000-8000-000000000001";
 const applicationId = "00000000-0000-4000-8000-000000000002";
@@ -48,6 +48,29 @@ describe("exclusive reservation actions", () => {
         expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
+    it("routes a database-enforced payout prerequisite back to the same job without exposing SQL detail", async () => {
+        mocks.rpc.mockResolvedValue({ data: null, error: { message: "RECIPIENT_SETUP_REQUIRED: private account_ref context", code: "23514" } });
+        const result = await applyToJob(jobId);
+        expect(result).toEqual({ code: "RECIPIENT_SETUP_REQUIRED", error: "Hinterlege zuerst dein Auszahlkonto. Danach kannst du dich auf diesen Job bewerben.",
+            paymentHref: `/app-home/settings/payments?returnTo=${encodeURIComponent(`/app-home/jobs?job=${jobId}`)}` });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { data: null, error: { code: "42501", message: "GUARDIAN_CONSENT_REQUIRED" } },
+        { data: { ok: false, error: "Vor der Bewerbung fehlt die aktive Elternbestätigung." }, error: null },
+    ])("asks for the actual parent's consent when eligibility changes after the page loads", async response => {
+        mocks.rpc.mockResolvedValue(response);
+        expect(await applyToJob(jobId)).toEqual({ code: "GUARDIAN_CONSENT_REQUIRED", error: "Deine Elternfreigabe fehlt noch. Dein Elternteil kann die Zustimmung im Familienbereich bestätigen." });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
+    it("does not reinterpret an unrelated authorization failure as a consent request", async () => {
+        mocks.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "permission denied", details: "GUARDIAN_CONSENT_REQUIRED" } });
+        expect(await applyToJob(jobId)).toEqual({ error: "Die Bewerbung konnte nicht gesendet werden." });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
     it("lets the provider decline and release without requiring a written explanation", async () => {
         mocks.rpc.mockResolvedValue({ data: { ok: true, job_id: jobId }, error: null });
         expect(await rejectApplication(applicationId)).toHaveProperty("success", true);
@@ -75,6 +98,38 @@ describe("exclusive reservation actions", () => {
     it("preserves an authorization refusal and refreshes neither role's pages", async () => {
         mocks.rpc.mockResolvedValue({ data: { ok: false, error: "Keine Berechtigung." }, error: null });
         expect(await rejectApplication(applicationId)).toEqual({ error: "Keine Berechtigung." });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ["buyer_payment_required", "Hinterlege zuerst unter Einstellungen → Workfare Pay ein Zahlungsmittel. Danach kannst du das Gespräch wieder öffnen."],
+        ["provider_verification_required", "Lass zuerst deine Adresse im Profil prüfen. Danach kannst du das Gespräch wieder öffnen."],
+        ["RECIPIENT_SETUP_REQUIRED", "Hinterlege zuerst unter Einstellungen → Workfare Pay dein Auszahlkonto. Danach kannst du das Gespräch wieder öffnen."],
+    ])("explains the %s reopen prerequisite without exposing database diagnostics", async (code, message) => {
+        for (const response of [
+            { data: null, error: { message: `${code}: private SQL context and customer reference` } },
+            { data: { ok: false, error: code }, error: null },
+        ]) {
+            mocks.rpc.mockResolvedValue(response);
+            expect(await reopenApplication(applicationId)).toEqual({ error: message });
+        }
+        expect(mocks.rpc).toHaveBeenCalledWith("reopen_application", { p_application_id: applicationId });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { data: null, error: { code: "42501", message: "GUARDIAN_CONSENT_REQUIRED" } },
+        { data: { ok: false, error: "GUARDIAN_CONSENT_REQUIRED" }, error: null },
+        { data: { ok: false, error: "Vor der Bewerbung fehlt die aktive Elternbestätigung." }, error: null },
+    ])("preserves the explicit consent requirement when reopening and explains it to either participant", async response => {
+        mocks.rpc.mockResolvedValue(response);
+        expect(await reopenApplication(applicationId)).toEqual({ code: "GUARDIAN_CONSENT_REQUIRED", error: "Für die erneute Zusammenarbeit fehlt noch die Elternfreigabe. Die gesetzliche Vertretung kann die Zustimmung im Familienbereich bestätigen." });
+        expect(mocks.revalidate).not.toHaveBeenCalled();
+    });
+
+    it("does not turn another reopen authorization refusal into a consent prompt", async () => {
+        mocks.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "permission denied", details: "GUARDIAN_CONSENT_REQUIRED" } });
+        expect(await reopenApplication(applicationId)).toEqual({ error: "Das Gespräch konnte nicht wieder geöffnet werden." });
         expect(mocks.revalidate).not.toHaveBeenCalled();
     });
 });

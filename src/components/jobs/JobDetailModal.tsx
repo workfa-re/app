@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { Dialog, Transition } from "@headlessui/react";
 import dynamic from "next/dynamic";
-import { ArrowRight, CalendarDays, Coins, Lock, MapPin, Repeat2, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Coins, Lock, MapPin, Repeat2, ShieldCheck, WalletCards, X } from "lucide-react";
 import { VerificationRequiredModal } from "@/components/auth/VerificationRequiredModal";
 import { UserProfileModal, type VisibleProfile } from "@/components/profile/UserProfileModal";
 import { JobApplicationModal } from "@/components/jobs/JobApplicationModal";
@@ -16,6 +16,8 @@ import { formatJobCompensation, formatJobDistance } from "./job-presentation";
 import styles from "./JobDetail.module.css";
 import { getActivityStatusMeta } from "@/lib/activity/chat";
 import { getActivityConversationHref } from "@/lib/activity/navigation";
+import type { RecipientApplicationGate } from "@/lib/payments/recipient-types";
+import { getRecipientSettingsHref } from "@/lib/payments/recipient-return-path";
 
 const JobLocationMap = dynamic(() => import("@/components/jobs/JobLocationMap"), {
     ssr: false,
@@ -31,9 +33,10 @@ interface JobDetailModalProps {
     availableForApplication?: boolean;
     guardianStatus: string;
     previewImageUrl?: string | null;
+    recipientGate?: RecipientApplicationGate | null;
 }
 
-export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, availableForApplication = true, guardianStatus, previewImageUrl }: JobDetailModalProps) {
+export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, availableForApplication = true, guardianStatus, previewImageUrl, recipientGate }: JobDetailModalProps) {
     const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
     const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -41,6 +44,7 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
     const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
     const hasApplication = Boolean(job?.is_applied || job?.application_id || job?.application_status);
     const isAvailable = Boolean(job?.status === "open" && availableForApplication && !hasApplication);
+    const needsPayout = canApply && recipientGate?.required === true && !recipientGate.ready;
 
     useEffect(() => {
         if (!isAvailable || !isOpen) setIsApplicationModalOpen(false);
@@ -130,8 +134,9 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
                                     </div>
                                     <Link href={conversationHref} className={styles.action} prefetch={false}>{isActiveApplication ? "Gespräch öffnen" : "Verlauf ansehen"}<ArrowRight size={18} aria-hidden="true" /></Link>
                                 </> : isAvailable ? <>
-                                    <div className={styles.paymentSummary}><span className={styles.paymentIcon}><Coins size={21} strokeWidth={1.5} aria-hidden="true" /></span><div className={styles.footerCopy}><strong>Für dich reserviert, sobald du dich bewirbst</strong><p>Danach klärst du die Details direkt mit dem Anbieter.</p></div></div>
-                                    <button type="button" className={styles.action} onClick={() => { if (!canApply) setIsVerificationModalOpen(true); else { startPerfMark("job-apply-open"); setIsApplicationModalOpen(true); } }}>{!canApply ? <><Lock size={17} aria-hidden="true" />Freischalten</> : <>Jetzt bewerben<ArrowRight size={18} aria-hidden="true" /></>}</button>
+                                    <div className={styles.paymentSummary}><span className={styles.paymentIcon}>{needsPayout ? <WalletCards size={21} strokeWidth={1.5} aria-hidden="true" /> : <Coins size={21} strokeWidth={1.5} aria-hidden="true" />}</span><div className={styles.footerCopy}><strong>{needsPayout ? "Bereit für deine Auszahlung" : "Für dich reserviert, sobald du dich bewirbst"}</strong><p>{needsPayout ? "Richte dein Auszahlkonto ein. Danach geht es hier weiter." : "Danach klärst du die Details direkt mit dem Anbieter."}</p></div></div>
+                                    {needsPayout ? <Link href={getRecipientSettingsHref(job.id)} className={styles.action}>Auszahlkonto einrichten<ArrowRight size={18} aria-hidden="true" /></Link> :
+                                        <button type="button" className={styles.action} onClick={() => { if (!canApply) setIsVerificationModalOpen(true); else { startPerfMark("job-apply-open"); setIsApplicationModalOpen(true); } }}>{!canApply ? <><Lock size={17} aria-hidden="true" />Elternfreigabe einholen</> : <>Jetzt bewerben<ArrowRight size={18} aria-hidden="true" /></>}</button>}
                                 </> : <>
                                     <div className={styles.footerCopy}><strong>{job.status === "reserved" ? "Dieser Job ist bereits reserviert" : "Dieser Job ist nicht mehr verfügbar"}</strong><p>Du kannst dich auf ein anderes freies Angebot bewerben.</p></div>
                                     <Link href="/app-home/jobs" onClick={onClose} className={styles.action} prefetch={false}>Freie Jobs ansehen<ArrowRight size={18} aria-hidden="true" /></Link>
@@ -142,7 +147,7 @@ export function JobDetailModal({ job, isOpen, onClose, onClosed, canApply, avail
                 </div>
             </Dialog>
         </Transition>
-        <JobApplicationModal isOpen={isApplicationModalOpen && isAvailable} onClose={() => setIsApplicationModalOpen(false)} jobTitle={job.title} jobId={job.id} canApply={canApply} guardianStatus={guardianStatus} />
+        <JobApplicationModal isOpen={isApplicationModalOpen && isAvailable} onClose={() => setIsApplicationModalOpen(false)} jobTitle={job.title} jobId={job.id} canApply={canApply} guardianStatus={guardianStatus} recipientGate={recipientGate} />
         <VerificationRequiredModal isOpen={isVerificationModalOpen} onClose={() => setIsVerificationModalOpen(false)} guardianStatus={guardianStatus as GuardianStatus} />
         <UserProfileModal isOpen={isProfileModalOpen && isOpen} onClose={() => setIsProfileModalOpen(false)} profile={selectedProfile} isStaff={Boolean(job.creator?.is_staff)} />
     </>;

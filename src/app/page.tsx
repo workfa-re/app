@@ -21,6 +21,7 @@ export default async function LandingPage({
     const viewRole = authState.effectiveView?.viewRole ?? authState.profile?.account_type;
     redirect(redirectTo || getDefaultAppHomePath(viewRole));
   }
+  if (authState.state === "family-only") redirect("/guardian/access");
 
   if (authState.state === "email-unconfirmed" || authState.state === "incomplete-profile") {
     redirect(redirectTo ? `/onboarding?redirectTo=${encodeURIComponent(redirectTo)}` : "/onboarding");

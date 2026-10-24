@@ -43,6 +43,11 @@
 .page .back { min-height: 44px; padding: 10px 16px; white-space: nowrap; }
 .form .action:disabled { cursor: not-allowed; opacity: .5; }
 .form .draftNotice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border: 1px solid var(--app-panel-rule); border-radius: 16px; color: var(--app-muted); background: var(--app-glass-fill); font-size: 12px; }
+.paymentNotice { display: flex; align-items: flex-start; gap: 12px; color: var(--app-ink); }
+.paymentNotice > svg { flex-shrink: 0; margin-top: 2px; color: var(--app-accent-ink); }
+.paymentNotice strong { display: block; font-size: 13px; font-weight: 500; line-height: 1.5; }
+.paymentNotice p { margin: 5px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.7; text-wrap: pretty; }
+.saveError { margin: 0; color: var(--danger); font-size: 13px; line-height: 1.7; }
 .form .discard { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 10px; border-radius: 12px; color: var(--app-muted); font-size: 12px; }
 .form .locationToggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; text-align: left; }
 .form :is(button, a):active { scale: 1; }

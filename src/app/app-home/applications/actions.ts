@@ -29,7 +29,15 @@ function readPayload(value: unknown): RpcPayload {
     return value && typeof value === "object" ? value as RpcPayload : {};
 }
 
-function resultError(payload: RpcPayload, rpcError: { message?: string } | null, fallback: string) {
+function resultError(payload: RpcPayload, rpcError: { message?: string; code?: string } | null, fallback: string) {
+    if ((rpcError?.code === "42501" && rpcError.message === "GUARDIAN_CONSENT_REQUIRED")
+        || (!rpcError && payload.ok === false && ["GUARDIAN_CONSENT_REQUIRED", "Vor der Bewerbung fehlt die aktive Elternbestätigung."].includes(payload.error ?? ""))) {
+        return { code: "GUARDIAN_CONSENT_REQUIRED", error: "Für die erneute Zusammenarbeit fehlt noch die Elternfreigabe. Die gesetzliche Vertretung kann die Zustimmung im Familienbereich bestätigen." } as const;
+    }
+    const failure = rpcError?.message ?? (payload.ok === false ? payload.error : null);
+    if (failure?.includes("RECIPIENT_SETUP_REQUIRED")) return "Hinterlege zuerst unter Einstellungen → Workfare Pay dein Auszahlkonto. Danach kannst du das Gespräch wieder öffnen.";
+    if (failure?.includes("buyer_payment_required")) return "Hinterlege zuerst unter Einstellungen → Workfare Pay ein Zahlungsmittel. Danach kannst du das Gespräch wieder öffnen.";
+    if (failure?.includes("provider_verification_required")) return "Lass zuerst deine Adresse im Profil prüfen. Danach kannst du das Gespräch wieder öffnen.";
     if (rpcError) return fallback;
     if (payload.ok === false) return payload.error || fallback;
     return null;
@@ -51,7 +59,7 @@ async function callActivityRpc(
     const { data, error } = await (supabase.rpc as any)(name, args);
     const payload = readPayload(data);
     const failure = resultError(payload, error, fallback);
-    if (failure) return { error: failure } as const;
+    if (failure) return typeof failure === "string" ? { error: failure } as const : failure;
     return { success: true, ...payload } as const;
 }
 

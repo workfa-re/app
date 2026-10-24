@@ -25,6 +25,15 @@ describe("exclusive job availability", () => {
         expect(detail(job, { availableForApplication: false })).not.toContain("Jetzt bewerben");
         expect(detail(job, { availableForApplication: false })).toContain("nicht mehr verfügbar");
     });
+    it("offers payout setup directly at the job instead of opening an extra application screen", () => {
+        const html=detail({...job,id:"11111111-1111-4111-8111-111111111111"},{recipientGate:{required:true,ready:false}});
+        expect(html).toContain("Auszahlkonto einrichten");expect(html).not.toContain("Jetzt bewerben");
+        expect(html).toContain('href="/app-home/settings/payments?returnTo=%2Fapp-home%2Fjobs%3Fjob%3D11111111-1111-4111-8111-111111111111"');
+    });
+    it("keeps parental verification before payout setup", () => {
+        const html=detail(job,{canApply:false,recipientGate:{required:true,ready:false}});
+        expect(html).toContain("Elternfreigabe einholen");expect(html).not.toContain("Auszahlkonto einrichten");
+    });
 
     it.each(["reserved", "closed", "filled", "reviewing", "draft"] as const)("does not offer applying or unlocking from an old %s detail", status => {
         const html = detail({ ...job, status }, { canApply: false });

@@ -1,104 +1,33 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { CheckCircle2, ShieldCheck, Users, X } from "lucide-react";
 import type { GuardianStatus } from "@/lib/types";
 import { GuardianConsentModal } from "@/components/GuardianConsentModal";
+import styles from "@/components/guardian/Guardian.module.css";
 
-type GuardianBannerProps = {
-    guardianStatus: GuardianStatus;
-};
-
-export function GuardianBanner({ guardianStatus }: GuardianBannerProps) {
+export function GuardianBanner({ guardianStatus, consentRequired = true }: { guardianStatus: GuardianStatus; consentRequired?: boolean }) {
     const [isDismissed, setIsDismissed] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    useEffect(() => {
-        const dismissed = localStorage.getItem("guardian_banner_dismissed");
-        if (dismissed === "true") {
-            setIsDismissed(true);
-        }
-    }, []);
-
-    const handleDismiss = () => {
-        localStorage.setItem("guardian_banner_dismissed", "true");
-        setIsDismissed(true);
-    };
-
-    if (guardianStatus === "linked") {
-        if (isDismissed) return null;
-
-        return (
-            <div data-status="linked" className="guardian-banner guardian-banner-compact relative group overflow-hidden rounded-[1.5rem] border p-6 flex items-start gap-5 mb-10">
-                <div className="guardian-banner-tint absolute inset-0 transition-colors duration-500" />
-                <div className="guardian-banner-glow absolute -top-10 -right-10 w-32 h-32 rounded-full blur-[50px]" />
-
-                <div className="guardian-banner-icon relative z-10 p-3 border rounded-2xl shrink-0 shadow-lg">
-                    <CheckCircle2 size={24} />
-                </div>
-
-                <div className="relative z-10 flex-1">
-                    <h3 className="guardian-banner-title text-lg font-bold mb-1 tracking-tight">
-                        Elternbestätigung aktiv
-                    </h3>
-                    <p className="guardian-banner-copy text-sm font-medium leading-relaxed">
-                        Dein Konto wurde von einem Elternteil bestätigt. Du kannst Jobs annehmen.
-                    </p>
-                </div>
-
-                <button
-                    onClick={handleDismiss}
-                    className="guardian-banner-dismiss relative z-10 p-2 rounded-full transition-colors"
-                    title="Hinweis ausblenden"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-                </button>
+    const linked = guardianStatus === "linked";
+    const pending = guardianStatus === "pending";
+    if (linked && isDismissed) return null;
+    const title = linked ? consentRequired ? "Elternfreigabe hinterlegt" : "Mit deiner Familie verbunden"
+        : pending ? consentRequired ? "Elternfreigabe ausstehend" : "Einladung ausstehend"
+        : consentRequired ? "Elternfreigabe ergänzen" : "Deine Familie verbinden";
+    const description = linked ? consentRequired ? "Ein Elternteil hat deiner Nutzung von Workfare zugestimmt." : "Deine freiwillige Familienverknüpfung ist aktiv."
+        : pending ? consentRequired ? "Die erforderliche Zustimmung steht noch aus. Dein Elternteil kann sie im Familienbereich bestätigen." : "Dein Einladungslink wartet auf die Bestätigung."
+        : consentRequired ? "Für Bewerbungen mit 14 bis 17 Jahren brauchst du die Zustimmung deiner gesetzlichen Vertretung." : "Wenn du möchtest, kannst du ein Elternteil mit deinem Konto verbinden.";
+    const Icon = linked ? CheckCircle2 : consentRequired ? ShieldCheck : Users;
+    return <>
+        <div className={`app-portal-surface ${styles.theme} ${styles.surface} ${styles.banner}`} data-status={linked ? "linked" : pending ? "pending" : consentRequired ? "required" : "optional"}>
+            <Icon size={20} strokeWidth={1.7} className={styles.bannerIcon} aria-hidden="true" />
+            <div className={styles.bannerBody}>
+                <h3>{title}</h3><p>{description}</p>
+                {!linked ? <button type="button" className={styles.quiet} onClick={() => setIsModalOpen(true)}>{pending && consentRequired ? "Zustimmung einholen" : pending ? "Link anzeigen" : "Einladung erstellen"}</button> : null}
             </div>
-        );
-    }
-
-    const isPending = guardianStatus === "pending";
-    const status = isPending ? "pending" : "required";
-
-    return (
-        <>
-            <div data-status={status} className="guardian-banner guardian-banner-actionable relative overflow-hidden rounded-[2rem] border p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 mb-12">
-                <div className="guardian-banner-noise absolute inset-0" />
-                <div className="guardian-banner-glow absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[100px] pointer-events-none" />
-
-                <div className="relative z-10 flex items-start gap-6 flex-1">
-                    <div className="guardian-banner-icon p-4 border rounded-2xl shrink-0 shadow-[0_0_30px_-5px_rgba(0,0,0,0.3)]">
-                        <AlertTriangle size={24} />
-                    </div>
-                    <div className="space-y-1">
-                        <h3 className="guardian-banner-title text-xl md:text-2xl font-bold tracking-tight">
-                            {isPending ? "Bestätigung ausstehend" : "Elternbestätigung erforderlich"}
-                        </h3>
-                        <p className="guardian-banner-copy text-base font-medium leading-relaxed max-w-2xl">
-                            {isPending
-                                ? "Du hast bereits einen Link erstellt. Bitte lasse ihn bestätigen."
-                                : "Um dich bewerben zu können, benötigen wir die Bestätigung eines Elternteils."}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="relative z-10 md:ml-auto flex shrink-0">
-                    <ButtonPrimary
-                        onClick={() => setIsModalOpen(true)}
-                        className="guardian-banner-action border-none px-8 py-4 text-sm font-extrabold uppercase tracking-widest"
-                    >
-                        {isPending ? "Link anzeigen" : "Bestätigung starten"}
-                    </ButtonPrimary>
-                </div>
-            </div>
-
-            <GuardianConsentModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                variant="initial"
-                guardianStatus={guardianStatus}
-            />
-        </>
-    );
+            {linked ? <button type="button" className={`${styles.iconButton} ${styles.bannerDismiss}`} onClick={() => setIsDismissed(true)} aria-label="Hinweis ausblenden"><X size={17} aria-hidden="true" /></button> : null}
+        </div>
+        <GuardianConsentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} guardianStatus={guardianStatus} consentRequired={consentRequired} />
+    </>;
 }

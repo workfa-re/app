@@ -54,6 +54,7 @@ type ActivityCommandCenterProps = {
     selectedJobId?: string | null;
     selectedJobTitle?: string | null;
     readOnly?: boolean;
+    paymentOrdersEnabled?: boolean;
     onSendMessage: (applicationId: string, message: string) => Promise<any>;
     onWithdraw?: (applicationId: string, reason: string) => Promise<void>;
     onReject?: (applicationId: string, reason: string) => Promise<void>;
@@ -299,6 +300,7 @@ export function ActivityCommandCenter({
     selectedJobId,
     selectedJobTitle,
     readOnly = false,
+    paymentOrdersEnabled = false,
     onSendMessage,
     onWithdraw,
     onReject,
@@ -778,6 +780,7 @@ export function ActivityCommandCenter({
                                 currentUserRole={role}
                                 currentUserId={currentUserId}
                                 readOnly={readOnly}
+                                paymentOrdersEnabled={paymentOrdersEnabled}
                                 onWithdraw={
                                     role === "seeker" && onWithdraw
                                         ? (reason: string) => updateSelectedStatus(reason, "withdrawn")

@@ -1,0 +1,75 @@
+.overview { padding: 22px 26px 24px; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 40px; margin-bottom: 9px; }
+.heading h2 { margin: 0; font-size: 17px; font-weight: 550; line-height: 1.4; letter-spacing: -.025em; }
+.refresh { display: inline-flex; align-items: center; justify-content: center; width: 40px; min-height: 40px; padding: 0; flex: 0 0 auto; color: var(--app-muted); }
+.empty p { margin: 0 0 4px; font-size: 14px; line-height: 1.5; }
+.empty > span, .limited, .unavailable, .billingNote { color: var(--app-muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+.empty > span { display: block; }
+.notice { display: flex; align-items: center; gap: 9px; min-height: 36px; margin: 0; color: var(--app-muted); font-size: 13px; }
+.failure { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.failure p { flex: 1 1 220px; margin: 0; }
+.failure button { min-height: 40px; flex: 0 0 auto; }
+.history { display: grid; gap: 24px; }
+.groupTitle { margin: 12px 0 4px; color: var(--app-muted); font-size: 12px; line-height: 1.5; font-weight: 500; }
+.entries { margin: 0; padding: 0; list-style: none; }
+.entry { padding: 15px 0 11px; }
+.entry + .entry { box-shadow: 0 -1px 0 color-mix(in srgb, var(--app-ink) 7%, transparent); }
+.entryTitle { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; min-width: 0; font-size: 14px; line-height: 1.5; }
+.entryTitle > span { overflow-wrap: anywhere; min-width: 0; }
+.entryTitle strong { flex-shrink: 0; white-space: nowrap; font-weight: 550; font-variant-numeric: tabular-nums; }
+.entryMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 12px; margin-top: 3px; color: var(--app-muted); font-size: 12px; line-height: 1.65; }
+.entryMeta time { font-variant-numeric: tabular-nums; }
+.documentLink { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 3px; margin: -4px 0; gap: 3px; color: var(--app-accent-ink); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.documentLink:hover { text-decoration: underline; text-underline-offset: 3px; }
+.limited { margin: 0; font-size: 12px; }
+.utilities { padding: 0; }
+.utilities > details + details { box-shadow: 0 -1px 0 color-mix(in srgb,var(--app-ink) 5%,transparent); }
+.billing { padding: 0; border-radius: inherit; }
+.billingSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 80px; padding: 18px 26px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 500; letter-spacing: -.015em; border-radius: inherit; }
+.billingSummary::-webkit-details-marker { display: none; }
+.billingLabel { display: flex; align-items: center; gap: 15px; }
+.billingIcon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; color: var(--app-muted); }
+.billingChevron { color: var(--app-muted); flex-shrink: 0; transition: transform 180ms ease; }
+.billing[open] > .billingSummary .billingChevron { transform: rotate(90deg); }
+.billingSummary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
+.billingBody { padding: 0 26px 24px; }
+.unavailable, .billingNote { margin: 0; }
+.billingRead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.billingRead button { min-height: 40px; flex-shrink: 0; }
+.address { display: grid; gap: 2px; min-width: 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; font-style: normal; overflow-wrap: anywhere; }
+.address strong { color: var(--app-ink); font-weight: 500; }
+.billingEmail { margin-top: 7px; }
+.form fieldset { display: grid; gap: 15px; min-width: 0; padding: 0; margin: 18px 0 0; border: 0; }
+.form label { display: block; min-width: 0; color: var(--app-ink); font-size: 12px; font-weight: 500; line-height: 1.5; }
+.form label > span { margin-left: 5px; color: var(--app-muted); font-weight: 400; }
+.form input { display: block; width: 100%; min-height: 46px; margin-top: 6px; padding: 11px 13px; color: var(--app-ink); font: inherit; font-size: 14px; font-weight: 400; line-height: 1.5; background: var(--app-glass-fill); border: 1px solid color-mix(in srgb, var(--app-ink) 13%, transparent); border-radius: 14px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--app-ink) 3%, transparent); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.form input:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 2px; border-color: transparent; }
+.form fieldset:disabled { opacity: .65; }
+.addressRow { display: grid; grid-template-columns: minmax(90px, .65fr) minmax(0, 1.35fr); gap: 14px; }
+.country { margin: -3px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.5; }
+.formActions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 3px; }
+.formActions button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; gap: 7px; }
+.saved { display: flex; align-items: center; gap: 7px; margin: 17px 0 0; font-size: 12px; }
+.spinner { animation: turn 800ms linear infinite; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@keyframes turn { to { transform: rotate(360deg); } }
+@media (max-width: 560px) {
+    .overview { padding: 18px 20px 21px; }
+    .heading { margin-bottom: 7px; }
+    .billingSummary { min-height: 80px; padding: 18px 20px; }
+    .billingBody { padding: 0 20px 21px; }
+    .entryTitle { gap: 12px; }
+    .entryMeta { gap: 0 10px; }
+    .billingRead { flex-wrap: wrap; }
+    .billingRead .address { flex-basis: 100%; }
+    .addressRow { gap: 12px; }
+    .form input { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; }
+    .billingChevron, .form input { transition: none; }
+}
+@media (prefers-contrast: more) {
+    .entry + .entry { box-shadow: 0 -1px 0 var(--app-muted); }
+    .form input { border-color: var(--app-muted); }
+}

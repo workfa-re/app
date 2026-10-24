@@ -1,51 +1,17 @@
 "use server";
 
+import type { FamilyInvitationDirection } from "@/lib/guardian/types";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
-type GuardianInvitationResult = {
-    token?: string;
-    expires_at?: string;
-    reused?: boolean;
-    error?: string;
-};
-
 export async function createGuardianInvitation() {
-    try {
-        const supabase = await supabaseServer();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { issueFamilyInvitation } = await import("@/lib/guardian/service.server");
+    return issueFamilyInvitation("child_to_guardian");
+}
 
-        if (authError) {
-            console.error("Guardian Invite Auth Error:", authError);
-            return { error: "Sitzung konnte nicht geprüft werden. Bitte lade die Seite neu." };
-        }
-
-        if (!user) {
-            return { error: "Nicht authentifiziert" };
-        }
-
-        const { data, error } = await (supabase as any).rpc("create_guardian_invitation", {});
-
-        if (error) {
-            console.error("Guardian Invite RPC Error:", error);
-            return { error: "Einladungslink konnte nicht erstellt werden." };
-        }
-
-        const result = data as GuardianInvitationResult | null;
-        if (result?.error || !result?.token || !result?.expires_at) {
-            return { error: result?.error || "Einladungslink konnte nicht erstellt werden." };
-        }
-
-        if (Number.isNaN(Date.parse(result.expires_at))) {
-            console.error("Guardian Invite Invalid Expiry:", result.expires_at);
-            return { error: "Einladungslink konnte nicht erstellt werden." };
-        }
-
-        return { success: true, token: result.token, expires_at: result.expires_at, reused: result.reused === true };
-    } catch (error) {
-        console.error("Guardian Invite Unexpected Error:", error);
-        return { error: "Einladungslink konnte nicht erstellt werden." };
-    }
+export async function createFamilyInvitation(direction: FamilyInvitationDirection) {
+    const { issueFamilyInvitation } = await import("@/lib/guardian/service.server");
+    return issueFamilyInvitation(direction);
 }
 
 export type LinkedAccount = {

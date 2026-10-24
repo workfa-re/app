@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { API_URL, assertDemoAuthSettings, assertLocalEnvironment, assertLoopbackBindings, LABEL, localSocket, nameOf, PROJECT, ROOT } from "./common.mjs";
 import { replacementConfig } from "./rebind-loopback.mjs";
+import { enableLocalDemoPayments, localPaymentEnvironment } from "./payments.mjs";
 
 const environment = {
   WORKFARE_DEMO_ENABLED: "true", NEXT_PUBLIC_WORKFARE_DEMO_ENABLED: "true", WORKFARE_DEMO_MODE: "local",
@@ -86,6 +87,54 @@ test("package commands point only to the local dedicated wrappers", async () => 
   assert.equal(pkg.scripts["demo:setup"], "node scripts/demo/setup.mjs");
   assert.equal(pkg.scripts["demo:dev"], "node scripts/demo/dev.mjs");
   assert.equal(pkg.scripts["demo:cleanup"], "node scripts/demo/cleanup.mjs");
+  assert.equal(pkg.scripts["demo:payments"], "node scripts/demo/payments.mjs");
+});
+
+test("local payment preparation preserves all unrelated private environment entries", () => {
+  const source = "# Private fixture\nSUPABASE_SERVICE_ROLE_KEY='fixture-private-value'\nWORKFARE_PAY_MODE=disabled\nAPP_ORIGIN=http://127.0.0.1:3001\n";
+  const result = localPaymentEnvironment(source);
+  assert.ok(result.includes("SUPABASE_SERVICE_ROLE_KEY='fixture-private-value'\n"));
+  assert.ok(result.includes("WORKFARE_PAY_MODE=local_simulation\n"));
+  assert.ok(result.includes("APP_ORIGIN=http://localhost:3001\n"));
+  assert.equal(localPaymentEnvironment(result, "local_simulation"), result);
+  assert.throws(() => localPaymentEnvironment("WORKFARE_PAY_MODE=sandbox\n"));
+  assert.throws(() => localPaymentEnvironment("", "sandbox"));
+  assert.throws(() => localPaymentEnvironment("WORKFARE_PAY_MODE=disabled\nWORKFARE_PAY_MODE=local_simulation\n"));
+});
+
+function paymentDependencies() {
+  const calls = [];
+  return { calls, environment: {}, read: async () => "PRIVATE_FIXTURE=preserved\n", load: async () => { calls.push("load"); },
+    connect: async () => { calls.push("connect"); return {}; }, verify: async () => { calls.push("verify"); },
+    execute: async (_docker, statement) => { calls.push("execute"); assert.ok(statement.startsWith("BEGIN;")); return "local_payment_demo_ready\n"; },
+    save: async value => { calls.push("save"); assert.ok(value.includes("PRIVATE_FIXTURE=preserved\n")); } };
+}
+
+test("payment activation requires local environment and project verification before database or env writes", async () => {
+  for (const boundary of ["load", "verify"]) {
+    const deps = paymentDependencies();
+    deps[boundary] = async () => { throw new Error("boundary refused"); };
+    await assert.rejects(enableLocalDemoPayments(deps), /boundary refused/);
+    assert.ok(!deps.calls.includes("execute"));
+    assert.ok(!deps.calls.includes("save"));
+  }
+  const deps = paymentDependencies(); deps.environment.WORKFARE_PAY_MODE = "sandbox";
+  await assert.rejects(enableLocalDemoPayments(deps));
+  assert.deepEqual(deps.calls, []);
+});
+
+test("failed database verification preserves the private environment", async () => {
+  for (const execute of [async () => { throw new Error("database refused"); }, async () => "unexpected result"]) {
+    const deps = paymentDependencies(); deps.execute = execute;
+    await assert.rejects(enableLocalDemoPayments(deps));
+    assert.ok(!deps.calls.includes("save"));
+  }
+});
+
+test("only successful verified local payment activation writes the two env settings", async () => {
+  const deps = paymentDependencies();
+  await enableLocalDemoPayments(deps);
+  assert.deepEqual(deps.calls, ["load", "connect", "verify", "execute", "save"]);
 });
 
 test("running Auth must block signup and permit demo OTP login", () => {

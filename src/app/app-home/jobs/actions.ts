@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { getRecipientSettingsHref } from "@/lib/payments/recipient-return-path";
 
 type ApplicationPayload = {
     ok?: boolean;
@@ -10,7 +11,11 @@ type ApplicationPayload = {
     is_primary?: boolean;
 };
 
-export async function applyToJob(formData: FormData | string) {
+type ApplicationResult =
+    | { success: true; application: Record<string, unknown>; error?: never; code?: never }
+    | { success?: false; application?: never; error: string; code?: "GUARDIAN_CONSENT_REQUIRED" | "RECIPIENT_SETUP_REQUIRED"; paymentHref?: string };
+
+export async function applyToJob(formData: FormData | string): Promise<ApplicationResult> {
     const jobId = typeof formData === "string"
         ? formData
         : String(formData.get("jobId") ?? "");
@@ -32,11 +37,15 @@ export async function applyToJob(formData: FormData | string) {
         p_message: message,
     });
     const payload = (data ?? {}) as ApplicationPayload;
+    const guardianConsentRequired: ApplicationResult = { code: "GUARDIAN_CONSENT_REQUIRED", error: "Deine Elternfreigabe fehlt noch. Dein Elternteil kann die Zustimmung im Familienbereich bestätigen." };
 
     if (error) {
-        console.error("Atomic application RPC failed:", error);
+        if (error.code === "42501" && error.message === "GUARDIAN_CONSENT_REQUIRED") return guardianConsentRequired;
+        if (error.message?.includes("RECIPIENT_SETUP_REQUIRED")) return { code: "RECIPIENT_SETUP_REQUIRED", error: "Hinterlege zuerst dein Auszahlkonto. Danach kannst du dich auf diesen Job bewerben.", paymentHref: getRecipientSettingsHref(jobId) };
+        console.error("Atomic application RPC failed:", error.code ?? "unknown");
         return { error: "Die Bewerbung konnte nicht gesendet werden." };
     }
+    if (payload.ok === false && payload.error === "Vor der Bewerbung fehlt die aktive Elternbestätigung.") return guardianConsentRequired;
     if (payload.ok !== true) return { error: payload.error || "Die Bewerbung konnte nicht bestätigt werden." };
     if (payload.is_primary !== true || typeof payload.application?.id !== "string"
         || !["submitted", "negotiating", "accepted"].includes(String(payload.application.status))) {

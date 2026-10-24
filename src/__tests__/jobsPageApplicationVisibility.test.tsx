@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
     fetchJobs: vi.fn(),
@@ -8,6 +8,7 @@ const testState = vi.hoisted(() => ({
     fetchCandidateApplicationLinks: vi.fn(),
     getAppHomeContext: vi.fn(),
     getAppHomeAccess: vi.fn(),
+    getRecipientSettingsSnapshot: vi.fn(),
     jobsListProps: null as Record<string, unknown> | null,
 }));
 
@@ -21,6 +22,8 @@ vi.mock("@/lib/app-shell", () => ({
     getAppHomeContext: testState.getAppHomeContext,
     getAppHomeAccess: testState.getAppHomeAccess,
 }));
+vi.mock("@/lib/payments/recipient-repository.server", () => ({ getRecipientSettingsSnapshot: testState.getRecipientSettingsSnapshot }));
+vi.mock("@/components/payments/RecipientOverview", () => ({ RecipientPayHome: () => null }));
 vi.mock("@/components/jobs/JobsList", () => ({
     JobsList: (props: Record<string, unknown>) => {
         testState.jobsListProps = props;
@@ -35,6 +38,7 @@ vi.mock("@/components/ui/CumulativeLoadMoreLink", () => ({
 }));
 
 import JobsPage from "@/app/app-home/jobs/page";
+afterEach(() => vi.unstubAllEnvs());
 
 function makeJob(id: string, status: "open" | "reserved") {
     return {
@@ -106,6 +110,80 @@ describe("jobs page application visibility", () => {
         });
         expect(props).not.toHaveProperty("waitlistedJobs");
         expect(props).not.toHaveProperty("appliedJobs");
+    });
+
+    it("loads only a minimal recipient prerequisite for a real seeker in an enabled test runtime", async () => {
+        vi.stubEnv("WORKFARE_PAY_MODE","local_simulation");
+        testState.getAppHomeContext.mockResolvedValue({profile:{id:"seeker-a",account_type:"job_seeker",market_id:"market-a",lat:null,lng:null},effectiveView:{viewRole:"job_seeker"}});
+        testState.getRecipientSettingsSnapshot.mockResolvedValue({featureEnabled:true,status:"pending",accountRef:"must-not-reach-feed",hasPayoutMethod:false});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({})}) as ReactElement);
+        expect(testState.getRecipientSettingsSnapshot).toHaveBeenCalledExactlyOnceWith("seeker-a");
+        expect(testState.jobsListProps?.recipientGate).toEqual({required:true,ready:false});
+    });
+
+    it("shows the real live recipient overview without exposing the private account reference", async () => {
+        vi.stubEnv("WORKFARE_PAY_MODE", "live");
+        testState.getAppHomeContext.mockResolvedValue({profile:{id:"seeker-a",account_type:"job_seeker",market_id:"market-a",lat:null,lng:null},effectiveView:{viewRole:"job_seeker"}});
+        testState.getRecipientSettingsSnapshot.mockResolvedValue({kind:"live",featureEnabled:true,status:"ready",accountRef:"private-stripe-reference",hasPayoutMethod:true});
+
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({})}) as ReactElement);
+
+        expect(testState.getRecipientSettingsSnapshot).toHaveBeenCalledExactlyOnceWith("seeker-a");
+        expect(testState.jobsListProps?.recipientGate).toEqual({required:true,ready:true});
+        expect(testState.jobsListProps?.overview).toBeDefined();
+        expect(JSON.stringify(testState.jobsListProps)).not.toContain("private-stripe-reference");
+    });
+
+    it("keeps the overview absent when the configured live runtime is unavailable", async () => {
+        vi.stubEnv("WORKFARE_PAY_MODE", "live");
+        testState.getAppHomeContext.mockResolvedValue({profile:{id:"seeker-a",account_type:"job_seeker",market_id:"market-a",lat:null,lng:null},effectiveView:{viewRole:"job_seeker"}});
+        testState.getRecipientSettingsSnapshot.mockResolvedValue({kind:"disabled",featureEnabled:false,status:"disabled",accountRef:null,hasPayoutMethod:false});
+
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({})}) as ReactElement);
+
+        expect(testState.jobsListProps?.recipientGate).toEqual({required:false,ready:false});
+        expect(testState.jobsListProps?.overview).toBeUndefined();
+    });
+
+    it("does not load payment information for disabled runtimes or another real account role", async () => {
+        vi.stubEnv("WORKFARE_PAY_MODE","disabled");
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({})}) as ReactElement);
+        expect(testState.getRecipientSettingsSnapshot).not.toHaveBeenCalled();
+        vi.stubEnv("WORKFARE_PAY_MODE","local_simulation");
+        testState.getAppHomeContext.mockResolvedValue({profile:{id:"guardian-a",account_type:"guardian",market_id:"market-a",lat:null,lng:null},effectiveView:{viewRole:"job_seeker"}});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({})}) as ReactElement);
+        expect(testState.getRecipientSettingsSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("re-reads an exact return job outside page one without automatically applying", async () => {
+        const jobId="11111111-1111-4111-8111-111111111111";
+        testState.fetchJobDiscoveryCandidates.mockResolvedValue({ok:true,data:[]});
+        testState.fetchJobs.mockResolvedValue({ok:true,data:[makeJob(jobId,"open")]});
+        testState.fetchCandidateApplicationLinks.mockResolvedValue({ok:true,data:[]});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({job:jobId})}) as ReactElement);
+        expect(testState.fetchJobs).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({mode:"feed",userId:"seeker-a",marketId:"market-a",jobIds:[jobId],status:"open",limit:1}));
+        expect(testState.jobsListProps?.initialJobId).toBe(jobId);
+        expect(testState.jobsListProps?.localActiveJobs).toEqual([makeJob(jobId,"open")]);
+    });
+
+    it("does not restore a return offer that became reserved or already has a conversation", async () => {
+        const jobId="11111111-1111-4111-8111-111111111111";
+        testState.fetchJobDiscoveryCandidates.mockResolvedValue({ok:true,data:[]});
+        testState.fetchJobs.mockResolvedValue({ok:true,data:[makeJob(jobId,"reserved")]});
+        testState.fetchCandidateApplicationLinks.mockResolvedValue({ok:true,data:[]});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({job:jobId})}) as ReactElement);
+        expect(testState.jobsListProps?.localActiveJobs).toEqual([]);
+        testState.fetchJobs.mockResolvedValue({ok:true,data:[makeJob(jobId,"open")]});
+        testState.fetchCandidateApplicationLinks.mockResolvedValue({ok:true,data:[{id:"existing-chat",job_id:jobId}]});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({job:jobId})}) as ReactElement);
+        expect(testState.jobsListProps?.localActiveJobs).toEqual([]);
+        expect(testState.jobsListProps?.applicationConversations).toEqual({[jobId]:"existing-chat"});
+    });
+
+    it.each(["invalid",["11111111-1111-4111-8111-111111111111","11111111-1111-4111-8111-111111111111"]])("ignores an invalid or duplicated return selector %j",async job=>{
+        testState.fetchJobDiscoveryCandidates.mockResolvedValue({ok:true,data:[]});
+        renderToStaticMarkup(await JobsPage({searchParams:Promise.resolve({job})}) as ReactElement);
+        expect(testState.fetchJobs).not.toHaveBeenCalled();expect(testState.jobsListProps?.initialJobId).toBeNull();
     });
 
     it.each(["submitted", "negotiating", "accepted", "waitlisted", "withdrawn", "rejected", "auto_rejected", "cancelled", "completed"])(

@@ -1,0 +1,20 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const mock=vi.hoisted(()=>({getUser:vi.fn(),rpc:vi.fn(),schema:vi.fn(),send:vi.fn(),verify:vi.fn(),signIn:vi.fn(),update:vi.fn()}));
+vi.mock("server-only",()=>({}));
+vi.mock("next/headers",()=>({cookies:vi.fn()}));
+vi.mock("@/lib/supabaseServer",()=>({supabaseServer:async()=>({auth:{getUser:mock.getUser,signInWithOtp:mock.send,verifyOtp:mock.verify,signInWithPassword:mock.signIn,updateUser:mock.update},rpc:mock.rpc})}));
+vi.mock("@/lib/guardian/schema-readiness.server",()=>({readGuardianSchemaState:mock.schema}));
+vi.mock("@/lib/supabase/admin",()=>({getSupabaseAdminClient:vi.fn()}));
+vi.mock("@/lib/demo/session",()=>({DEMO_VISITOR_COOKIE:"fixture",demoTokenHash:vi.fn()}));
+import {acceptLegacyGuardianInvitation,issueFamilyInvitation,requestGuardianEmailOtp,saveMinimalGuardianProfile,verifyGuardianEmailOtp,signInGuardianPassword,setGuardianPassword} from "@/lib/guardian/service.server";
+const token="a".repeat(64), user={id:"84d4b52a-759c-4ecd-aa2b-8973fbed2570",email:"parent@example.invalid",email_confirmed_at:"2026-10-24T09:00:00Z"};
+describe("guardian rolling-deployment compatibility",()=>{
+ beforeEach(()=>{vi.resetAllMocks();mock.getUser.mockResolvedValue({data:{user},error:null});mock.schema.mockResolvedValue("legacy");vi.spyOn(console,"error").mockImplementation(()=>undefined);});
+ afterEach(()=>vi.restoreAllMocks());
+ it("keeps the old database invitation workflow for child-to-parent links",async()=>{mock.rpc.mockResolvedValue({data:{token,expires_at:new Date(Date.now()+86_400_000).toISOString(),reused:true},error:null});expect(await issueFamilyInvitation("child_to_guardian")).toMatchObject({success:true,token,direction:"child_to_guardian",reused:true});expect(mock.rpc).toHaveBeenCalledWith("create_guardian_invitation",{});});
+ it("does not offer unsupported reverse invitations on an old schema",async()=>{expect(await issueFamilyInvitation("guardian_to_child")).toMatchObject({code:"guardian_schema_not_ready"});expect(mock.rpc).not.toHaveBeenCalled();});
+ it.each(["legacy","unavailable"])("prevents all new account-creating/credential/profile operations on %s",async schema=>{mock.schema.mockResolvedValue(schema);expect((await requestGuardianEmailOtp({email:user.email})).ok).toBe(false);expect((await verifyGuardianEmailOtp({email:user.email,code:"123456"})).ok).toBe(false);expect((await signInGuardianPassword({email:user.email,password:"existing"})).ok).toBe(false);expect((await setGuardianPassword({password:"Chosen passphrase",passwordConfirmation:"Chosen passphrase"})).ok).toBe(false);expect((await saveMinimalGuardianProfile({fullName:"Paula Beispiel",birthdate:"1984-01-01",adultConfirmed:true})).ok).toBe(false);expect(mock.send).not.toHaveBeenCalled();expect(mock.verify).not.toHaveBeenCalled();expect(mock.signIn).not.toHaveBeenCalled();expect(mock.update).not.toHaveBeenCalled();expect(mock.rpc).not.toHaveBeenCalled();});
+ it("requires explicit consent and uses only the authenticated old database redemption",async()=>{mock.rpc.mockResolvedValue({data:{success:true},error:null});expect(await acceptLegacyGuardianInvitation(token,false)).toMatchObject({code:"explicit_consent_required"});expect(mock.rpc).not.toHaveBeenCalled();expect(await acceptLegacyGuardianInvitation(token,true)).toEqual({ok:true});expect(mock.rpc).toHaveBeenCalledWith("redeem_guardian_invitation",{token_input:token});});
+ it.each(["ready","unavailable"])("does not reactivate legacy redemption on %s",async schema=>{mock.schema.mockResolvedValue(schema);expect(await acceptLegacyGuardianInvitation(token,true)).toMatchObject({code:"guardian_schema_not_ready"});expect(mock.rpc).not.toHaveBeenCalled();});
+ it("does not silently fall back when an explicitly ready new workflow fails",async()=>{mock.schema.mockResolvedValue("ready");mock.rpc.mockResolvedValue({data:null,error:{code:"42501"}});expect(await issueFamilyInvitation("child_to_guardian")).toMatchObject({code:"unavailable"});expect(mock.rpc.mock.calls.map(call=>call[0])).toEqual(["create_family_invitation"]);});
+});

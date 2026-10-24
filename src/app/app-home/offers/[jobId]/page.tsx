@@ -7,6 +7,7 @@ import {
     ArrowRight,
     Calendar,
     Clock,
+    CreditCard,
     FileText,
     Globe2,
     MapPin,
@@ -23,6 +24,8 @@ import styles from "@/components/jobs/JobDetail.module.css";
 import stateStyles from "../components/MyJobsView.module.css";
 import { formatJobCompensation } from "@/components/jobs/job-presentation";
 import { getActivityConversationHref } from "@/lib/activity/navigation";
+import { getPaymentSettingsSnapshot } from "@/lib/payments/repository.server";
+import { getPaymentSettingsHref } from "@/lib/payments/return-path";
 
 type JobRow = Database["public"]["Tables"]["jobs"]["Row"];
 
@@ -65,7 +68,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
         redirect("/app-home/offers");
     }
 
-    const applicationsResult = await fetchJobApplications(jobId, profile.id);
+    const mayPublish = ["draft", "closed"].includes(job.status) && !job.completed_at && !job.filled_by;
+    const [applicationsResult, payment] = await Promise.all([
+        fetchJobApplications(jobId, profile.id),
+        mayPublish ? getPaymentSettingsSnapshot(profile.id) : Promise.resolve(null),
+    ]);
+    const paymentRequired = payment?.featureEnabled && !payment.buyerReady;
     const applications = applicationsResult.ok ? applicationsResult.data : [];
     const activeConversation = summarizeProviderApplications(applications)[job.id];
     const history = applications.find(application => application.status !== "waitlisted");
@@ -94,8 +102,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 </div>
                 </div>
                 <footer className={styles.footer}>
-                    <div className={styles.footerCopy}><strong>{activeConversation ? "Euer Gespräch" : job.status === "open" ? "Bereit für eine Bewerbung" : "Dein Job"}</strong><p role={applicationsResult.ok ? undefined : "status"}>{applicationSummary}</p></div>
-                    <div className={styles.pageActions}><Link href={"/app-home/offers/edit/" + job.id} className={styles.action}><FileText size={16} aria-hidden="true" />Bearbeiten</Link>{conversationId && <Link href={getActivityConversationHref(conversationId)} className={styles.action}>{activeConversation ? "Gespräch öffnen" : "Verlauf ansehen"}<ArrowRight size={16} aria-hidden="true" /></Link>}</div>
+                    <div className={styles.footerCopy}><strong>{paymentRequired ? "Vor dem Veröffentlichen" : activeConversation ? "Euer Gespräch" : job.status === "open" ? "Bereit für eine Bewerbung" : "Dein Job"}</strong><p role={applicationsResult.ok ? undefined : "status"}>{paymentRequired ? "Hinterlege ein Zahlungsmittel und prüfe danach deinen Job. Bis zur Veröffentlichung bleibt er unveröffentlicht." : applicationSummary}</p></div>
+                    <div className={styles.pageActions}><Link href={"/app-home/offers/edit/" + job.id} className={styles.action}><FileText size={16} aria-hidden="true" />Bearbeiten</Link>{paymentRequired && <Link href={getPaymentSettingsHref(`/app-home/offers/edit/${job.id}?resume=payment`)} prefetch={false} className={styles.action}><CreditCard size={16} aria-hidden="true" />Zahlungsmittel hinterlegen</Link>}{conversationId && <Link href={getActivityConversationHref(conversationId)} className={styles.action}>{activeConversation ? "Gespräch öffnen" : "Verlauf ansehen"}<ArrowRight size={16} aria-hidden="true" /></Link>}</div>
                 </footer>
             </article>
         </div>

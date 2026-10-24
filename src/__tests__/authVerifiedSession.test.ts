@@ -91,6 +91,24 @@ describe("verified server auth context", () => {
         expect(await getAuthState()).toMatchObject({ state: "incomplete-profile", profile: null });
     });
 
+    it("preserves a minimal parent's null marketplace role and purpose-only home", async () => {
+        state.profile = { ...state.profile, birthdate: "1984-02-12", account_type: null, provider_kind: null, city: null };
+        const result = await getAuthState();
+        expect(result).toMatchObject({ state: "family-only", effectiveView: null, profile: { account_type: null } });
+        await expect(requireCompleteProfile()).rejects.toThrow("REDIRECT:/guardian/access");
+        expect(state.profile?.account_type).toBeNull();
+    });
+
+    it.each([
+        { birthdate: "2012-01-01", full_name: "Parent Name" },
+        { birthdate: null, full_name: "Parent Name" },
+        { birthdate: "1984-02-12", full_name: " " },
+        { birthdate: "1984-02-12", full_name: "Parent Name", provider_kind: "company" },
+    ])("does not grant family-purpose routing from an ineligible profile: %j", async fields => {
+        state.profile = { ...state.profile, account_type: null, city: null, ...fields };
+        expect(await getAuthState()).toMatchObject({ state: "incomplete-profile", effectiveView: null });
+    });
+
     it("does not reuse a user's auth context across separate calls outside a React render request", async () => {
         expect((await getCurrentSessionAndProfile()).session?.user.id).toBe("verified-user");
         state.getUser.mockResolvedValue({ data: { user: user({ id: "second-verified-user" }) }, error: null });

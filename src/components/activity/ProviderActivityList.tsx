@@ -30,12 +30,14 @@ export function ProviderActivityList({
     selectedJobId,
     selectedJobTitle,
     readOnly = false,
+    paymentOrdersEnabled = false,
 }: {
     applications: ProviderApplication[];
     userId: string;
     selectedJobId?: string | null;
     selectedJobTitle?: string | null;
     readOnly?: boolean;
+    paymentOrdersEnabled?: boolean;
 }) {
     const router = useRouter();
 
@@ -64,6 +66,7 @@ export function ProviderActivityList({
             role="provider"
             currentUserId={userId}
             readOnly={readOnly}
+            paymentOrdersEnabled={paymentOrdersEnabled}
             selectedJobId={selectedJobId}
             selectedJobTitle={selectedJobTitle}
             onSendMessage={sendMessage}

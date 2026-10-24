@@ -4,6 +4,7 @@ import { ProviderActivityList } from "@/components/activity/ProviderActivityList
 import { getAppHomeContext } from "@/lib/app-shell";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import styles from "@/components/activity/ActivityWorkspace.module.css";
+import { paymentOrderPreviewVisible } from "@/lib/payments/order-feature";
 import {
     fetchActivityPartnerProfiles,
     type ActivityPartnerProfile,
@@ -140,6 +141,7 @@ export default async function ActivityPage({
     ]);
     const profile = context.profile;
     const viewRole = context.effectiveView.viewRole;
+    const paymentOrdersEnabled = paymentOrderPreviewVisible(process.env);
     const selectedJobId = typeof params.jobId === "string" ? params.jobId : null;
     const supabase = await supabaseServer();
 
@@ -179,6 +181,7 @@ export default async function ActivityPage({
         return (
             <ActivityPageShell>
                 <ProviderActivityList
+                    paymentOrdersEnabled={paymentOrdersEnabled}
                     applications={visibleApplications as any}
                     userId={profile.id}
                     selectedJobId={selectedJobId}
@@ -213,6 +216,7 @@ export default async function ActivityPage({
     return (
         <ActivityPageShell>
             <ActivitiesPageClient
+                paymentOrdersEnabled={paymentOrdersEnabled}
                 applications={applications}
                 userId={profile.id}
             />

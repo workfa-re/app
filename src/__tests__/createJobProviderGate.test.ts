@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ profile: {} as Record<string, unknown>, create: vi.fn() }));
+const state = vi.hoisted(() => ({ profile: {} as Record<string, unknown>, create: vi.fn(), payment: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: (href: string) => { throw new Error(`REDIRECT:${href}`); } }));
 vi.mock("@/lib/dal/platform", () => ({ createJob: state.create, getEffectiveView: async () => ({ ok: true, data: { viewRole: "job_provider", roles: [] } }) }));
+vi.mock("@/lib/payments/repository.server", () => ({ getPaymentSettingsSnapshot: state.payment }));
 vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: "provider" } } }) },
     from: () => {
@@ -25,6 +25,7 @@ describe("provider job creation matches the database verification gate", () => {
         vi.clearAllMocks();
         state.profile = { account_type: "job_provider", market_id: "market", street: "Musterstraße", house_number: "1", zip: "53359", city: "Rheinbach", lat: 50.63, lng: 6.95, provider_verification_status: "verified", provider_verified_at: "2026-10-20T12:00:00Z" };
         state.create.mockResolvedValue({ ok: true, data: { id: "synthetic-job" } });
+        state.payment.mockResolvedValue({ kind: "disabled", featureEnabled: false, buyerReady: false });
     });
 
     it.each(["none", "pending", "rejected"])("does not let a stale timestamp override %s", async status => {
@@ -40,8 +41,53 @@ describe("provider job creation matches the database verification gate", () => {
     });
 
     it("still creates a valid offer after a complete provider verification", async () => {
-        await expect(createJob(null, validJob())).rejects.toThrow("REDIRECT:/app-home/offers");
+        await expect(createJob(null, validJob())).resolves.toEqual({ status: "success" });
         expect(state.create).toHaveBeenCalledOnce();
         expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ job: expect.objectContaining({ posted_by: "provider", status: "open" }) }));
+    });
+
+    it("preserves the production flow when the payment feature is disabled", async () => {
+        await expect(createJob(null, validJob())).resolves.toEqual({ status: "success" });
+        expect(state.payment).toHaveBeenCalledExactlyOnceWith("provider");
+        expect(state.create).toHaveBeenCalledOnce();
+    });
+
+    it("blocks an active payment publication gate using server evidence, even when the client claims readiness", async () => {
+        state.payment.mockResolvedValue({ kind: "local", featureEnabled: true, buyerReady: false });
+        const form = validJob();
+        form.set("buyer_payment_ready", "true");
+        form.set("returnTo", "https://untrusted.example.invalid/");
+        expect(await createJob(null, form)).toMatchObject({ status: "error", error: { code: "buyer_payment_required" } });
+        expect(state.create).not.toHaveBeenCalled();
+    });
+
+    it("allows the verified provider to publish once its own server-side buyer setup is ready", async () => {
+        state.payment.mockResolvedValue({ kind: "local", featureEnabled: true, buyerReady: true });
+        await expect(createJob(null, validJob())).resolves.toEqual({ status: "success" });
+        expect(state.create).toHaveBeenCalledOnce();
+    });
+
+    it("does not require payment setup to save a database draft", async () => {
+        const form = validJob(); form.set("intent", "draft");
+        await expect(createJob(null, form)).resolves.toEqual({ status: "success" });
+        expect(state.payment).not.toHaveBeenCalled();
+        expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ job: expect.objectContaining({ status: "draft" }) }));
+    });
+
+    it("never substitutes buyer payment readiness for provider address verification", async () => {
+        state.profile.provider_verification_status = "pending";
+        state.payment.mockResolvedValue({ kind: "local", featureEnabled: true, buyerReady: true });
+        expect(await createJob(null, validJob())).toMatchObject({ status: "error", error: { message: "Dein Anbieterprofil muss vor der Veröffentlichung geprüft sein." } });
+        expect(state.payment).not.toHaveBeenCalled();
+        expect(state.create).not.toHaveBeenCalled();
+    });
+
+    it("never confirms success or clears a draft when the actual database creation failed", async () => {
+        state.create.mockResolvedValue({ ok: false, error: { message: "Der Job konnte nicht gespeichert werden." } });
+        const form = validJob();
+        form.set("setup", "success");
+        form.set("status", "success");
+        expect(await createJob(null, form)).toEqual({ status: "error", error: { message: "Der Job konnte nicht gespeichert werden." } });
+        expect(state.create).toHaveBeenCalledOnce();
     });
 });
