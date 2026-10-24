@@ -1,11 +1,12 @@
 import { getGuardianRecipientContext,startGuardianRecipient } from "@/lib/payments/guardian-recipient.server";
 import { paymentError,paymentJson,paymentExpectedOwner,readPaymentJson } from "@/lib/payments/http.server";
-import { PaymentFlowError,requirePaymentRuntime } from "@/lib/payments/runtime.server";
+import { PaymentFlowError,assertPaymentRequestHost,requirePaymentRuntime } from "@/lib/payments/runtime.server";
 export const runtime="nodejs";
 export async function GET(request:Request){
     try{
-        const {origin}=requirePaymentRuntime(),url=new URL(request.url),sent=request.headers.get("origin"),site=request.headers.get("sec-fetch-site");
-        if(url.origin!==origin || (sent!==null && sent!==origin) || (site!==null && !["same-origin","none"].includes(site)))throw new PaymentFlowError("same_origin_required",403);
+        const paymentRuntime=requirePaymentRuntime();assertPaymentRequestHost(request,paymentRuntime);
+        const {origin}=paymentRuntime,url=new URL(request.url),sent=request.headers.get("origin"),site=request.headers.get("sec-fetch-site");
+        if((sent!==null && sent!==origin) || (site!==null && !["same-origin","none"].includes(site)))throw new PaymentFlowError("same_origin_required",403);
         if(url.search)throw new PaymentFlowError("invalid_request");
         return paymentJson(await getGuardianRecipientContext(paymentExpectedOwner(request)));
     }catch(error){return paymentError(error);}

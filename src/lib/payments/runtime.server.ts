@@ -55,10 +55,40 @@ export function requirePaymentRuntime(environment: PaymentsEnvironment = process
     return Object.freeze({ mode, origin: origin.origin });
 }
 
+/** Next's standalone server may use its bind address as request.url's origin. */
+export function assertPaymentRequestHost(request: Request, runtime: PaymentRuntime, environment: PaymentsEnvironment = process.env) {
+    const canonical = new URL(runtime.origin);
+    const target = new URL(request.url);
+    const host = request.headers.get("host");
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProtocol = request.headers.get("x-forwarded-proto");
+    const forwardedPort = request.headers.get("x-forwarded-port");
+    const protocol = canonical.protocol.slice(0, -1);
+    const port = canonical.port || (protocol === "https" ? "443" : "80");
+    const reject = () => { throw new PaymentFlowError("same_origin_required", 403); };
+    if (target.username || target.password
+        || (host !== null && host !== canonical.host)
+        || (forwardedHost !== null && forwardedHost !== canonical.host)
+        || (forwardedProtocol !== null && forwardedProtocol !== protocol)) reject();
+    if (target.origin === canonical.origin) {
+        if (forwardedPort !== null && forwardedPort !== port) reject();
+        return;
+    }
+    const bindPort = environment.PORT ?? "3000";
+    if (runtime.mode !== "live" || canonical.protocol !== "https:"
+        || !["http:", "https:"].includes(target.protocol)
+        || !["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "[::]"].includes(target.hostname)
+        || !/^[1-9][0-9]{0,4}$/.test(bindPort) || Number(bindPort) > 65535 || target.port !== bindPort
+        || host !== canonical.host || forwardedHost !== canonical.host || forwardedProtocol !== "https"
+        // Next fills a missing forwarded port with its own bound server port.
+        || (forwardedPort !== null && forwardedPort !== port && forwardedPort !== bindPort)) reject();
+}
+
 export function assertPaymentSameOrigin(request: Request, runtime: PaymentRuntime) {
+    assertPaymentRequestHost(request, runtime);
     const origin = request.headers.get("origin");
     const fetchSite = request.headers.get("sec-fetch-site");
-    if (origin !== runtime.origin || new URL(request.url).origin !== runtime.origin
+    if (origin !== runtime.origin
         || (fetchSite !== null && fetchSite !== "same-origin" && fetchSite !== "none")) {
         throw new PaymentFlowError("same_origin_required", 403);
     }

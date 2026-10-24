@@ -1,4 +1,4 @@
-import { PaymentFlowError, requirePaymentRuntime } from "@/lib/payments/runtime.server";
+import { PaymentFlowError, assertPaymentRequestHost, requirePaymentRuntime } from "@/lib/payments/runtime.server";
 import { paymentError } from "@/lib/payments/http.server";
 import { refreshHostedRecipient } from "@/lib/payments/recipient-hosted.server";
 import { hostedCookieFromHeader } from "@/lib/payments/recipient-hosted-state.server";
@@ -6,10 +6,12 @@ import { hostedCookieFromHeader } from "@/lib/payments/recipient-hosted-state.se
 export const runtime = "nodejs";
 export async function GET(request: Request) {
     try {
-        const { origin } = requirePaymentRuntime();
+        const paymentRuntime = requirePaymentRuntime();
+        assertPaymentRequestHost(request, paymentRuntime);
+        const { origin } = paymentRuntime;
         const target = new URL(request.url);
         const sentOrigin = request.headers.get("origin");
-        if (target.origin !== origin || target.search || (sentOrigin !== null && sentOrigin !== origin)) throw new PaymentFlowError("same_origin_required", 403);
+        if (target.search || (sentOrigin !== null && sentOrigin !== origin)) throw new PaymentFlowError("same_origin_required", 403);
         // Stripe returns through a top-level cross-site navigation. Embedded
         // or script-initiated cross-site requests cannot refresh a credential.
         if (request.headers.get("sec-fetch-site") === "cross-site"
