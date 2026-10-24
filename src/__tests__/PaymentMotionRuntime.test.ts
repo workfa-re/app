@@ -21,8 +21,8 @@ class Observer {
     visibility(isIntersecting: boolean) { this.callback([{ isIntersecting } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
 }
 let motion: Preference, connection: Connection, page: Page;
-const light = "/media/pay/v4/workfare-pay-depth-v4-light.mp4";
-const dark = "/media/pay/v4/workfare-pay-depth-v4-dark.mp4";
+const light = "/media/pay/v5/workfare-pay-material-v5-light.mp4";
+const dark = "/media/pay/v5/workfare-pay-material-v5-dark.mp4";
 const controllers: ReturnType<typeof createPaymentMotionRuntime>[] = [];
 function mount(intent: MotionIntent = "auto", source = light) {
     const video = new Video();

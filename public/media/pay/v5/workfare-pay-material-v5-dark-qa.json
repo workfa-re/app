@@ -1,0 +1,24 @@
+{
+  "theme": "dark",
+  "dimensions": [
+    1024,
+    768
+  ],
+  "native_fps": 12,
+  "frames": 240,
+  "duration_seconds": 20.0,
+  "unique_rendered_poses": 121,
+  "bytes": 1311621,
+  "five_second_motion_mae_255": 8.950337727864584,
+  "loop_seam_mae_255": 0.2673475477430556,
+  "max_internal_step_mae_255": 0.4959513346354167,
+  "median_internal_step_mae_255": 0.3666178385416667,
+  "poster_vs_decoded_first_max_diff": 0,
+  "decoded_corner_rgb": [
+    8,
+    8,
+    8
+  ],
+  "audio": false,
+  "motion": "analytic rigid cosine translation/rotation; fixed camera and studio lights"
+}
