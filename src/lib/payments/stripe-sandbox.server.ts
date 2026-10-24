@@ -1,5 +1,7 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type Stripe from "stripe";
+import { z } from "zod";
 import { assertStripeModeObject, paymentStripeSdk } from "./stripe-mode.server";
 import type { PaymentMode } from "./types";
 import { inspectPaymentsConfiguration, type PaymentsEnvironment } from "./config";
@@ -10,7 +12,7 @@ import type { StoredMethod } from "./types";
 const referenceId = (value: string | { id: string } | null): string | null => typeof value === "string" ? value : value?.id ?? null;
 function reject(): never { throw new PaymentFlowError("sandbox_object_mismatch", 409); }
 
-function assertCustomer(customer: Stripe.Customer | Stripe.DeletedCustomer, userId: string, mode: PaymentMode = "sandbox") {
+function assertCustomer(customer: Stripe.Customer | Stripe.DeletedCustomer, userId: string, mode: PaymentMode = "sandbox"): asserts customer is Stripe.Customer {
     if ("deleted" in customer && customer.deleted) reject();
     assertStripeModeObject(customer, mode);
     if ((customer as Stripe.Customer).metadata.workfare_pay_user !== userId) reject();
@@ -55,6 +57,22 @@ export function createStripeSandboxAdapter(environment: PaymentsEnvironment = pr
     if (runtime.mode === "local_simulation" || inspectPaymentsConfiguration(environment).status !== runtime.mode) throw new PaymentFlowError("sandbox_required", 503);
     const mode = runtime.mode;
     const sdk = paymentStripeSdk(environment);
+    const customerForSetup = async (stripe: Stripe, customerId: string, userId: string, setupId: string, email?: string) => {
+        if (email !== undefined && !z.email().max(254).safeParse(email).success) throw new PaymentFlowError("confirmed_email_required", 403);
+        const customer = await stripe.customers.retrieve(customerId);
+        assertCustomer(customer, userId, mode);
+        if (customer.id !== customerId) reject();
+        if (email === undefined || customer.email === email) return;
+        // Keep createCustomer's stable idempotency parameters unchanged. This
+        // also repairs Customers created before account-email prefill existed.
+        // The key contains a digest, never the person's email address.
+        const emailDigest = createHash("sha256").update(email).digest("hex");
+        const updated = await stripe.customers.update(customerId, { email }, {
+            idempotencyKey: `workfare-pay:setup-email:${setupId}:${emailDigest}`,
+        });
+        assertCustomer(updated, userId, mode);
+        if (updated.id !== customerId || updated.email !== email) reject();
+    };
 
     return Object.freeze({
         async createCustomer(userId: string, idempotencyKey: string) {
@@ -62,9 +80,10 @@ export function createStripeSandboxAdapter(environment: PaymentsEnvironment = pr
             assertCustomer(customer, userId, mode);
             return customer.id;
         },
-        async createSetup(customerId: string, userId: string, setupId: string, returnTo: string | null) {
+        async createSetup(customerId: string, userId: string, setupId: string, returnTo: string | null, email?: string) {
             if (returnTo !== null && !sanitizePaymentReturnPath(returnTo)) throw new PaymentFlowError("invalid_return_path");
-            assertCustomer(await (await sdk()).customers.retrieve(customerId), userId, mode);
+            const stripe = await sdk();
+            await customerForSetup(stripe, customerId, userId, setupId, email);
             const success = new URL(PAYMENT_SETTINGS_PATH, runtime.origin);
             success.searchParams.set("session_id", setupId);
             success.searchParams.set("setup", "success");
@@ -72,7 +91,7 @@ export function createStripeSandboxAdapter(environment: PaymentsEnvironment = pr
             const cancel = new URL(success);
             cancel.searchParams.set("setup", "canceled");
             const metadata = { workfare_pay_setup: setupId, workfare_pay_user: userId };
-            const session = await (await sdk()).checkout.sessions.create({
+            const session = await stripe.checkout.sessions.create({
                 mode: "setup", ui_mode: "hosted_page", customer: customerId, currency: "eur",
                 allowed_payment_method_types: ["card"], client_reference_id: setupId,
                 metadata, setup_intent_data: { metadata }, wallet_options: { link: { display: "never" } },
@@ -84,10 +103,10 @@ export function createStripeSandboxAdapter(environment: PaymentsEnvironment = pr
             if (!["https://checkout.stripe.com", ...(mode === "live" && environment.WORKFARE_PAY_CHECKOUT_ORIGIN === "https://pay.workfa.re" ? ["https://pay.workfa.re"] : [])].includes(url.origin) || url.username || url.password) reject();
             return { id: session.id, url: session.url, expiresAt: new Date(session.expires_at * 1_000).toISOString() };
         },
-        async createEmbeddedSetup(customerId: string, userId: string, setupId: string, returnTo: string | null, existingSessionId: string | null = null, theme: "light" | "dark" = "light") {
+        async createEmbeddedSetup(customerId: string, userId: string, setupId: string, returnTo: string | null, existingSessionId: string | null = null, theme: "light" | "dark" = "light", email?: string) {
             if (returnTo !== null && !sanitizePaymentReturnPath(returnTo)) throw new PaymentFlowError("invalid_return_path");
             const stripe = await sdk();
-            assertCustomer(await stripe.customers.retrieve(customerId), userId, mode);
+            await customerForSetup(stripe, customerId, userId, setupId, email);
             if (existingSessionId) {
                 const existing = await stripe.checkout.sessions.retrieve(existingSessionId);
                 if (existing.id !== existingSessionId) reject();

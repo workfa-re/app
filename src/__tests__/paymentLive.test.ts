@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only",()=>({}));
-const api=vi.hoisted(()=>({account:vi.fn(),customer:vi.fn(),createCustomer:vi.fn(),checkout:vi.fn(),webhook:vi.fn()}));
+const api=vi.hoisted(()=>({account:vi.fn(),customer:vi.fn(),updateCustomer:vi.fn(),createCustomer:vi.fn(),checkout:vi.fn(),webhook:vi.fn()}));
 vi.mock("stripe",async original=>{
  const {default:Actual}=await original<typeof import("stripe")>();
  return {default:class extends Actual {
-  constructor(...args:ConstructorParameters<typeof Actual>){super(...args);this.accounts.retrieve=api.account;this.customers.retrieve=api.customer;this.customers.create=api.createCustomer;this.checkout.sessions.create=api.checkout;this.webhooks.constructEvent=api.webhook;}
+  constructor(...args:ConstructorParameters<typeof Actual>){super(...args);this.accounts.retrieve=api.account;this.customers.retrieve=api.customer;this.customers.update=api.updateCustomer;this.customers.create=api.createCustomer;this.checkout.sessions.create=api.checkout;this.webhooks.constructEvent=api.webhook;}
  }};
 });
 import { requirePaymentRuntime } from "@/lib/payments/runtime.server";
@@ -22,10 +22,19 @@ const user="11111111-1111-4111-8111-111111111111",setup="22222222-2222-4222-8222
 const live:PaymentsEnvironment={WORKFARE_PAY_MODE:"live",WORKFARE_PAY_LIVE_ENABLED:"enabled",WORKFARE_PAY_LIVE_PROJECT_REF:"aaaaaaaaaaaaaaaaaaaa",WORKFARE_PAY_LIVE_PLATFORM_ACCOUNT:"acct_fixturePlatform",APP_ORIGIN:"https://app.workfa.re",SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",NEXT_PUBLIC_SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",STRIPE_SECRET_KEY:"rk_live_offlineFixtureOnly",STRIPE_PUBLISHABLE_KEY:"pk_live_offlineFixtureOnly",STRIPE_WEBHOOK_SECRET:"whsec_offlineFixtureOnly"};
 beforeEach(()=>{
  vi.resetAllMocks();api.account.mockResolvedValue({id:"acct_fixturePlatform",country:"DE"});api.customer.mockResolvedValue({id:"cus_fixture",livemode:true,metadata:{workfare_pay_user:user}});api.createCustomer.mockResolvedValue({id:"cus_fixture",livemode:true,metadata:{workfare_pay_user:user}});
+ api.updateCustomer.mockImplementation(async(id,input)=>({id,livemode:true,email:input.email,metadata:{workfare_pay_user:user}}));
  api.checkout.mockResolvedValue({id:"cs_live_fixture",livemode:true,mode:"setup",ui_mode:"embedded_page",status:"open",customer:"cus_fixture",client_reference_id:setup,metadata:{workfare_pay_setup:setup,workfare_pay_user:user},expires_at:Math.floor(Date.now()/1000)+3600,client_secret:"cs_live_fixture_secret_offlineFixture"});
 });
 afterEach(()=>vi.unstubAllEnvs());
 describe("strict production payment isolation",()=>{
+ it("prefills live Checkout using the already bound Customer and keeps live mode verified",async()=>{
+  await createStripeSandboxAdapter(live).createEmbeddedSetup("cus_fixture",user,setup,null,null,"light","provider@example.com");
+  expect(api.updateCustomer).toHaveBeenCalledWith("cus_fixture",{email:"provider@example.com"},expect.objectContaining({idempotencyKey:expect.any(String)}));
+  expect(api.updateCustomer.mock.invocationCallOrder[0]).toBeLessThan(api.checkout.mock.invocationCallOrder[0]);
+  expect(api.checkout.mock.calls[0][0]).toMatchObject({customer:"cus_fixture",ui_mode:"embedded_page"});
+  expect(api.checkout.mock.calls[0][0]).not.toHaveProperty("customer_email");
+  expect(api.createCustomer).not.toHaveBeenCalled();
+ });
  it.each(["rk_live_fixture","sk_live_fixture"])("accepts an explicit private live credential with the production project/origin and exposes no key (%s)",key=>{
   const environment={...live,STRIPE_SECRET_KEY:key};
   expect(requirePaymentRuntime(environment)).toEqual({mode:"live",origin:"https://app.workfa.re",platformAccountRef:"acct_fixturePlatform"});

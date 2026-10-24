@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
 import * as repository from "./repository.server";
 import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
@@ -13,12 +14,16 @@ export const PAYMENT_SETUP_CONSENT_VERSION = "buyer-method-setup-v1";
 const MAX_METHOD_DETACHES_PER_REQUEST = 3;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function requirePaymentProvider(expectedUserId?: string) {
+async function requirePaymentProviderUser(expectedUserId?: string) {
     const state = await getAuthState();
     if (state.state === "no-session") throw new PaymentFlowError("authentication_required", 401);
     if (state.state !== "ready" || state.profile?.account_type !== "job_provider") throw new PaymentFlowError("provider_account_required", 403);
     if (expectedUserId && expectedUserId !== state.session.user.id) throw new PaymentFlowError("owner_mismatch", 409);
-    return state.session.user.id;
+    return state.session.user;
+}
+
+export async function requirePaymentProvider(expectedUserId?: string) {
+    return (await requirePaymentProviderUser(expectedUserId)).id;
 }
 
 async function ownedSetup(userId: string, sessionId: string): Promise<SetupRecord> {
@@ -48,7 +53,8 @@ async function ensureCustomer(userId: string, mode: PaymentMode, operationId: st
 
 export async function startPaymentSetup(input: { consent: unknown; returnTo?: unknown; operationId?: string; uiMode?: unknown; theme?: unknown; paymentMethod?: unknown }) {
     const runtime = requirePaymentRuntime();
-    const userId = await requirePaymentProvider();
+    const user = await requirePaymentProviderUser();
+    const userId = user.id;
     // Saving an unsupported mandate would falsely satisfy the publication gate.
     // SEPA requires a separate asynchronous collection model, not manual capture.
     if (input.paymentMethod === "sepa_debit") throw new PaymentFlowError(SEPA_UNAVAILABLE_REASON, 409);
@@ -64,6 +70,12 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
     const returnTo = input.returnTo === undefined || input.returnTo === null ? null : sanitizePaymentReturnPath(input.returnTo);
     if (input.returnTo != null && !returnTo) throw new PaymentFlowError("invalid_return_path");
     if (input.operationId && !UUID.test(input.operationId)) throw new PaymentFlowError("invalid_operation_id");
+    // Auth supplies the confirmed account address; profile/form data must never
+    // select another person's Checkout contact or overwrite their Customer.
+    const email = runtime.mode === "local_simulation" ? undefined : user.email;
+    if (runtime.mode !== "local_simulation" && (!user.email_confirmed_at || !z.email().max(254).safeParse(email).success)) {
+        throw new PaymentFlowError("confirmed_email_required", 403);
+    }
     const operationId = input.operationId ?? randomUUID();
     const customerRef = await ensureCustomer(userId, runtime.mode, operationId);
     const setup = await repository.createPaymentSetup(userId, runtime.mode, operationId, returnTo, PAYMENT_SETUP_CONSENT_VERSION);
@@ -81,7 +93,7 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
         return { url: url.pathname + url.search };
     }
     if (embedded) {
-        const session = await createStripeSandboxAdapter().createEmbeddedSetup(customerRef, userId, setup.id, returnTo, setup.externalSessionId, theme);
+        const session = await createStripeSandboxAdapter().createEmbeddedSetup(customerRef, userId, setup.id, returnTo, setup.externalSessionId, theme, email);
         await repository.attachPaymentSetupSession(setup.id, session.id, session.expiresAt);
         if (session.status === "complete") {
             // A retried operation may have completed at Stripe while its webhook
@@ -92,7 +104,7 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
         }
         return { kind: "embedded" as const, sessionId: setup.id, clientSecret: session.clientSecret, publishableKey: publishableKey! };
     }
-    const session = await createStripeSandboxAdapter().createSetup(customerRef, userId, setup.id, returnTo);
+    const session = await createStripeSandboxAdapter().createSetup(customerRef, userId, setup.id, returnTo, email);
     await repository.attachPaymentSetupSession(setup.id, session.id, session.expiresAt);
     return { url: session.url };
 }

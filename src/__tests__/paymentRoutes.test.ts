@@ -57,7 +57,8 @@ describe("Workfare Pay mutation routes", () => {
         expect(service.startPaymentSetup).not.toHaveBeenCalled();
     });
 
-    it.each(["{broken", "[]", "null", '{"consent":true,"userId":"victim"}', '{"consent":true,"customerId":"cus_victim"}'])
+    it.each(["{broken", "[]", "null", '{"consent":true,"userId":"victim"}', '{"consent":true,"customerId":"cus_victim"}',
+        '{"consent":true,"email":"someone-else@example.com"}', '{"consent":true,"customer_email":"someone-else@example.com"}'])
     ("rejects malformed bodies and client-owned identity fields (%s)", async (body) => {
         expect((await start(request("setup", body))).status).toBe(400);
         expect(service.startPaymentSetup).not.toHaveBeenCalled();
