@@ -11,7 +11,7 @@
 
 ## Geprüft
 
-- 2.984 automatisierte Prüfungen: 2.939 Haupttests, 14 Angebots-, 26 Demo-, zwei Abhängigkeits- und drei Workerprüfungen. Produktionsbuild einschließlich TypeScript erfolgreich; vollständiger Lint ohne Fehler, 43 bestehende Warnungen. Abhängigkeitsaudit ohne bekannte Schwachstellen.
+- 2.987 automatisierte Prüfungen: 2.939 Haupttests, 14 Angebots-, 26 Demo-, zwei Abhängigkeits- und sechs Workerprüfungen. Produktionsbuild einschließlich TypeScript erfolgreich; vollständiger Lint ohne Fehler, 43 bestehende Warnungen. Abhängigkeitsaudit ohne bekannte Schwachstellen.
 - 170 isolierte PostgreSQL-Prüfungen für direkte Zahlung, Preis-Hinweise und Auszahlungsvorgänge einschließlich exaktem Replay über mehrere Tabs. Zusätzlich vollständiger produktionsnaher Rollout mit 34 Migrationen einschließlich atomarem Rollback, privaten Tabellenrechten, RLS und inaktiven Installationsdefaults.
 - Responsive Browserfixtures für Chat, Termin, Abschluss und Auszahlung in beiden Farbmodi, einschließlich 320-Pixel-Ansichten, Bankbestätigung, fremdem Kontowechsel und ungewissem POST mit Reload. Simulierte Backendantworten sind kein Finanznachweis.
 - Tatsächlicher Stripe-Sandboxtest mit vorhandenen synthetischen Konten und dem echten App-Adapter: Autorisierung, gespeicherte Testkarte, Einzug und erneute Prüfung von Zahlung, Transfer und Application Fee. 17,85 € Anbieterbetrag, 0,85 € Gebühr vor Stripe-Kosten und 17 € Empfängervergütung bestätigt. Keine neue Identität und keine App-Datenbankschreibzugriffe dafür.
@@ -22,3 +22,9 @@
 Die Sandbox hatte nach dem Zahlungsnachweis 0 € verfügbaren und 27 € ausstehenden Saldo. Deshalb wurde keine manuelle Sandbox-Auszahlung und kein künstlicher Top-up ausgelöst. Eine tatsächliche Bankzustellung, ein echter Minderjährigen-Abschluss und eine echte Kundenzahlung sind durch diesen Prüfstand nicht belegt.
 
 Der aktuelle Ablauf, die API-Sicherungen und der Betriebsworker sind unter [Abschluss und Bankauszahlung](../operations/workfare-pay-completion-payouts.md) beschrieben.
+
+## Live-Nachlauf
+
+Der Checkout und fünf verglichene Quellfingerprints des neu gestarteten Produktionscontainers bestätigen `d0530eb`. Beide GitHub-Prüfungen sind erfolgreich. Die öffentlichen Payout-/Order-Routen erreichen die erwarteten Authentifizierungsgrenzen; fremde Origins und ungültige Webhooks bleiben gesperrt. Der Host-Cron ist aktiv, gegen überlappende Läufe gesichert und schreibt ein privates rotierendes Log.
+
+Beim tatsächlichen Workeraufruf stellte sich eine Cloudflare-Challenge für den serverseitigen Weg über die öffentliche Domain heraus. Derselbe signierte Aufruf innerhalb des App-Containers antwortet mit HTTP 200 und `{ok:true,reconciled:0,pending:0}`. Der Worker verwendet deshalb ausschließlich `127.0.0.1` mit geprüftem App-Port. Die sechs Workerprüfungen umfassen auch eine echte kontrollierte Weiterleitungsprobe; der HMAC wird keiner Weiterleitung mitgegeben.

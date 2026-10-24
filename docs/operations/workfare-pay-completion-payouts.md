@@ -26,7 +26,7 @@ Private `payout_operations` speichern unveränderlich Nutzer, Modus, Konto, Betr
 
 ## Betrieb und Wiederherstellung
 
-`POST /api/payments/recipient/payout-recovery` akzeptiert nur einen zweckgebundenen HMAC-Token aus der privaten Serverkonfiguration. Der Worker stellt automatische Pläne wieder her und gleicht bereits bestehende Auszahlungen ab. **Er erstellt keine Auszahlung.** Pro Lauf bearbeitet er höchstens 20 Vorgänge mit fairer Rotation und denselben Ausführungsleases.
+`POST /api/payments/recipient/payout-recovery` akzeptiert nur einen zweckgebundenen HMAC-Token aus der privaten Serverkonfiguration. Der Worker stellt automatische Pläne wieder her und gleicht bereits bestehende Auszahlungen ab. **Er erstellt keine Auszahlung.** Pro Lauf bearbeitet er höchstens 20 Vorgänge mit fairer Rotation und denselben Ausführungsleases. Die CLI ruft den Endpoint ausschließlich innerhalb des App-Containers über `127.0.0.1` auf; `PORT` ist numerisch auf 1–65535 begrenzt, Standard ist 3000. Weiterleitungen sind gesperrt. Dadurch hängt die Wiederherstellung nicht von Cloudflare-Challenges am öffentlichen Eingang ab.
 
 Im App-Container ausführen:
 
