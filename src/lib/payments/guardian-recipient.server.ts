@@ -73,7 +73,7 @@ export async function startGuardianRecipient(input:{childId:unknown;consent:unkn
     }
     try {
         if(embedded){
-            const clientSecret=await adapter.createSession(childId.data,accountRef,"onboarding");
+            const clientSecret=await adapter.createSession(childId.data,accountRef,"onboarding",{guardianVerification:true});
             return {payload:{ownerId:userId,childId:childId.data,kind:"live" as const,component:"onboarding" as const,clientSecret,publishableKey:publishableKey!},cookie:null};
         }
         const link=await adapter.createHostedOnboarding(childId.data,accountRef,urls(runtime.origin,childId.data),randomUUID(),childId.data);

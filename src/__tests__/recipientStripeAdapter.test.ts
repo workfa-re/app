@@ -39,7 +39,7 @@ beforeEach(() => {
 describe("narrow Accounts v2 sandbox adapter", () => {
     it("creates a recipient configuration with explicit responsibilities and stable idempotency", async () => {
         const adapter = createRecipientStripeAdapter(env);
-        expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
+        expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "readNativeGuardianSetup", "saveNativeGuardianSetup", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
         expect(await adapter.createAccount(user,{contactEmail:"recipient@example.test"})).toBe(accountRef);
         const [params, opts] = api.create.mock.calls[0];
         expect(params).toMatchObject({ contact_email:"recipient@example.test", dashboard: "none", identity: { country: "de", entity_type: "individual" },

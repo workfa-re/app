@@ -90,7 +90,7 @@ describe("guardian payout HTTP authorization",()=>{
   const response=await POST(request({childId:child,consent:true,uiMode:"embedded"}));
   expect(response.status).toBe(200);expect(response.headers.get("set-cookie")).toBeNull();expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
   expect(await response.json()).toMatchObject({ownerId:parent,childId:child,component:"onboarding",kind:"live",publishableKey:"pk_live_offlineFixture",clientSecret:"fixture_guardian_single_account_session"});
-  expect(mock.link).not.toHaveBeenCalled();expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child,accountRef,"onboarding");
+  expect(mock.link).not.toHaveBeenCalled();expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child,accountRef,"onboarding",{guardianVerification:true});
  });
  it("accepts no client account, guardian, ready flag or personal Stripe data",async()=>{
   for(const extra of [{accountRef:"acct_other"},{guardianId:other},{ready:true},{birthdate:"2000-01-01"}])expect((await POST(request({childId:child,consent:true,...extra}))).status).toBe(400);expect(mock.rpc).not.toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe("embedded parent-authenticated youth payout onboarding", () => {
   await startGuardianRecipient({...input,uiMode:"embedded",restart:true},parent);
   expect(mock.restart).toHaveBeenCalledExactlyOnceWith(parent,child,parent,operation);
   expect(mock.restart.mock.invocationCallOrder[0]).toBeLessThan(mock.rpc.mock.invocationCallOrder[0]);
-  expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child,accountRef,"onboarding");
+  expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child,accountRef,"onboarding",{guardianVerification:true});
  });
  it.each([false,"true",null,1,{}])("rejects an implicit or malformed restart %j before any account read",async restart=>{
   await expect(startGuardianRecipient({...input,uiMode:"embedded",restart},parent)).rejects.toMatchObject({code:"invalid_request"});
@@ -124,7 +124,7 @@ describe("embedded parent-authenticated youth payout onboarding", () => {
  it("returns an owner/child-bound live onboarding session without a hosted redirect or cookie", async () => {
   const result = await startGuardianRecipient({ ...input, uiMode: "embedded" }, parent);
   expect(mock.rpc).toHaveBeenCalledExactlyOnceWith("pay_guardian_recipient_claim", { p_guardian_id: parent, p_child_id: child, p_operation_id: operation });
-  expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child, accountRef, "onboarding");
+  expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child, accountRef, "onboarding", {guardianVerification:true});
   expect(mock.link).not.toHaveBeenCalled();
   expect(result.cookie).toBeNull();
   expect(result.payload).toEqual({ ownerId: parent, childId: child, kind: "live", component: "onboarding", clientSecret: "fixture_guardian_single_account_session", publishableKey: "pk_live_offlineFixture" });

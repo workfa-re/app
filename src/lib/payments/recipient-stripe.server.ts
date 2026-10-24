@@ -11,8 +11,9 @@ import { sanitizeRecipientReturnPath } from "./recipient-return-path";
 import type { RecipientPayoutOverview } from "./recipient-types";
 import type { RecipientMinorBinding } from "./recipient-minor-types";
 import { getRecipientAccount } from "./recipient-repository.server";
-import { guardianEvidenceFromPersons, minorStripeBirthdate, minorProviderError, stripeBirthdate } from "./recipient-guardian-evidence.server";
+import { guardianEvidenceFromPersons, guardianEvidenceFromV2Persons, minorStripeBirthdate, minorProviderError, stripeBirthdate } from "./recipient-guardian-evidence.server";
 import { ageInBerlin } from "@/lib/age";
+import { createNativeGuardianStripeAdapter } from "./recipient-native-guardian.server";
 
 const accountId = (value: string | { id: string } | null | undefined) => typeof value === "string" ? value : value?.id;
 const reject = (): never => { throw new PaymentFlowError("recipient_object_mismatch", 409); };
@@ -70,8 +71,50 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             return {evidence:null,reason:"guardian_identity_mismatch" as const};
         }
         const persons=await (await sdk()).accounts.listPersons(account.id,{relationship:{legal_guardian:true},limit:100});
-        return guardianEvidenceFromPersons(persons,account.id,binding);
+        const legacy = guardianEvidenceFromPersons(persons,account.id,binding);
+        if (legacy.evidence || mode !== "live" || !account.identity?.attestations?.terms_of_service?.account?.date
+            || !Array.isArray(account.requirements?.entries) || account.requirements.entries.length > 0) return legacy;
+        const v2Persons = await (await sdk()).v2.core.accounts.persons.list(account.id,{limit:20});
+        return guardianEvidenceFromV2Persons(v2Persons,account,binding);
     }
+    async function inspect(userId: string, accountRef: string, minor?: RecipientMinorBinding | null): Promise<VerifiedRecipientState> {
+            const stripe = await sdk();
+            const account = await stripe.v2.core.accounts.retrieve(accountRef, { include });
+            assertAccountOwner(account, userId, accountRef, mode);
+            const unavailable = (status: "pending" | "restricted"): VerifiedRecipientState => ({ status, requirementCount: 0,
+                hasPayoutMethod: false, detailsSubmitted: false, transfersActive: false, payoutsEnabled: false });
+            if (account.closed) return unavailable("restricted");
+            if (!account.configuration?.recipient || !account.identity || !account.defaults) return unavailable("pending");
+            if (!account.configuration.recipient.applied || account.identity.country?.toUpperCase() !== "DE"
+                || account.identity.entity_type !== "individual" || account.dashboard !== "none"
+                || account.defaults.responsibilities?.fees_collector !== "application"
+                || account.defaults.responsibilities?.losses_collector !== "application") return unavailable("restricted");
+            const legacy = await stripe.accounts.retrieve(accountRef);
+            // Accounts v1 has no livemode field in its schema. Its missing flag
+            // is safe only after the fresh, owned v2 test-account verification
+            // above, using this same SDK instance and captured test-key context.
+            if ("livemode" in legacy) assertStripeModeObject(legacy, mode);
+            if (legacy.id !== accountRef || legacy.metadata?.workfare_pay_user !== userId || legacy.metadata?.workfare_pay_role !== "recipient") reject();
+            const external = await stripe.accounts.listExternalAccounts(accountRef, { object: "bank_account", limit: 100 });
+            const hasPayoutMethod = external.data.some((item) => item.object === "bank_account" && item.currency === "eur"
+                && item.default_for_currency === true && ["new", "validated", "verified"].includes(item.status)
+                && (!item.account || accountId(item.account) === accountRef));
+            const capability = account.configuration?.recipient?.capabilities?.stripe_balance;
+            const transfersActive = capability?.stripe_transfers?.status === "active";
+            const payoutsEnabled = capability?.payouts?.status === "active" && legacy.payouts_enabled === true;
+            const detailsSubmitted = legacy.details_submitted === true;
+            // Missing include-dependent fields are unknown, never evidence of readiness.
+            const entries = account.requirements?.entries;
+            const requirementCount = entries ? entries.filter((entry) => entry.awaiting_action_from === "user").length : 0;
+            const restricted = [capability?.stripe_transfers?.status, capability?.payouts?.status].some((value) => ["rejected", "restricted", "unsupported"].includes(value ?? ""));
+            const status = !entries ? "pending" : restricted ? "restricted"
+                : transfersActive && payoutsEnabled && hasPayoutMethod && detailsSubmitted && requirementCount === 0 ? "ready"
+                : detailsSubmitted ? "pending" : "onboarding";
+            const guardian=await verifyGuardian(account,userId,minor,status==="ready");
+            return { status:guardian && !guardian.evidence && status==="ready" ? "pending" : status, requirementCount, hasPayoutMethod, detailsSubmitted, transfersActive, payoutsEnabled,
+                ...(guardian ? {guardianEvidence:guardian.evidence,guardianReason:guardian.reason} : {}) };
+        }
+    const nativeGuardian = createNativeGuardianStripeAdapter({ mode, sdk, retrieve, inspect });
     return Object.freeze({
         async createAccount(userId: string, prefill: RecipientAccountPrefill, minor?: RecipientMinorBinding) {
             if (minor && mode!=="live") throw new PaymentFlowError("recipient_minor_live_required",409);
@@ -103,8 +146,11 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             return account.id;
             } catch(error) { if (minor) minorProviderError(error); throw error; }
         },
-        async createSession(userId: string, accountRef: string, component: RecipientComponent) {
+        async createSession(userId: string, accountRef: string, component: RecipientComponent, options?: { guardianVerification: true }) {
             const account = await retrieve(userId, accountRef);
+            const guardianVerification = options?.guardianVerification === true;
+            if (guardianVerification && (component !== "onboarding" || !account.metadata?.workfare_pay_minor_guardian
+                || account.defaults?.responsibilities?.requirements_collector !== "application")) reject();
             if (component === "balances" || component === "payouts_list") {
                 const guardian=await verifyGuardian(account,userId,undefined,true);
                 if (guardian && !guardian.evidence) throw new PaymentFlowError(guardian.reason ?? "guardian_kyc_required",409);
@@ -114,7 +160,7 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                     throw new PaymentFlowError("recipient_setup_required", 409);
                 }
             }
-            const features = { external_account_collection: true, disable_stripe_user_authentication: false };
+            const features = { external_account_collection: !guardianVerification, disable_stripe_user_authentication: guardianVerification };
             const components: Stripe.AccountSessionCreateParams.Components = component === "onboarding"
                 ? { account_onboarding: { enabled: true, features } }
                 : component === "management" ? { account_management: { enabled: true, features } }
@@ -124,6 +170,9 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             const session = await (await sdk()).accountSessions.create({ account: accountRef, components });
             assertStripeModeObject(session, mode);
             if (session.account !== accountRef || !session.client_secret || session.expires_at <= Date.now() / 1_000) reject();
+            if (guardianVerification && (session.components?.account_onboarding?.enabled !== true
+                || session.components.account_onboarding.features.disable_stripe_user_authentication !== true
+                || session.components.account_onboarding.features.external_account_collection !== false)) reject();
             // A single-user client secret is returned only to the authenticated owner.
             return session.client_secret;
         },
@@ -213,6 +262,7 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             const confirmed=await list();
             if(confirmed.length!==1||confirmed[0].id!==saved.id||!matches(confirmed[0]))throw new PaymentFlowError("recipient_bank_unconfirmed",409);
         },
+        ...nativeGuardian,
         async createHostedOnboarding(userId: string, accountRef: string, urls: { refreshUrl: string; returnUrl: string }, operationId: string, guardianChildId?: string) {
             await retrieve(userId, accountRef);
             const origin = requirePaymentRuntime(environment).origin;
@@ -282,43 +332,7 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                     : hasOtherCurrency ? "currency_not_supported" : "retention_monitor_required",
                 maxHoldingDays: 90, checkedAt: new Date().toISOString() };
         },
-        async inspect(userId: string, accountRef: string, minor?: RecipientMinorBinding | null): Promise<VerifiedRecipientState> {
-            const stripe = await sdk();
-            const account = await stripe.v2.core.accounts.retrieve(accountRef, { include });
-            assertAccountOwner(account, userId, accountRef, mode);
-            const unavailable = (status: "pending" | "restricted"): VerifiedRecipientState => ({ status, requirementCount: 0,
-                hasPayoutMethod: false, detailsSubmitted: false, transfersActive: false, payoutsEnabled: false });
-            if (account.closed) return unavailable("restricted");
-            if (!account.configuration?.recipient || !account.identity || !account.defaults) return unavailable("pending");
-            if (!account.configuration.recipient.applied || account.identity.country?.toUpperCase() !== "DE"
-                || account.identity.entity_type !== "individual" || account.dashboard !== "none"
-                || account.defaults.responsibilities?.fees_collector !== "application"
-                || account.defaults.responsibilities?.losses_collector !== "application") return unavailable("restricted");
-            const legacy = await stripe.accounts.retrieve(accountRef);
-            // Accounts v1 has no livemode field in its schema. Its missing flag
-            // is safe only after the fresh, owned v2 test-account verification
-            // above, using this same SDK instance and captured test-key context.
-            if ("livemode" in legacy) assertStripeModeObject(legacy, mode);
-            if (legacy.id !== accountRef || legacy.metadata?.workfare_pay_user !== userId || legacy.metadata?.workfare_pay_role !== "recipient") reject();
-            const external = await stripe.accounts.listExternalAccounts(accountRef, { object: "bank_account", limit: 100 });
-            const hasPayoutMethod = external.data.some((item) => item.object === "bank_account" && item.currency === "eur"
-                && item.default_for_currency === true && ["new", "validated", "verified"].includes(item.status)
-                && (!item.account || accountId(item.account) === accountRef));
-            const capability = account.configuration?.recipient?.capabilities?.stripe_balance;
-            const transfersActive = capability?.stripe_transfers?.status === "active";
-            const payoutsEnabled = capability?.payouts?.status === "active" && legacy.payouts_enabled === true;
-            const detailsSubmitted = legacy.details_submitted === true;
-            // Missing include-dependent fields are unknown, never evidence of readiness.
-            const entries = account.requirements?.entries;
-            const requirementCount = entries ? entries.filter((entry) => entry.awaiting_action_from === "user").length : 0;
-            const restricted = [capability?.stripe_transfers?.status, capability?.payouts?.status].some((value) => ["rejected", "restricted", "unsupported"].includes(value ?? ""));
-            const status = !entries ? "pending" : restricted ? "restricted"
-                : transfersActive && payoutsEnabled && hasPayoutMethod && detailsSubmitted && requirementCount === 0 ? "ready"
-                : detailsSubmitted ? "pending" : "onboarding";
-            const guardian=await verifyGuardian(account,userId,minor,status==="ready");
-            return { status:guardian && !guardian.evidence && status==="ready" ? "pending" : status, requirementCount, hasPayoutMethod, detailsSubmitted, transfersActive, payoutsEnabled,
-                ...(guardian ? {guardianEvidence:guardian.evidence,guardianReason:guardian.reason} : {}) };
-        },
+        inspect,
         async verifyWebhook(payload: string, signature: string) {
             const secret = environment.STRIPE_CONNECT_WEBHOOK_SECRET;
             if (!secret || !/^whsec_[a-zA-Z0-9]+$/.test(secret)) throw new PaymentFlowError("recipient_webhook_not_configured", 503);

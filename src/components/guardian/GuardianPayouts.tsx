@@ -13,6 +13,7 @@ import { PayWordmark } from "@/components/payments/PayWordmark";
 import { PaymentEmbedBoundary } from "@/components/payments/PaymentEmbedBoundary";
 import { StripeReloadButton, type StripeEmbedControls } from "@/components/payments/StripeEmbedControls";
 import { logoutRecipientConnectSessions } from "@/components/payments/recipient-connect-lifecycle";
+import { GuardianVerificationForm } from "./GuardianVerificationForm";
 
 const EmbeddedRecipient=dynamic(()=>import("@/components/payments/EmbeddedRecipient"),{ssr:false,loading:()=><p className={styles.fieldHint}>Auszahlungseinrichtung wird geladen …</p>});
 
@@ -170,7 +171,7 @@ export function GuardianPayoutsProvider({ ownerId, returnChildId, children }: { 
 
 export function guardianPayoutHint(entry: ChildPayout): string | null {
     if (entry.reasonCode === "guardian_identity_mismatch") return entry.canStartPayout ? "Bitte prüfe deine Angaben als gesetzliche Vertretung bei Stripe." : "Die frühere Auszahlungseinrichtung ist einer anderen gesetzlichen Vertretung zugeordnet. Deine Elternfreigabe bleibt gültig.";
-    if (entry.reasonCode === "guardian_terms_required") return "Die Stripe-Bedingungen müssen noch direkt bei Stripe bestätigt werden.";
+    if (entry.reasonCode === "guardian_terms_required") return "Für die Auszahlung fehlt noch deine ausdrückliche Zustimmung zu den Zahlungsbedingungen.";
     if (entry.reasonCode === "recipient_country_model_unsupported") return "Stripe unterstützt die Auszahlung für dieses Konto derzeit nicht. Es wurde keine Auszahlung freigegeben.";
     if (entry.reasonCode === "recipient_guardian_binding_conflict") return "Die frühere Auszahlungseinrichtung ist einer anderen gesetzlichen Vertretung zugeordnet. Deine Elternfreigabe bleibt gültig.";
     if (entry.status === "pending") return "Stripe prüft die Angaben. Die Auszahlung ist noch nicht freigegeben.";
@@ -179,13 +180,16 @@ export function guardianPayoutHint(entry: ChildPayout): string | null {
 }
 
 export function GuardianPayoutAction({ childId }: { childId: string }) {
+    const [nativeOpen, setNativeOpen] = useState(false);
     const context = useContext(Payouts);
     const entry = context?.overview?.children.find(value => value.childId === childId);
     if (!context) return null;
     if (!entry) return context.error ? <div role="alert"><p>{context.error}</p><button type="button" className={styles.quiet} onClick={()=>void context.reload()}>Erneut laden</button></div>
         : <p>{context.loaded ? "Die Auszahlungseinrichtung ist gerade nicht verfügbar. Deine Elternfreigabe bleibt gespeichert." : "Auszahlungsangaben werden geladen …"}</p>;
     if(context.session?.childId===childId) return null;
-    return <>{context.error && <p role="alert">{context.error}</p>}<GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => context.start(childId)} onRestart={() => context.start(childId,{restart:true})} onRefresh={() => context.refresh(childId)} /></>;
+    if (nativeOpen && context.overview) return <GuardianVerificationForm key={`${context.overview.ownerId}:${childId}`} ownerId={context.overview.ownerId} childId={childId} onClose={() => setNativeOpen(false)} onUpdated={() => context.reload()} onAdditionalVerification={() => void context.start(childId)} />;
+    if (entry.canStartPayout && entry.status !== "ready") return <div className={styles.payoutSetup}><p className={styles.fieldHint}>Bestätige die nötigen Angaben direkt in Workfare. Ein eigener Stripe-Zugang ist nicht nötig.</p><div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={context.pendingChild !== null} onClick={() => setNativeOpen(true)}>Auszahlung freigeben<ArrowUpRight size={16} aria-hidden="true" /></button></div></div>;
+    return <>{context.error && <p role="alert">{context.error}</p>}<GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => setNativeOpen(true)} onRestart={() => context.start(childId,{restart:true})} onRefresh={() => context.refresh(childId)} /></>;
 }
 
 function GuardianEmbeddedSetup() {

@@ -42,6 +42,7 @@ const schemaNames = [
   "../../database/migrations/20261024202242_guardian_linked_consent_receipt.sql",
   "../../database/migrations/20261024202657_complete_jobs_after_verified_payment.sql",
   "../../database/migrations/20261024211214_minor_self_service_bank_setup_and_safe_restart.sql",
+  "../../database/migrations/20261024214615_native_guardian_payment_acceptance.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"
