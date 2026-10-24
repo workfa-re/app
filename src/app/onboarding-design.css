@@ -170,6 +170,10 @@ html .onboarding-experience :is(.onboarding-inline-feedback, .onboarding-feedbac
 .onboarding-experience .onboarding-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding-block: 18px; border-bottom: 1px solid var(--onboarding-rule); }
 .onboarding-experience .onboarding-summary-row dt { margin-bottom: 6px; color: var(--onboarding-muted); font-size: 13px; }
 .onboarding-experience .onboarding-summary-row:first-child { padding-top: 0; }
+.onboarding-address-selection { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-radius: 24px; background: var(--onboarding-control-bg); box-shadow: inset 0 1px 0 var(--onboarding-rule); }
+.onboarding-address-selection > div { min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.onboarding-address-selection strong { font-size: 16px; font-weight: 500; }
+.onboarding-address-selection span { font-size: 14px; color: var(--onboarding-muted); }
 .onboarding-experience .onboarding-summary-row > div { min-width: 0; }
 .onboarding-experience .onboarding-summary-row dd { margin: 0; color: var(--onboarding-ink); font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
 .onboarding-experience .onboarding-summary-row .onboarding-summary-meta { margin-top: 4px; color: var(--onboarding-copy); font-size: 14px; }

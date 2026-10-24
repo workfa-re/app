@@ -45,7 +45,7 @@ import { ChatAppointments } from "./ChatAppointments";
 import { useAppointmentRequests } from "./useAppointmentRequests";
 import detailsStyles from "./ChatDetails.module.css";
 import { ReportDialog } from "./ReportDialog";
-import { AppointmentPaymentsProvider, PaymentConversationShortcut } from "@/components/payments/AppointmentPayment";
+import { AppointmentPaymentsProvider, AppointmentCompletionReview, PaymentConversationShortcut } from "@/components/payments/AppointmentPayment";
 import { getReportableContent, type ActivityReportInput } from "@/lib/activity/reporting";
 import { createChatReconnectHandler, createChatRefreshQueue, mergeChatHistory, mergeChatMessages as mergeMessages } from "./chat-sync";
 
@@ -1584,7 +1584,9 @@ export function ApplicationChat({
                         onConfirm={() => void handleReopenResponse(declineRequest, false, declineReason)}
                     />
                 ) : null}
-                {completeOpen ? (
+                {completeOpen && !readOnly && paymentOrdersEnabled ? <AppointmentCompletionReview
+                    appointments={appointments} job={liveApplication.job ?? {}} pending={completePending} error={completeError}
+                    onComplete={() => void handleComplete()} onClose={() => setCompleteOpen(false)} /> : completeOpen && !readOnly ? (
                     <TextActionDialog
                         icon={<CheckCircle2 size={21} />}
                         title="Zusammenarbeit abschließen?"

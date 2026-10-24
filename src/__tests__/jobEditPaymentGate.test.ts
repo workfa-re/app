@@ -83,3 +83,24 @@ describe("edit publication checks the private buyer evidence", () => {
         expect(await updateJobAction(jobId, validForm())).toMatchObject({ success: false, code: "provider_verification_required", error: expect.stringContaining("Ergänze deine Adresse im Profil") });
     });
 });
+
+
+describe("one-off jobs cannot be converted into new recurring workflows", () => {
+    it("rejects a forged one-off-to-recurring edit before reading payment data or writing", async () => {
+        const form = validForm("draft"); form.set("job_kind", "recurring"); form.set("recurrence_rule", "weekly");
+        expect(await updateJobAction(jobId, form)).toEqual({ success: false, error: "Aktuell kannst du nur einmalige Jobs erstellen." });
+        expect(state.rpc).not.toHaveBeenCalled();
+        expect(state.payment).not.toHaveBeenCalled();
+    });
+    it("retains existing recurring jobs and their explicit recurrence changes", async () => {
+        state.job.job_kind = "recurring";
+        const form = validForm("draft"); form.set("job_kind", "recurring"); form.set("recurrence_rule", "biweekly"); form.set("continuity_preferred", "true");
+        expect(await updateJobAction(jobId, form)).toEqual({ success: true });
+        expect(state.rpc).toHaveBeenCalledWith("update_owned_job_details", expect.objectContaining({ p_job_kind: "recurring", p_recurrence_rule: "biweekly", p_continuity_preferred: true }));
+    });
+    it("allows an owner to deliberately change an eligible legacy recurring job into a one-off", async () => {
+        state.job.job_kind = "recurring";
+        expect(await updateJobAction(jobId, validForm("draft"))).toEqual({ success: true });
+        expect(state.rpc).toHaveBeenCalledWith("update_owned_job_details", expect.objectContaining({ p_job_kind: "one_time", p_recurrence_rule: null, p_continuity_preferred: false }));
+    });
+});

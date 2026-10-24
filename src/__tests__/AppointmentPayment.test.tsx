@@ -1,13 +1,82 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
-import { AppointmentPayment, AppointmentPaymentAmounts, AppointmentPaymentsProvider, canCancelAppointmentPayment, estimateAppointmentPrice, nextAppointmentPaymentAction, refreshAppointmentPaymentStatus, paymentConversationShortcut, latestAppointmentPaymentOrder } from "@/components/payments/AppointmentPayment";
+import { AppointmentPayment, AppointmentPaymentAmounts, AppointmentPaymentsProvider, canCancelAppointmentPayment, canRenewAppointmentPayment, estimateAppointmentPrice, nextAppointmentPaymentAction, refreshAppointmentPaymentStatus, paymentConversationShortcut, latestAppointmentPaymentOrder, appointmentsArePaid, captureCompletionPayment, AppointmentCompletionReview } from "@/components/payments/AppointmentPayment";
 import { paymentOrder } from "./fixtures/paymentOrders";
 import { paymentOrderPreviewVisible } from "@/lib/payments/order-feature";
 import { LIVE_SERVICE_FEE_POLICY, quoteLiveServiceFee } from "@/lib/payments/tariff";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("appointment payment UI consent and stage contract", () => {
+    it("closes only when every non-cancelled appointment has its latest actually paid price", () => {
+        const paid = paymentOrder({ state: "paid", refundedCents: 0 });
+        const appointments = [{ id: paid.appointmentId, starts_at: paid.startsAt, status: "scheduled" }];
+        expect(appointmentsArePaid(appointments, [paid])).toBe(true);
+        for (const state of ["ready", "authorization_pending", "authorized", "capture_pending", "failed", "review_required", "refund_pending", "refunded"] as const) {
+            expect(appointmentsArePaid(appointments, [{ ...paid, state }])).toBe(false);
+        }
+        expect(appointmentsArePaid([], [paid])).toBe(false);
+        expect(appointmentsArePaid([...appointments, { ...appointments[0], id: "88888888-8888-4888-8888-888888888888" }], [paid])).toBe(false);
+        expect(appointmentsArePaid([...appointments, { ...appointments[0], id: "88888888-8888-4888-8888-888888888888", status: "cancelled" }], [paid])).toBe(true);
+        expect(appointmentsArePaid(appointments, [paid, { ...paid, quoteVersion: 2, state: "awaiting_confirmation" }])).toBe(false);
+        expect(appointmentsArePaid(appointments, [{ ...paid, recipientConfirmedAt: null }])).toBe(false);
+        const oldPaid = { ...paid, id: "99999999-9999-4999-8999-999999999999", quoteVersion: 1 };
+        const latestPaid = { ...paid, quoteVersion: 2 };
+        expect(appointmentsArePaid(appointments, [oldPaid, latestPaid])).toBe(false);
+        expect(appointmentsArePaid(appointments, [{ ...oldPaid, state: "refund_pending" }, latestPaid])).toBe(false);
+        expect(appointmentsArePaid(appointments, [{ ...oldPaid, state: "refunded", refundedCents: oldPaid.totalCents }, latestPaid])).toBe(true);
+    });
+    it("captures a verified own authorization with the same operation and exact stored total", async () => {
+        const order = paymentOrder({ state: "authorized", captureBefore: "2035-01-02T00:00:00Z", startsAt: "2035-01-01T00:00:00Z" });
+        const paid = { ...order, state: "paid" };
+        const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: paid }) }); vi.stubGlobal("fetch", fetch);
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444";
+        expect(await captureCompletionPayment(order, scope, operation, Date.parse("2035-01-01T01:00:00Z"))).toEqual(paid);
+        expect(fetch).toHaveBeenCalledWith(`/api/payments/orders/${order.id}/action`, expect.objectContaining({
+            method: "POST", headers: expect.objectContaining({ "Idempotency-Key": operation }), body: JSON.stringify({ action: "capture", consent: true }),
+        }));
+        expect(fetch.mock.calls[0][1].body).not.toMatch(/amount|totalCents/);
+    });
+    it("never continues a canceled bank check, foreign order, expired hold or future work into capture", async () => {
+        const order = paymentOrder({ state: "authorized", captureBefore: "2035-01-02T00:00:00Z", startsAt: "2035-01-01T00:00:00Z" });
+        const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444", now = Date.parse("2035-01-01T01:00:00Z");
+        for (const patch of [{ state: "authorization_pending" as const }, { state: "capture_pending" as const }, { state: "failed" as const }, { state: "canceled" as const },
+            { captureBefore: "2034-01-01T00:00:00Z" }, { startsAt: "2035-02-01T00:00:00Z" }, { termsCurrent: false }, { providerId: order.recipientId }]) {
+            await expect(captureCompletionPayment({ ...order, ...patch }, scope, operation, now)).rejects.toThrow();
+        }
+        await expect(captureCompletionPayment(order, { ...scope, isProvider: false }, operation, now)).rejects.toThrow();
+        expect(fetch).not.toHaveBeenCalled();
+    });
+    it("keeps pending capture pending and rejects another payment returned by synchronization", async () => {
+        const order = paymentOrder({ state: "authorized", captureBefore: "2035-01-02T00:00:00Z", startsAt: "2035-01-01T00:00:00Z" });
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444", now = Date.parse("2035-01-01T01:00:00Z");
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { ...order, state: "capture_pending" } }) }));
+        expect((await captureCompletionPayment(order, scope, operation, now)).state).toBe("capture_pending");
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { ...order, id: "99999999-9999-4999-8999-999999999999", state: "paid" } }) }));
+        await expect(captureCompletionPayment(order, scope, operation, now)).rejects.toThrow();
+        await expect(refreshAppointmentPaymentStatus(order, scope)).rejects.toThrow();
+    });
+    it("offers safe renewal only for a failed attempt, stale terms or an expired hold", () => {
+        const now = Date.parse("2035-01-01T01:00:00Z");
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "failed" }), true, now)).toBe(true);
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "ready", termsCurrent: false }), true, now)).toBe(true);
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "authorized", captureBefore: "2034-01-01T00:00:00Z" }), true, now)).toBe(true);
+        for (const state of ["awaiting_confirmation", "ready", "authorization_pending", "capture_pending", "paid", "refund_pending", "refunded", "review_required"] as const) {
+            expect(canRenewAppointmentPayment(paymentOrder({ state }), true, now)).toBe(false);
+        }
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "authorized", captureBefore: "2035-01-02T00:00:00Z" }), true, now)).toBe(false);
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "failed" }), false, now)).toBe(false);
+        expect(canRenewAppointmentPayment(paymentOrder({ state: "authorization_pending", termsCurrent: false }), true, now)).toBe(false);
+    });
+    it("opens a minimal branded completion review without a direct unpaid close action", () => {
+        const html = renderToStaticMarkup(<AppointmentCompletionReview appointments={[]} job={{ title: "Gartenarbeit" }} pending={false} error={null} onComplete={vi.fn()} onClose={vi.fn()} />);
+        expect(html).toContain("Auftrag abschließen"); expect(html).toContain("Gartenarbeit"); expect(html).toContain("Workfare");
+        expect(html).toContain('role="dialog"'); expect(html).not.toContain("Als abgeschlossen markieren"); expect(html).not.toContain("Abschlussnotiz");
+    });
     it("shows the provider the full fee-inclusive total and preserves recipient earnings", () => {
         const payer = renderToStaticMarkup(<AppointmentPaymentAmounts earnings={1000} fee={50} provider />);
         expect(payer).toContain("Vergütung"); expect(payer).toContain("Servicegebühr"); expect(payer).toContain("Testtarif");

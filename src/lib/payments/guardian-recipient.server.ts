@@ -9,6 +9,7 @@ import { saveRecipientAccount, beginRecipientSync, applyRecipientSync } from "./
 import { createHostedConsent, readHostedConsent, RECIPIENT_HOSTED_TTL } from "./recipient-hosted-state.server";
 import { minorProviderError } from "./recipient-guardian-evidence.server";
 import type { GuardianRecipientContext } from "./recipient-minor-types";
+import { stripePublishableKey } from "./stripe-mode.server";
 
 const uuid=z.string().uuid();
 const binding=z.object({guardianId:uuid,consentId:uuid,childBirthdate:z.iso.date(),guardianBirthdate:z.iso.date(),guardianEmail:z.email(),guardianName:z.string().min(1).max(200)}).strict();
@@ -49,12 +50,15 @@ function cookie(userId:string,childId:string,accountRef:string) {
     const state=createHostedConsent(userId,`${accountRef}:${childId}`,null,secret());
     return `${cookieName}=${childId}.${state.value}; Max-Age=${RECIPIENT_HOSTED_TTL}; Path=/api/payments/guardian/recipients/hosted; HttpOnly; SameSite=Lax; Secure`;
 }
-export async function startGuardianRecipient(input:{childId:unknown;consent:unknown;operationId:unknown},expectedOwnerId:string) {
+export async function startGuardianRecipient(input:{childId:unknown;consent:unknown;operationId:unknown;uiMode?:unknown},expectedOwnerId:string) {
     const {runtime,userId}=await actor(expectedOwnerId);
     const childId=uuid.safeParse(input.childId),operationId=uuid.safeParse(input.operationId);
     if(!childId.success || !operationId.success) throw new PaymentFlowError("invalid_request");
     if(input.consent!==true) throw new PaymentFlowError("explicit_consent_required");
-    secret(); // Fail before private claims or Stripe writes if refresh is not operational.
+    if(input.uiMode!==undefined && input.uiMode!=="embedded") throw new PaymentFlowError("invalid_request");
+    const embedded=input.uiMode==="embedded";
+    const publishableKey=embedded ? stripePublishableKey() : null;
+    if(!embedded) secret(); // Hosted refresh must be operational before claiming.
     const claim=claimSchema.safeParse(await rpc("pay_guardian_recipient_claim",{p_guardian_id:userId,p_child_id:childId.data,p_operation_id:operationId.data}));
     if(!claim.success || claim.data.minorBinding.guardianId!==userId) throw new PaymentFlowError("recipient_guardian_unavailable",503);
     let accountRef=claim.data.accountRef;
@@ -65,6 +69,10 @@ export async function startGuardianRecipient(input:{childId:unknown;consent:unkn
         await saveRecipientAccount(childId.data,"live",operationId.data,accountRef);
     }
     try {
+        if(embedded){
+            const clientSecret=await adapter.createSession(childId.data,accountRef,"onboarding");
+            return {payload:{ownerId:userId,childId:childId.data,kind:"live" as const,component:"onboarding" as const,clientSecret,publishableKey:publishableKey!},cookie:null};
+        }
         const link=await adapter.createHostedOnboarding(childId.data,accountRef,urls(runtime.origin,childId.data),randomUUID(),childId.data);
         return {payload:{ownerId:userId,kind:"live" as const,...link,requiresExternalBrowser:true as const},cookie:cookie(userId,childId.data,accountRef)};
     } catch(error){minorProviderError(error);}

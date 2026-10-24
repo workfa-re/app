@@ -47,3 +47,22 @@ export async function sendGuardianReceipt(email: string, receiptUrl: string) {
             headers: { "X-Mailgun-Track": "no", "X-Mailgun-Track-Clicks": "no", "X-Mailgun-Track-Opens": "no" } });
     } finally { transport.close(); }
 }
+
+export async function sendGuardianLinkedReceipt(email: string, childName: string | null, receiptUrl: string, familyUrl: string) {
+    if (!guardianMailConfigured()) throw new Error("mail_unavailable");
+    const transport = guardianTransport();
+    try {
+        await transport.sendMail({ from: process.env.WORKFARE_GUARDIAN_MAIL_FROM, to: email,
+            subject: "Deine Elternfreigabe · Workfare",
+            text: [
+                `Du hast die Elternfreigabe für ${childName || "dein Kind"} bei Workfare erteilt.`,
+                "Die Zustimmung gilt für Bewerbungen und den Kontakt zu Anbietern für altersgerechte, zulässige Tätigkeiten. Gesetzliche Grenzen und gegebenenfalls weitere notwendige Einwilligungen bleiben bestehen.",
+                `Über deinen persönlichen Link kannst du die Freigabe ansehen und jederzeit widerrufen:\n${receiptUrl}`,
+                `Oder melde dich mit deiner E-Mail-Adresse und deinem Passwort in deinem Familienkonto an:\n${familyUrl}`,
+                "Bewahre diese E-Mail auf und teile deinen persönlichen Link nicht. Die Freigabe bestätigt keine Identität und ersetzt keine erforderliche Zahlungs- oder Auszahlungseinrichtung.",
+                "Workfare",
+            ].join("\n\n"),
+            disableFileAccess: true, disableUrlAccess: true,
+            headers: { "X-Mailgun-Track": "no", "X-Mailgun-Track-Clicks": "no", "X-Mailgun-Track-Opens": "no" } });
+    } finally { transport.close(); }
+}

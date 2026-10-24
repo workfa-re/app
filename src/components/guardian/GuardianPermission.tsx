@@ -111,11 +111,11 @@ function GuardianPermission({ token, initialReceipt }: { token?: string; initial
             setPreview(current => current ? { ...current, status: "revoked" } : null);
         });
     }
-    return <GuardianShell title="Elternfreigabe" description="Eine kurze Zustimmung. Ohne Konto und ohne Passwort.">
+    return <GuardianShell title="Elternfreigabe" description="Deine Zustimmung einfach verwalten.">
         <div className={`${styles.surface} ${styles.stack}`} aria-busy={loading || busy}>
             {loading ? <p className={styles.loading} role="status"><Loader2 size={18} className={styles.spinner} aria-hidden="true" />Link wird geprüft …</p>
                 : preview?.status === "approved" ? <>
-                    <div className={styles.success} role="status"><CheckCircle2 size={27} aria-hidden="true" /><h2>Zustimmung hinterlegt</h2><p>Die Elternfreigabe für {preview.childName || "dein Kind"} wurde gespeichert. Es wurde kein Konto angelegt. Zahlungen und Auszahlungen benötigen weiterhin eine eigene Einrichtung.</p></div>
+                    <div className={styles.success} role="status"><CheckCircle2 size={27} aria-hidden="true" /><h2>Zustimmung hinterlegt</h2><p>Die Elternfreigabe für {preview.childName || "dein Kind"} wurde gespeichert. {preview.accountLinked ? "Du kannst sie hier oder in deinem Familienkonto verwalten." : "Es wurde kein Konto angelegt."}</p></div>
                     {receipt ? <><p className={styles.fieldHint}>{receiptSent ? "Dein persönlicher Widerrufslink wurde auch per E-Mail verschickt. " : ""}Bewahre diesen persönlichen Link auf. Damit kannst du deine Zustimmung jederzeit widerrufen. Teile ihn nicht.</p><button type="button" className={`${styles.action} ${styles.glass}`} onClick={() => { void navigator.clipboard.writeText(new URL(`/guardian/permission#receipt=${receipt}`, window.location.origin).href).then(() => setCopied(true)).catch(() => setError("Bitte kopiere den Link aus der Adressleiste.")); }}>{copied ? "Link kopiert" : "Persönlichen Link kopieren"}</button><details className={styles.details}><summary><ChevronRight size={15} aria-hidden="true" />Zustimmung widerrufen</summary><p>Für neue Bewerbungen wird danach wieder eine gültige Elternfreigabe benötigt, sofern keine weitere vorliegt.</p><button type="button" className={`${styles.action} ${styles.glass}`} disabled={busy} onClick={() => void revoke()}>Zustimmung widerrufen</button></details></> : <p className={styles.fieldHint}>Für einen Widerruf benötigst du den persönlichen Link aus der ursprünglichen Bestätigung.</p>}
                 </> : preview?.status === "revoked" ? <div className={styles.success} role="status"><h2>Zustimmung widerrufen</h2><p>Die Freigabe ist nicht mehr aktiv. Bestehende Familienkonten und andere gültige Zustimmungen bleiben davon getrennt.</p></div>
                     : preview && preview.direction === "child_to_guardian" && preview.minorRequired ? <>
@@ -135,6 +135,7 @@ function GuardianPermission({ token, initialReceipt }: { token?: string; initial
             {error ? <p className={styles.error} role="alert">{error}</p> : null}
         </div>
         {!receipt ? <Link href={guardianSignupHref(returnTo)} prefetch={false} className={styles.quiet}>Familie dauerhaft verknüpfen<ChevronRight size={15} aria-hidden="true" /></Link> : null}
+        {receipt && (!preview || preview.accountLinked) ? <Link href="/guardian/access" prefetch={false} className={styles.quiet}>Zum Familienkonto<ChevronRight size={15} aria-hidden="true" /></Link> : null}
         <GuardianPrivacy />
     </GuardianShell>;
 }

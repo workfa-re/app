@@ -1555,6 +1555,25 @@ export type Database = {
         Args: { p_application_id: string; p_reason?: string }
         Returns: Json
       }
+      complete_provider_onboarding: {
+        Args: {
+          p_full_name: string
+          p_birthdate: string
+          p_city: string
+          p_market_id: string | null
+          p_provider_kind: Database["public"]["Enums"]["provider_kind"]
+          p_street: string
+          p_house_number: string
+          p_address_city: string
+          p_zip: string
+          p_lat: number
+          p_lng: number
+          p_company_name?: string | null
+          p_company_contact_email?: string | null
+          p_company_message?: string | null
+        }
+        Returns: Json
+      }
       complete_profile_onboarding: {
         Args: {
           p_account_type: Database["public"]["Enums"]["account_type"]

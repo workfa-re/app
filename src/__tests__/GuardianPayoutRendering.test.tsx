@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabaseClient", () => ({ supabaseBrowser: { auth: { onAuthStateChange: vi.fn() } } }));
-import { GuardianPayoutActionView, GuardianPayoutConsent, GuardianPayoutsProvider, guardianPayoutHostedUrl, validGuardianPayoutOverview } from "@/components/guardian/GuardianPayouts";
+import { GuardianPayoutActionView, GuardianPayoutConsent, GuardianPayoutsProvider, guardianPayoutHostedUrl, guardianPayoutEmbeddedSession, validGuardianPayoutOverview } from "@/components/guardian/GuardianPayouts";
 import { paymentRequest } from "@/components/payments/payment-client";
 import type { GuardianRecipientContext } from "@/lib/payments/recipient-minor-types";
 
@@ -78,5 +78,33 @@ describe("parent-led recipient setup", () => {
         expect(fetch).toHaveBeenCalledWith("/api/payments/guardian/recipients", expect.objectContaining({ headers: { "Content-Type": "application/json", "idempotency-key": "stable-operation", "X-Workfare-Owner": ownerId }, body: JSON.stringify({ childId, consent: true }) }));
         await expect(paymentRequest("/api/payments/recipient/session", { consent: true }, "operation", "invalid-owner")).rejects.toMatchObject({ code: "owner_mismatch" });
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+describe("guardian embedded payout session boundaries", () => {
+    const session = { ownerId, childId, kind: "live", component: "onboarding", clientSecret: "fixture_guardian_scoped_session", publishableKey: "pk_live_offlineFixture" };
+    it("accepts the current parent's explicitly selected child and live onboarding component", () => {
+        expect(guardianPayoutEmbeddedSession(session, ownerId, childId)).toEqual(session);
+    });
+    it.each([
+        { ownerId: childId }, { childId: ownerId }, { childId: "33333333-3333-4333-8333-333333333333" },
+        { kind: "sandbox" }, { kind: "local" }, { component: "management" }, { component: "balances" },
+        { publishableKey: "pk_test_wrongMode" }, { publishableKey: "sk_live_private" }, { publishableKey: "pk_live_contains whitespace" },
+        { publishableKey: "" }, { publishableKey: null },
+    ])("rejects ownership, child, component or mode mismatch %j", patch => {
+        expect(guardianPayoutEmbeddedSession({ ...session, ...patch }, ownerId, childId)).toBeNull();
+    });
+    it.each(["", "white space", "secret\n", "secret\u0000", "secret\u001f", "secret\u007f", "x".repeat(4097), null, 17, {}])("rejects invalid or unbounded client secret %j", clientSecret => {
+        expect(guardianPayoutEmbeddedSession({ ...session, clientSecret }, ownerId, childId)).toBeNull();
+    });
+    it("enforces the documented opaque-secret length boundary", () => {
+        expect(guardianPayoutEmbeddedSession({ ...session, clientSecret: "x".repeat(4096) }, ownerId, childId)).not.toBeNull();
+    });
+    it("requires valid distinct UI parent and child identities before accepting any server payload", () => {
+        for (const [parent, child] of [["invalid", childId], [ownerId, "invalid"], [ownerId, ownerId]]) {
+            expect(guardianPayoutEmbeddedSession(session, parent, child)).toBeNull();
+        }
+        for (const value of [null, undefined, [], "session", true]) expect(guardianPayoutEmbeddedSession(value, ownerId, childId)).toBeNull();
     });
 });

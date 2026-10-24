@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getInitialOnboardingRole, getOnboardingEntryStep, mustChooseOnboardingRole } from "@/lib/onboardingFlow";
+import { getInitialOnboardingRole, getOnboardingEntryStep, getOnboardingProfileNextStep, mustChooseOnboardingRole, onboardingNeedsProviderAddress } from "@/lib/onboardingFlow";
 import type { Profile } from "@/lib/types";
 
 const defaultedJobSeekerProfile = {
@@ -59,5 +59,19 @@ describe("onboarding role selection", () => {
         isJustVerified: false,
       }),
     ).toBe("youth");
+  });
+});
+
+
+describe("address collection stays specific to providers", () => {
+  it("takes young jobseekers straight to the summary without requiring a home address", () => {
+    expect(onboardingNeedsProviderAddress("youth")).toBe(false);
+    expect(getOnboardingProfileNextStep("youth")).toBe("summary");
+  });
+  it("collects a private address for adult providers and contact details before a business address", () => {
+    expect(onboardingNeedsProviderAddress("adult")).toBe(true);
+    expect(getOnboardingProfileNextStep("adult")).toBe("address");
+    expect(onboardingNeedsProviderAddress("company")).toBe(true);
+    expect(getOnboardingProfileNextStep("company")).toBe("contact");
   });
 });

@@ -46,10 +46,11 @@ describe("purpose-bound guardian access and consent UI", () => {
     it("lets a guest authenticate without disclosing invitation metadata first", () => {
         expect(guardianAccessStep({ ...context, authenticated: false, userId: null, invitation: null, relationships: [], email: null }, true)).toBe("email");
     });
-    it("requires only a minimal adult profile before a parent reviews an invitation", () => {
-        expect(guardianAccessStep({ ...context, viewer: "unconfigured", profile: { fullName: null, birthdate: null, adultEligible: false, accountType: null } }, true)).toBe("profile");
+    it("combines minimal adult details with the invitation review", () => {
+        expect(guardianAccessStep({ ...context, viewer: "unconfigured", profile: { fullName: null, birthdate: null, adultEligible: false, accountType: null } }, true)).toBe("review");
         expect(guardianAccessStep(context, true)).toBe("review");
         expect(guardianAccessStep({ ...context, workspace: { ...context.workspace, passwordConfigured: false } }, true)).toBe("password");
+        expect(guardianAccessStep({ ...context, viewer:"unconfigured",profile:{...context.profile,fullName:null,birthdate:null,adultEligible:false},workspace:{...context.workspace,passwordConfigured:false} },true)).toBe("review");
         expect(context.profile.accountType).toBeNull();
     });
     it("routes a reverse invitation to the child's profile instead of claiming the child is an adult guardian", () => {
@@ -93,6 +94,14 @@ describe("purpose-bound guardian access and consent UI", () => {
         expect(text(html)).toContain("gesetzlich vertretungsberechtigt"); expect(text(html)).toContain("weder eine Zahlungsfreigabe bei Stripe");
         expect(actions.redeemGuardianInvitation).not.toHaveBeenCalled(); expect(actions.approveGuardianRelationship).not.toHaveBeenCalled();
     });
+    it("combines missing parent details and explicit approval into one form without payout or provider fields", () => {
+        const html=renderToStaticMarkup(<GuardianConsentReview invitation={invitation} profile={{fullName:null,birthdate:null,adultEligible:false}} busy={false} onConfirm={noop} />);
+        expect(html.match(/<form /g)).toHaveLength(1);expect(html.match(/type="submit"/g)).toHaveLength(1);
+        expect(html).toContain('name="fullName"');expect(html).toContain('name="birthdate"');expect(html).toContain("Ich bin volljährig.");expect(html).toContain("Freigabe erteilen");
+        expect(html).not.toContain('checked=""');expect(html).not.toMatch(/name="(?:street|zip|iban|account_type)"|Elternkonto einrichten/);
+        const existing=renderToStaticMarkup(<GuardianConsentReview invitation={invitation} profile={context.profile} busy={false} onConfirm={noop} />);
+        expect(existing).not.toContain('name="birthdate"');expect(existing).not.toContain('name="fullName"');
+    });
     it("names the child in concise consent and keeps the unchanged complete scope before submission", () => {
         const html = renderToStaticMarkup(<GuardianConsentReview invitation={invitation} busy={false} onConfirm={noop} />);
         expect(text(html)).toContain("erteile Anna die beschriebene Elternfreigabe");
@@ -123,11 +132,13 @@ describe("purpose-bound guardian access and consent UI", () => {
         const configured = renderToStaticMarkup(<GuardianAccountSettings email={context.email} passwordConfigured busy={false} notice="Dein Passwort ist gespeichert." onSavePassword={noop} onReauthenticate={noop} />);
         expect(configured).toContain('href="/auth/forgot-password"'); expect(configured).not.toContain("Passwort festlegen"); expect(configured).toContain('role="status"');
     });
-    it("uses the shared normal login and explicit family signup instead of a separate parent login", () => {
+    it("opens one shared email-password entry instead of a three-choice wall", () => {
         const html = renderToStaticMarkup(<GuardianGuestEntry token="private-invite-token" />);
-        expect(html).toContain('href="/?authMode=signin&amp;redirectTo=%2Fguardian%2Faccess%3Ftoken%3Dprivate-invite-token"');
-        expect(html).toContain('purpose=family'); expect(html).toContain("Familie dauerhaft verknüpfen");
+        expect(html).toContain('purpose=family'); expect(html).toContain("Mit E-Mail und Passwort fortfahren");
+        expect(html.match(/<a /g)).toHaveLength(1); expect(html).not.toMatch(/Nur Erlaubnis|So möchtest du fortfahren|Passwort festlegen/);
         expect(html).not.toContain('type="password"'); expect(html).not.toContain("Anmeldecode senden");
+        const returning=renderToStaticMarkup(<GuardianGuestEntry token={null} />);
+        expect(returning).toContain("authMode=signin");expect(returning).not.toContain("authMode=signup");
     });
     it("fixes the parent's email during password reauthentication without a second account form", () => {
         const html = renderToStaticMarkup(<GuardianEmailForm email="parent@example.test" codeSent busy={false} fixedEmail onRequest={noop} onVerify={noop} onChangeEmail={noop} />);
@@ -149,7 +160,13 @@ describe("purpose-bound guardian access and consent UI", () => {
         const html = renderToStaticMarkup(<GuardianSuccess pending={pending} consentRequired={consentRequired} onContinue={noop} />);
         expect(html).toContain('role="status"'); expect(html).toContain("Familienübersicht");
         expect(html).not.toMatch(/Konto.*freigeschaltet|volle Verantwortung|jetzt Jobs annehmen/);
-        if (pending) expect(html).toContain("noch im Elternzugang bestätigen");
+        if (pending) expect(html).toContain("bestätigt die Freigabe im eigenen Konto");
+    });
+    it("distinguishes a saved consent, private receipt and an actually sent email", () => {
+        const render=(props: {receiptUrl?:string;receiptSent?:boolean;receiptUnavailable?:boolean})=>text(renderToStaticMarkup(<GuardianSuccess pending={false} consentRequired onContinue={noop} {...props} />));
+        expect(render({receiptUrl:"/guardian/permission#receipt=private",receiptSent:true})).toContain("wurde per E-Mail versendet");
+        expect(render({receiptUrl:"/guardian/permission#receipt=private",receiptSent:false})).toContain("Zustellung per E-Mail konnte noch nicht bestätigt");
+        expect(render({receiptUnavailable:true})).toContain("Deine Freigabe ist gespeichert und bleibt über dein Familienkonto widerrufbar");
     });
     it("surfaces pending approval structurally while avoiding private chat or financial data", () => {
         const html = renderToStaticMarkup(<GuardianConnections relationships={[connection]} busy={false} onApprove={noop} onRevoke={noop} />);

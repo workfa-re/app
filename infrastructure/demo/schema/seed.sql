@@ -131,9 +131,9 @@ DECLARE
       "market": "local",
       "district": "Nordviertel",
       "payment_type": "hourly",
-      "job_kind": "recurring",
-      "recurrence_rule": "weekly",
-      "continuity_preferred": true,
+      "job_kind": "one_time",
+      "recurrence_rule": null,
+      "continuity_preferred": false,
       "filled_by": null
     },
     {
@@ -291,9 +291,9 @@ DECLARE
       "market": "local",
       "district": "Parkviertel",
       "payment_type": "hourly",
-      "job_kind": "recurring",
-      "recurrence_rule": "weekly",
-      "continuity_preferred": true,
+      "job_kind": "one_time",
+      "recurrence_rule": null,
+      "continuity_preferred": false,
       "filled_by": "seeker"
     },
     {
@@ -334,13 +334,13 @@ DECLARE
       "title": "Mathe verständlich erklären",
       "category": "tutoring",
       "wage": 18,
-      "description": "Einmal pro Woche gemeinsam Grundlagen üben und Hausaufgaben besprechen. Geduld und klare Erklärungen sind wichtiger als Tempo.",
+      "description": "In einer gemeinsamen Lernstunde Grundlagen üben und Hausaufgaben besprechen. Geduld und klare Erklärungen sind wichtiger als Tempo.",
       "status": "open",
       "market": "extended",
       "district": "Mitte",
       "payment_type": "hourly",
-      "job_kind": "recurring",
-      "recurrence_rule": "weekly",
+      "job_kind": "one_time",
+      "recurrence_rule": null,
       "continuity_preferred": false,
       "filled_by": null
     }
@@ -426,7 +426,7 @@ DECLARE
       "queue_position": 1,
       "is_primary": true,
       "created_days_ago": 5,
-      "message": "Hallo Alex, ich arbeite gern im Garten und könnte regelmäßig am Nachmittag helfen.",
+      "message": "Hallo Alex, ich arbeite gern im Garten und könnte am Nachmittag helfen.",
       "provider_reply": "Willkommen, Mila. Die ersten beiden Termine sind eingetragen; Werkzeug stellen wir bereit.",
       "seeker_reply": "Vielen Dank, ich freue mich auf den Gemeinschaftsgarten."
     },

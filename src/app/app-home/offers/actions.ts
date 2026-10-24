@@ -23,15 +23,15 @@ const createJobSchema = z.object({
     category: z.string().min(1, "Bitte wähle eine Kategorie aus."),
     payment_type: z.enum(["hourly", "fixed"]).default("hourly"),
     reach: z.enum(["internal_rheinbach", "extended"]).optional(),
-    job_kind: z.enum(["one_time", "recurring"]).default("one_time"),
+    job_kind: z.literal("one_time", { error: "Aktuell kannst du nur einmalige Jobs erstellen." }).default("one_time"),
     recurrence_rule: z.enum(["weekly", "biweekly", "monthly", "flexible"]).nullable().optional(),
     continuity_preferred: z.boolean().default(false),
 }).superRefine((data, context) => {
-    if (data.job_kind === "recurring" && !data.recurrence_rule) {
+    if (data.recurrence_rule || data.continuity_preferred) {
         context.addIssue({
             code: "custom",
             path: ["recurrence_rule"],
-            message: "Bitte wähle eine Häufigkeit für den regelmäßigen Job.",
+            message: "Aktuell kannst du nur einmalige Jobs erstellen.",
         });
     }
 });
@@ -215,8 +215,8 @@ export async function createJob(_prevState: CreateJobActionState, formData: Form
             address_reveal_policy: "after_accept",
             reach: validated.data.reach ?? "internal_rheinbach",
             job_kind: validated.data.job_kind,
-            recurrence_rule: validated.data.job_kind === "recurring" ? validated.data.recurrence_rule ?? "flexible" : null,
-            continuity_preferred: validated.data.job_kind === "recurring" && validated.data.continuity_preferred,
+            recurrence_rule: null,
+            continuity_preferred: false,
         },
         privateDetails,
     });

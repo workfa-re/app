@@ -9,10 +9,10 @@ export async function signInGuardianAccessPassword(input: { email: unknown; pass
 export async function setGuardianAccessPassword(input: { password: string; passwordConfirmation: string }) { return setGuardianPassword(input); }
 export async function verifyGuardianOtp(input: { email: unknown; code: unknown }) { return verifyGuardianEmailOtp(input); }
 export async function completeGuardianProfile(input: { fullName: string; birthdate: string; adultConfirmed: true }) { return saveMinimalGuardianProfile(input); }
-export async function redeemGuardianInvitation(token: string, consent?: GuardianConsentInput) { return acceptFamilyInvitation(token, consent); }
+export async function redeemGuardianInvitation(token: string, consent?: GuardianConsentInput, receipt?: string) { return acceptFamilyInvitation(token, consent, receipt); }
 export async function redeemLegacyGuardianInvitation(token: string, accepted: boolean) { return acceptLegacyGuardianInvitation(token, accepted); }
-export async function approveGuardianRelationship(childId: string, consent: GuardianConsentInput) {
-    const result = await approveFamilyChild(childId, consent);
-    return result.success ? { ok: true as const } : { ok: false as const, error: result.message, code: result.code ?? "unavailable" };
+export async function approveGuardianRelationship(childId: string, consent: GuardianConsentInput, receipt?: string) {
+    const result = await approveFamilyChild(childId, consent, receipt);
+    return result.success ? { ok: true as const, receiptReady: result.receiptReady, receiptSent: result.receiptSent } : { ok: false as const, error: result.message, code: result.code ?? "unavailable" };
 }
 export async function revokeGuardianRelationship(relationshipId: string) { return revokeFamilyConnection(relationshipId); }

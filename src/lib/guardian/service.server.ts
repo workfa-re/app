@@ -8,6 +8,8 @@ import { requireDemoEnvironment } from "@/lib/demo/environment";
 import { consentSchema, guardianContextSchema, guardianEmail, guardianToken, minimalGuardianProfile } from "./validation";
 import type { FamilyInvitationDirection, FamilyInvitationResult, GuardianActionError, GuardianConsentInput, GuardianContextResult, GuardianRedemptionResult } from "./types";
 import { readGuardianSchemaState } from "./schema-readiness.server";
+import { createHash } from "node:crypto";
+import { guardianMailConfigured, sendGuardianLinkedReceipt } from "./permission-mail.server";
 
 const messages: Record<string, string> = {
     authentication_required: "Bitte melde dich mit deiner E-Mail-Adresse an.",
@@ -186,27 +188,50 @@ export async function issueFamilyInvitation(direction: FamilyInvitationDirection
         return { success: true, ...parsed.data };
     } catch { return { error: messages.unavailable, code: "unavailable" }; }
 }
-async function consentAction(name: string, target: string, consent: unknown): Promise<GuardianRedemptionResult> {
+async function sendCommittedConsentReceipt(client: Server, ownerEmail: string, childId: string, receipt: string) {
+    let receiptReady = false;
+    try {
+        const result = z.object({ ok: z.literal(true), reused: z.boolean(), childName: z.string().max(120).nullable(), parentEmail: guardianEmail }).safeParse(
+            await rpc(client, "record_my_guardian_consent_receipt", { p_child: childId, p_receipt_hash: createHash("sha256").update(receipt).digest("hex") }));
+        if (!result.success || result.data.parentEmail !== ownerEmail.toLowerCase()) return { receiptReady: false, receiptSent: false };
+        receiptReady = true;
+        // A committed retry must not emit duplicate confirmation messages.
+        if (result.data.reused || !guardianMailConfigured()) return { receiptReady, receiptSent: false };
+        const origin = new URL(process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_ORIGIN || "");
+        if (origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("invalid_origin");
+        await sendGuardianLinkedReceipt(result.data.parentEmail, result.data.childName, new URL(`/guardian/permission#receipt=${receipt}`, origin).href, new URL("/guardian/access", origin).href);
+        return { receiptReady, receiptSent: true };
+    } catch {
+        // The legal declaration is already committed. Delivery failure is not a rollback.
+        return { receiptReady, receiptSent: false };
+    }
+}
+
+async function consentAction(name: string, target: string, consent: unknown, receipt?: unknown): Promise<GuardianRedemptionResult> {
     const parsed = consentSchema.safeParse(consent);
     if (!parsed.success) return { success: false, message: messages.explicit_consent_required, code: "explicit_consent_required" };
+    if (receipt !== undefined && (typeof receipt !== "string" || !/^[a-f0-9]{64}$/.test(receipt))) return { success: false, message: messages.invalid_input, code: "invalid_input" };
     try {
         const client = await supabaseServer(); const { data: { user }, error } = await client.auth.getUser();
         if (error || !user?.email_confirmed_at) return { success: false, message: messages.authentication_required, code: "authentication_required" };
         if (await readGuardianSchemaState(client) !== "ready") return { success: false, message: messages.guardian_schema_not_ready, code: "guardian_schema_not_ready" };
         const result = await rpc(client, name, { [name === "redeem_family_invitation" ? "p_token" : "p_child"]: target, p_accepted: true, p_version: parsed.data.declarationVersion, p_relationship: parsed.data.relationshipType });
         const success = z.object({ success: z.literal(true), state: z.enum(["linked", "pending_guardian_confirmation"]), childId: z.uuid(), consentRequired: z.boolean() }).safeParse(result);
-        if (success.success) return success.data;
+        if (success.success) {
+            if (typeof receipt !== "string" || success.data.state !== "linked" || !success.data.consentRequired) return success.data;
+            return { ...success.data, ...await sendCommittedConsentReceipt(client, user.email ?? "", success.data.childId, receipt) };
+        }
         const code = rpcCode(result); return { success: false, message: messages[code], code };
     } catch { return { success: false, message: messages.unavailable, code: "unavailable" }; }
 }
-export async function acceptFamilyInvitation(token: string, consent?: GuardianConsentInput): Promise<GuardianRedemptionResult> {
+export async function acceptFamilyInvitation(token: string, consent?: GuardianConsentInput, receipt?: unknown): Promise<GuardianRedemptionResult> {
     const parsed = guardianToken.safeParse(token);
     if (!parsed.success) return { success: false, message: messages.invalid_or_expired_invitation, code: "invalid_or_expired_invitation" };
-    return consentAction("redeem_family_invitation", parsed.data, consent);
+    return consentAction("redeem_family_invitation", parsed.data, consent, receipt);
 }
-export async function approveFamilyChild(childId: string, consent: GuardianConsentInput): Promise<GuardianRedemptionResult> {
+export async function approveFamilyChild(childId: string, consent: GuardianConsentInput, receipt?: unknown): Promise<GuardianRedemptionResult> {
     if (!z.uuid().safeParse(childId).success) return { success: false, message: messages.invalid_input, code: "invalid_input" };
-    return consentAction("approve_guardian_relationship", childId, consent);
+    return consentAction("approve_guardian_relationship", childId, consent, receipt);
 }
 export async function revokeFamilyConnection(relationshipId: string): Promise<{ ok: true } | GuardianActionError> {
     if (!z.uuid().safeParse(relationshipId).success) return failure("invalid_input");

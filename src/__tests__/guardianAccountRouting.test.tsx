@@ -26,7 +26,12 @@ describe("family-purpose account routing and explicit provider upgrade", () => {
     it("keeps an existing real market and skips repeated location selection", async () => {
         mock.auth.mockResolvedValue({ state: "family-only", profile: { ...profile, city: "Rheinbach", market_id: "actual-market" }, session: { user: { email: "parent@example.invalid", user_metadata: {} } } });
         const screen = await OnboardingPage({ searchParams: Promise.resolve({ purpose: "provider", verified: "true" }) });
-        expect(screen.props).toMatchObject({ providerUpgrade: true, forcedStep: "summary", isJustVerified: false });
+        expect(screen.props).toMatchObject({ providerUpgrade: true, forcedStep: "address", isJustVerified: false });
+    });
+    it("reuses a complete private address when upgrading a family identity", async () => {
+        mock.auth.mockResolvedValue({ state: "family-only", profile: { ...profile, city: "Rheinbach", market_id: "actual-market", street: "Musterweg", house_number: "4", zip: "53359", lat: 50.63, lng: 6.95 }, session: { user: { email: "parent@example.invalid", user_metadata: {} } } });
+        const screen = await OnboardingPage({ searchParams: Promise.resolve({ purpose: "provider" }) });
+        expect(screen.props).toMatchObject({ providerUpgrade: true, forcedStep: "summary" });
     });
     it("does not turn a completed provider back into onboarding", async () => {
         mock.auth.mockResolvedValue({ state: "ready" });

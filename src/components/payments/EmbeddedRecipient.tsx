@@ -24,7 +24,7 @@ function appearance(dark: boolean) {
     } };
 }
 
-type Props = { kind: StripeSurfaceKind; publishableKey: string; clientSecret: string; component: RecipientComponent; ownerId?: string; onExit: () => void; onError: () => void; onRetry?: () => void; controlsRef?: RefObject<StripeEmbedControls | null> };
+type Props = { kind: StripeSurfaceKind; publishableKey: string; clientSecret: string; component: RecipientComponent; ownerId?: string; onExit: () => void; onError: () => void; onRetry?: () => void; controlsRef?: RefObject<StripeEmbedControls | null>; getClientSecret?: () => Promise<string> };
 
 export default function EmbeddedRecipient(props: Props) {
     const [attempt, setAttempt] = useState(0);
@@ -34,7 +34,7 @@ export default function EmbeddedRecipient(props: Props) {
     return <RecipientConnectFrame key={attempt} {...props} firstAttempt={attempt === 0} retry={retry} />;
 }
 
-function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, ownerId, onExit, onError, firstAttempt, retry, controlsRef }: Props & { firstAttempt: boolean; retry: () => void }) {
+function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, ownerId, onExit, onError, firstAttempt, retry, controlsRef, getClientSecret }: Props & { firstAttempt: boolean; retry: () => void }) {
     const { resolvedTheme } = useTheme();
     const [failed, setFailed] = useState(false);
     const [slow, setSlow] = useState(false);
@@ -46,6 +46,12 @@ function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, 
             fetchClientSecret: async () => {
                 assertCurrentOwner();
                 if (first) { const secret = first; first = null; return secret; }
+                if (getClientSecret) {
+                    const secret=await getClientSecret();
+                    assertCurrentOwner();
+                    if(!secret || secret.length>4_096 || /[\s\u0000-\u001f\u007f]/.test(secret)) throw new Error("session_unavailable");
+                    return secret;
+                }
                 const result = await paymentRequest<{ kind: string; clientSecret: string }>("/api/payments/recipient/session", { component, consent: true }, crypto.randomUUID(), ownerId ?? "");
                 assertCurrentOwner();
                 if (result.kind !== kind || typeof result.clientSecret !== "string" || !result.clientSecret || result.clientSecret.length > 4_096 || /[\s\u0000-\u001f\u007f]/.test(result.clientSecret)) throw new Error("session_unavailable");
@@ -65,8 +71,8 @@ function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, 
     // Unmounting a component must not invalidate the user's Stripe authentication.
     return <div className={styles.embedFrame}>
         {!failed && <ConnectComponentsProvider connectInstance={instance}>
-            {component === "onboarding" ? <ConnectAccountOnboarding onExit={onExit} onLoadError={loadFailed} onLoaderStart={loaderStarted} />
-                : component === "management" ? <ConnectAccountManagement onLoadError={loadFailed} onLoaderStart={loaderStarted} />
+            {component === "onboarding" ? <ConnectAccountOnboarding collectionOptions={{fields:"currently_due",futureRequirements:"omit"}} onExit={onExit} onLoadError={loadFailed} onLoaderStart={loaderStarted} />
+                : component === "management" ? <ConnectAccountManagement collectionOptions={{fields:"currently_due",futureRequirements:"omit"}} onLoadError={loadFailed} onLoaderStart={loaderStarted} />
                     : component === "balances" ? <ConnectBalances onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : component === "notification_banner" ? <ConnectNotificationBanner onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : <ConnectPayoutsList onLoadError={loadFailed} onLoaderStart={loaderStarted} />}
         </ConnectComponentsProvider>}
         <StripeEmbedHelp failed={failed} slow={slow} onRetry={retry} onClose={onExit} headerControls={Boolean(controlsRef)} />

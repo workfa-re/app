@@ -107,24 +107,31 @@ export function guardianReviewCopy(invitation: Pick<GuardianInvitationPreview, "
         declaration: GUARDIAN_DECLARATION_TEXT,
         checkbox: `Ich bin gesetzlich vertretungsberechtigt und erteile ${invitation.childName || "meinem Kind"} die beschriebene Elternfreigabe.`,
         scope: "Für altersgerechte, zulässige Tätigkeiten. Keine Zahlungsfreigabe bei Stripe und kein vollständiger Zugriff auf private Chats. Gesetzliche Grenzen und weitere erforderliche Einwilligungen gelten weiterhin.",
-        button: "Zustimmung bestätigen",
+        button: "Freigabe erteilen",
     };
 }
 
-export function GuardianConsentReview({ invitation, busy, onConfirm }: { invitation: Pick<GuardianInvitationPreview, "direction" | "minorRequired" | "childName" | "inviterName">; busy: boolean; onConfirm: (input: GuardianConsentInput) => void }) {
+export type GuardianReviewProfile = { fullName: string; birthdate: string; adultConfirmed: true };
+export function GuardianConsentReview({ invitation, busy, profile, onConfirm }: { invitation: Pick<GuardianInvitationPreview, "direction" | "minorRequired" | "childName" | "inviterName">; busy: boolean; profile?: { fullName: string | null; birthdate: string | null; adultEligible: boolean }; onConfirm: (input: GuardianConsentInput, profile?: GuardianReviewProfile) => void }) {
     const [accepted, setAccepted] = useState(false);
     const [relationshipType, setRelationshipType] = useState<GuardianRelationshipType | "">("");
     const scopeId = useId();
     const copy = guardianReviewCopy(invitation);
+    const completeProfile = invitation.direction === "child_to_guardian" && profile && (!profile.fullName || !profile.birthdate || !profile.adultEligible);
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (!accepted || !relationshipType || busy) return;
-        onConfirm({ accepted: true, declarationVersion: GUARDIAN_DECLARATION_VERSION, relationshipType });
+        const fields = new FormData(event.currentTarget);
+        onConfirm({ accepted: true, declarationVersion: GUARDIAN_DECLARATION_VERSION, relationshipType }, completeProfile ? { fullName: String(fields.get("fullName") || "").trim(), birthdate: String(fields.get("birthdate") || ""), adultConfirmed: true } : undefined);
     }
     return <>
         <h2>{copy.title}</h2>
         <form className={styles.form} onSubmit={submit}>
             <div className={styles.summary}><span className={styles.avatar} aria-hidden="true">{guardianInitials(copy.name)}</span><div><strong>{copy.name}</strong><span>{copy.subline}</span></div></div>
+            {completeProfile ? <>
+                <label className={styles.field}>Dein vollständiger Name<input name="fullName" autoComplete="name" defaultValue={profile.fullName || ""} minLength={3} maxLength={120} required disabled={busy} /></label>
+                <label className={styles.field}>Dein Geburtsdatum<input name="birthdate" type="date" autoComplete="bday" defaultValue={profile.birthdate || ""} required disabled={busy} /></label>
+            </> : null}
             <label className={styles.field}>{invitation.direction === "guardian_to_child" ? "Die einladende Person ist" : "Deine Beziehung"}
                 <select value={relationshipType} onChange={event => setRelationshipType(event.target.value as GuardianRelationshipType)} required disabled={busy}>
                     <option value="" disabled>Bitte auswählen</option>
@@ -132,24 +139,22 @@ export function GuardianConsentReview({ invitation, busy, onConfirm }: { invitat
                 </select>
             </label>
             <div className={styles.consentGroup}>
-                <label className={styles.consent}><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} required disabled={busy} aria-describedby={scopeId} /><span>{copy.checkbox}</span></label>
+                <label className={styles.consent}><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} required disabled={busy} aria-describedby={scopeId} /><span>{completeProfile ? "Ich bin volljährig. " : ""}{copy.checkbox}</span></label>
                 <p id={scopeId} className={styles.fieldHint}>{copy.scope}</p>
                 <details className={styles.details}><summary><ChevronRight size={15} aria-hidden="true" />{invitation.minorRequired && invitation.direction === "child_to_guardian" ? "Vollständige Erklärung lesen" : "Erklärung zur Verbindung lesen"}</summary><p>{copy.declaration}</p></details>
             </div>
             <Submit busy={busy} disabled={!accepted || !relationshipType}>{busy ? "Wird bestätigt …" : copy.button}</Submit>
         </form>
-        <details className={styles.details}><summary><ChevronRight size={15} aria-hidden="true" />Was wird geteilt?</summary>
-            <p>Die Verbindung zeigt, wer zu deiner Familie gehört und ob eine erforderliche Zustimmung vorliegt. Private Chats und Zahlungsdaten werden dadurch nicht vollständig freigegeben.</p>
-            {invitation.minorRequired && <p>Eine Auszahlung für Minderjährige benötigt eine gesonderte Prüfung. Die Elternfreigabe ersetzt diese nicht.</p>}
-        </details>
     </>;
 }
 
-export function GuardianSuccess({ pending, consentRequired, onContinue }: { pending: boolean; consentRequired: boolean; onContinue: () => void }) {
+export function GuardianSuccess({ pending, consentRequired, receiptUrl, receiptSent = false, receiptUnavailable = false, onContinue }: { pending: boolean; consentRequired: boolean; receiptUrl?: string | null; receiptSent?: boolean; receiptUnavailable?: boolean; onContinue: () => void }) {
     return <div className={styles.success} role="status">
         <CheckCircle2 size={27} strokeWidth={1.5} aria-hidden="true" />
         <h2>{pending ? "Verbindung angefragt" : consentRequired ? "Zustimmung hinterlegt" : "Ihr seid verbunden"}</h2>
-        <p>{pending ? "Dein Elternteil muss die Freigabe noch im Elternzugang bestätigen." : consentRequired ? "Deine Zustimmung zur Nutzung von Workfare wurde gespeichert. Für Zahlungen gelten weiterhin die gesonderten Voraussetzungen von Workfare Pay." : "Die freiwillige Familienverknüpfung ist aktiv. Deine privaten Chats und Zahlungsdaten bleiben geschützt."}</p>
+        <p>{pending ? "Dein Elternteil bestätigt die Freigabe im eigenen Konto." : consentRequired ? "Deine Elternfreigabe ist gespeichert. Du kannst sie jederzeit in deinem Familienkonto widerrufen." : "Die freiwillige Familienverknüpfung ist aktiv. Deine privaten Chats und Zahlungsdaten bleiben geschützt."}</p>
+        {receiptUrl ? <><p className={styles.fieldHint}>{receiptSent ? "Die Bestätigung mit deinem persönlichen Widerrufslink wurde per E-Mail versendet." : "Dein persönlicher Beleg ist verfügbar. Die Zustellung per E-Mail konnte noch nicht bestätigt werden."}</p><Link href={receiptUrl} prefetch={false} className={styles.quiet}>Freigabe und Widerrufslink ansehen<ChevronRight size={15} aria-hidden="true" /></Link></> : null}
+        {receiptUnavailable ? <p className={styles.fieldHint}>Die Bestätigung per E-Mail ist gerade nicht verfügbar. Deine Freigabe ist gespeichert und bleibt über dein Familienkonto widerrufbar.</p> : null}
         <button type="button" className={`${styles.action} ${styles.glass}`} onClick={onContinue}>Zur Familienübersicht<ArrowRight size={16} aria-hidden="true" /></button>
     </div>;
 }

@@ -14,13 +14,16 @@ import { safeInternalRedirectOr } from "@/lib/safe-redirect";
 import { readBrandStorage, writeBrandStorage, removeBrandStorage } from "@/lib/brand-storage";
 import { ArrowRight, BriefcaseBusiness, HandHeart, Building2, Mail, Eye, EyeOff, Pencil, ShieldCheck } from "lucide-react";
 import { LocationStep } from "./onboarding/LocationStep";
+import { ProviderAddressStep } from "./onboarding/ProviderAddressStep";
 import { CinematicDateInput } from "@/components/ui/CinematicDateInput";
-import { getOnboardingCompanyError, getOnboardingProfileError } from "@/lib/onboarding-validation";
+import { getOnboardingCompanyError, getOnboardingProfileError, getProviderOnboardingAddressError, type ProviderOnboardingAddress } from "@/lib/onboarding-validation";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { guardianReturnPath } from "@/lib/guardian/navigation";
 import {
   getInitialOnboardingRole,
+  getOnboardingProfileNextStep,
+  onboardingNeedsProviderAddress,
   getOnboardingEntryStep,
   inferOnboardingRole,
   mustChooseOnboardingRole,
@@ -92,7 +95,7 @@ function readOnboardingDraft(): OnboardingDraft | null {
 
     const draft = JSON.parse(raw) as OnboardingDraft;
     if (draft.version !== 1 || !draft.updatedAt) return null;
-    if (!["welcome", "mode", "location", "auth", "email-confirm", "role", "profile", "contact", "summary"].includes(draft.step)) return null;
+    if (!["welcome", "mode", "location", "auth", "email-confirm", "role", "profile", "contact", "address", "summary"].includes(draft.step)) return null;
     if (![null, "signup", "signin"].includes(draft.mode) || typeof draft.email !== "string" || !draft.profileData) return null;
     if (!["fullName", "birthdate", "region", "companyName", "companyEmail", "companyMessage"].every(key => typeof draft.profileData[key as keyof OnboardingDraft["profileData"]] === "string")) return null;
 
@@ -240,6 +243,12 @@ export function OnboardingWizard({
     companyEmail: "",
     companyMessage: "",
   });
+  const [providerAddress, setProviderAddress] = useState<ProviderOnboardingAddress | null>(() => {
+    if (!initialProfile?.street || !initialProfile.house_number || !initialProfile.zip || !initialProfile.city || initialProfile.lat == null || initialProfile.lng == null) return null;
+    return { street: initialProfile.street, houseNumber: initialProfile.house_number, city: initialProfile.city,
+      zip: initialProfile.zip, latitude: initialProfile.lat, longitude: initialProfile.lng };
+  });
+  const providerSummaryStep = () => providerUpgrade && !providerAddress ? "address" as const : "summary" as const;
   const [resumeChecked, setResumeChecked] = useState(Boolean(forcedStep || initialEmail || initialProfile));
   const [animateSteps, setAnimateSteps] = useState(false);
   useEffect(() => { if (resumeChecked) setAnimateSteps(true); }, [resumeChecked]);
@@ -624,7 +633,7 @@ export function OnboardingWizard({
     }
     setErrorMsg(null);
     setEditingFromSummary(false);
-    setStep("summary");
+    setStep("address");
   };
 
   const handleCompleteOnboarding = async () => {
@@ -644,6 +653,10 @@ export function OnboardingWizard({
         if (companyError) throw new Error(`${companyError} Bitte prüfe „Organisation bearbeiten“.`);
       }
 
+      if (onboardingNeedsProviderAddress(profileData.role)) {
+        const addressError = getProviderOnboardingAddressError(providerAddress);
+        if (addressError) { setStep("address"); throw new Error(addressError); }
+      }
       const { completeOnboarding } = await import("@/app/onboarding/actions");
 
       const result = await completeOnboarding({
@@ -651,7 +664,8 @@ export function OnboardingWizard({
         birthdate: profileData.birthdate,
         city: profileData.region.trim(),
         market_id: profileData.marketId,
-        role: profileData.role as any,
+        role: profileData.role === "senior" ? "adult" : profileData.role,
+        address: onboardingNeedsProviderAddress(profileData.role) ? providerAddress ?? undefined : undefined,
         company_name: profileData.role === "company" ? profileData.companyName : undefined,
         company_email: profileData.role === "company" ? profileData.companyEmail : undefined,
         company_message: profileData.role === "company" ? profileData.companyMessage : undefined,
@@ -682,7 +696,7 @@ export function OnboardingWizard({
         setStep("location");
       }
     } else if (step === "location") {
-      setStep(providerUpgrade ? "summary" : "auth");
+      setStep(providerUpgrade ? providerSummaryStep() : "auth");
     } else if (step === "auth") {
       if (mode === "signup") {
         handleSignUp();
@@ -709,14 +723,12 @@ export function OnboardingWizard({
       setErrorMsg(null);
       setErrorType(null);
 
-      if (profileData.role === "company") {
-        setStep("contact");
-      } else {
-        setEditingFromSummary(false);
-        setStep("summary");
-      }
+      setEditingFromSummary(false);
+      setStep(getOnboardingProfileNextStep(profileData.role));
     } else if (step === "contact") {
       handleCompanyContact();
+    } else if (step === "address") {
+      setStep("summary");
     } else if (step === "summary") {
       handleCompleteOnboarding();
     }
@@ -757,8 +769,10 @@ export function OnboardingWizard({
       setStep(providerUpgrade ? "location" : "role");
     } else if (step === "contact") {
       setStep("profile");
+    } else if (step === "address") {
+      setStep(profileData.role === "company" ? "contact" : "profile");
     } else if (step === "summary") {
-      setStep("profile");
+      setStep(onboardingNeedsProviderAddress(profileData.role) ? "address" : "profile");
     }
     setErrorType(null);
     setErrorMsg(null);
@@ -767,7 +781,7 @@ export function OnboardingWizard({
   const beginAuth = (nextMode: "signup" | "signin") => {
     if (loading || resettingPassword || isSaving) return;
     setMode(nextMode);
-    setStep(nextMode === "signin" ? "auth" : "location");
+    setStep(familySetup || nextMode === "signin" ? "auth" : "location");
     setPassword("");
     setPasswordResetOpen(false);
     setPasswordVisible(false);
@@ -782,7 +796,7 @@ export function OnboardingWizard({
     setStep(nextStep);
   };
   const authBusy = loading || resettingPassword || isSaving || checkingRegion || resendLoading;
-  const canGoBack = !authBusy && (["location", "auth", "email-confirm", "profile", "contact", "summary"].includes(step) || editingFromSummary);
+  const canGoBack = !authBusy && (["location", "auth", "email-confirm", "profile", "contact", "address", "summary"].includes(step) || editingFromSummary);
   const panelClass = "onboarding-step-panel";
   const emailConfirmStatus = resendError || codeMessage;
   const emailConfirmStatusTone: FeedbackTone = resendError ? "danger" : "success";
@@ -828,7 +842,7 @@ export function OnboardingWizard({
                       region: regionData.city,
                       marketId: regionData.region_live_id ?? null,
                     }));
-                    setStep(editingFromSummary || providerUpgrade ? "summary" : "auth");
+                    setStep(editingFromSummary ? "summary" : providerUpgrade ? providerSummaryStep() : "auth");
                     setEditingFromSummary(false);
                   }}
                 />
@@ -945,6 +959,10 @@ export function OnboardingWizard({
                       <ArrowRight size={20} aria-hidden="true" />
                     </ButtonPrimary>
                   </div>
+                  {familySetup && !passwordResetOpen && <button type="button" className="onboarding-link" disabled={authBusy}
+                    onClick={() => beginAuth(mode === "signup" ? "signin" : "signup")}>
+                    {mode === "signup" ? "Bereits ein Konto? Anmelden" : "Familienkonto erstellen"}
+                  </button>}
 
                 </form>
               </div>
@@ -1311,6 +1329,13 @@ export function OnboardingWizard({
             )
           }
 
+          {step === "address" && (
+            <motion.div key="address" {...STEP_MOTION} initial={animateSteps ? STEP_MOTION.initial : false}>
+              <ProviderAddressStep initialAddress={providerAddress} company={profileData.role === "company"}
+                onComplete={address => { setProviderAddress(address); setEditingFromSummary(false); setErrorMsg(null); setStep("summary"); }} />
+            </motion.div>
+          )}
+
           {/* Schritt 8: Zusammenfassung */}
           {
             step === "summary" && (
@@ -1332,7 +1357,7 @@ export function OnboardingWizard({
                         <div className="onboarding-summary-row">
                           <div>
                             <dt>Rolle</dt>
-                            <dd>{profileData.role === "youth" ? "Jobs finden" : profileData.role === "adult" ? "Privatperson / Elternteil" : "Unternehmen / Organisation"}</dd>
+                            <dd>{profileData.role === "youth" ? "Jobs finden" : profileData.role === "adult" || profileData.role === "senior" ? "Privatperson / Elternteil" : "Unternehmen / Organisation"}</dd>
                             {profileData.role === "youth" && <dd className="onboarding-summary-meta">14–20 Jahre</dd>}
                           </div>
                           {!providerUpgrade && <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("role")} aria-label="Rolle bearbeiten" title="Rolle bearbeiten"><Pencil aria-hidden="true" /></button>}
@@ -1349,6 +1374,11 @@ export function OnboardingWizard({
                           <div><dt>Region</dt><dd>{profileData.region || "Bitte eine Region wählen"}</dd></div>
                           <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("location")} aria-label="Region bearbeiten" title="Region bearbeiten"><Pencil aria-hidden="true" /></button>
                         </div>
+                        {onboardingNeedsProviderAddress(profileData.role) && <div className="onboarding-summary-row">
+                          <div><dt>{profileData.role === "company" ? "Geschäftsadresse" : "Private Adresse"}</dt><dd>{providerAddress ? `${providerAddress.street} ${providerAddress.houseNumber}` : "Bitte Adresse ergänzen"}</dd>
+                            {providerAddress && <dd className="onboarding-summary-meta">{providerAddress.zip} {providerAddress.city}</dd>}</div>
+                          <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("address")} aria-label="Adresse bearbeiten" title="Adresse bearbeiten"><Pencil aria-hidden="true" /></button>
+                        </div>}
                         {profileData.role === "company" && <div className="onboarding-summary-row">
                           <div><dt>Organisation</dt><dd>{profileData.companyName}</dd><dd className="onboarding-summary-meta">{profileData.companyEmail}</dd>{profileData.companyMessage && <dd className="onboarding-summary-meta">{profileData.companyMessage}</dd>}</div>
                           <button type="button" className="onboarding-icon-button onboarding-summary-edit" onClick={() => editSummary("contact")} aria-label="Organisation bearbeiten" title="Organisation bearbeiten"><Pencil aria-hidden="true" /></button>

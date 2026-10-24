@@ -66,4 +66,6 @@ export type GuardianRedemptionResult = {
     state: "linked" | "pending_guardian_confirmation";
     childId: string;
     consentRequired: boolean;
+    receiptReady?: boolean;
+    receiptSent?: boolean;
 } | { success: false; message: string; code?: string };

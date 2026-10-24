@@ -10,6 +10,8 @@ import type { ChatAppointment } from "@/components/activity/chat-details";
 import styles from "./AppointmentPayment.module.css";
 import { PayWordmark } from "./PayWordmark";
 import { PaymentEnvironment, stripeKeyMatchesKind } from "./PaymentEnvironment";
+import { useActivityDialogFocus } from "@/components/activity/useActivityDialogFocus";
+import { followGlassPointer } from "@/lib/glass-pointer";
 
 export type AppointmentPaymentContext = Readonly<{ applicationId: string; currentUserId: string; isProvider: boolean }>;
 type Resource = { orders: readonly PaymentOrder[]; quoteFeePolicy: PaymentFeePolicy | null; loading: boolean; available: boolean; error: string | null };
@@ -17,6 +19,7 @@ type Shared = AppointmentPaymentContext & Resource & { refresh: () => Promise<vo
 const Payments = createContext<Shared | null>(null);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONEY = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const APPOINTMENT_TIME = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
 const STATES = new Set(["awaiting_confirmation", "ready", "authorization_pending", "authorized", "capture_pending", "paid", "cancel_pending", "canceled", "refund_pending", "refunded", "failed", "review_required"]);
 const stateLabels: Record<PaymentOrder["state"], string> = {
     awaiting_confirmation: "Preis vorgeschlagen", ready: "Preis bestätigt", authorization_pending: "Bestätigung ausstehend", authorized: "Zahlung freigegeben",
@@ -49,8 +52,24 @@ export function nextAppointmentPaymentAction(order: PaymentOrder, provider: bool
 export function canCancelAppointmentPayment(order: PaymentOrder, provider: boolean): boolean {
     return provider && ["awaiting_confirmation", "ready", "authorization_pending", "authorized", "failed"].includes(order.state);
 }
+/** Only settled failures/stale holds may be renewed; uncertain bank operations stay resumable. */
+export function canRenewAppointmentPayment(order: PaymentOrder, provider: boolean, now: number): boolean {
+    return order.state !== "authorization_pending" && canCancelAppointmentPayment(order, provider) && (order.state === "failed" || !order.termsCurrent
+        || (order.state === "authorized" && (!order.captureBefore || !Number.isFinite(Date.parse(order.captureBefore)) || Date.parse(order.captureBefore) <= now)));
+}
 export function latestAppointmentPaymentOrder(orders: readonly PaymentOrder[], appointmentId: string): PaymentOrder | undefined {
     return orders.filter(order => order.appointmentId === appointmentId).reduce<PaymentOrder | undefined>((latest, order) => !latest || order.quoteVersion > latest.quoteVersion ? order : latest, undefined);
+}
+
+/** Every agreed, non-cancelled appointment needs its latest actual paid order. */
+export function appointmentsArePaid(appointments: readonly ChatAppointment[], orders: readonly PaymentOrder[]): boolean {
+    const agreed = appointments.filter(appointment => appointment.status !== "cancelled");
+    return agreed.length > 0 && agreed.every(appointment => {
+        const order = latestAppointmentPaymentOrder(orders, appointment.id);
+        return order?.state === "paid" && order.refundedCents === 0 && Boolean(order.recipientConfirmedAt)
+            && !orders.some(other => other.appointmentId === appointment.id && other.id !== order.id
+                && ["paid", "refund_pending", "refunded", "review_required"].includes(other.state) && other.refundedCents < other.totalCents);
+    });
 }
 
 export function paymentConversationShortcut(orders: readonly PaymentOrder[], provider: boolean, now: number): { appointmentId: string; label: string } | null {
@@ -115,7 +134,19 @@ async function paymentRequest(path: string, body?: Record<string, unknown>, oper
 }
 export async function refreshAppointmentPaymentStatus(order: PaymentOrder, scope: AppointmentPaymentContext): Promise<PaymentOrder> {
     const result = await paymentRequest(`/api/payments/orders/${order.id}/sync`, {});
-    if (!validOrder(result.order, scope)) throw new PaymentRequestError("payment_unavailable");
+    if (!validOrder(result.order, scope) || result.order.id !== order.id) throw new PaymentRequestError("payment_unavailable");
+    return result.order;
+}
+
+/** Continue only an actual, current own authorization after explicit completion consent. */
+export async function captureCompletionPayment(order: PaymentOrder, scope: AppointmentPaymentContext, operationId: string, now = Date.now()): Promise<PaymentOrder> {
+    if (!scope.isProvider || order.providerId !== scope.currentUserId || !validOrder(order, scope) || !UUID.test(operationId)
+        || order.state !== "authorized" || !order.termsCurrent || !Number.isFinite(now) || !Number.isFinite(Date.parse(order.startsAt)) || Date.parse(order.startsAt) > now
+        || !order.captureBefore || !Number.isFinite(Date.parse(order.captureBefore)) || Date.parse(order.captureBefore) <= now) {
+        throw new PaymentRequestError("PAYMENT_ORDER_CAPTURE_NOT_ALLOWED");
+    }
+    const result = await paymentRequest(`/api/payments/orders/${order.id}/action`, { action: "capture", consent: true }, operationId);
+    if (!validOrder(result.order, scope) || result.order.id !== order.id) throw new PaymentRequestError("payment_unavailable");
     return result.order;
 }
 function friendlyError(error: unknown) {
@@ -177,6 +208,49 @@ export function AppointmentPayment(props: { appointment: ChatAppointment; job: {
     return <PaymentTerm key={props.appointment.id} {...props} shared={shared} />;
 }
 
+/** Completion stays in the conversation and never equates a browser return with payment. */
+export function AppointmentCompletionReview({ appointments, job, pending, error, onComplete, onClose }: {
+    appointments: readonly ChatAppointment[];
+    job: { title?: string | null; wage_hourly?: number | null; payment_type?: string | null };
+    pending: boolean; error: string | null; onComplete: () => void; onClose: () => void;
+}) {
+    const shared = useContext(Payments);
+    const titleId = useId();
+    const dialog = useActivityDialogFocus<HTMLDivElement>();
+    const completionAttempted = useRef(false);
+    const [busyAppointments, setBusyAppointments] = useState<ReadonlySet<string>>(() => new Set());
+    const onBusyChange = useCallback((id: string, busy: boolean) => setBusyAppointments(current => {
+        if (current.has(id) === busy) return current;
+        const next = new Set(current); if (busy) next.add(id); else next.delete(id); return next;
+    }), []);
+    const currentAppointments = appointments.filter(appointment => appointment.status !== "cancelled")
+        .slice().sort((left, right) => Date.parse(left.starts_at) - Date.parse(right.starts_at));
+    const allPaid = Boolean(shared?.isProvider && appointmentsArePaid(currentAppointments, shared.orders));
+    const busy = pending || busyAppointments.size > 0;
+    useEffect(() => {
+        if (!allPaid || busy || shared?.loading || shared?.error || completionAttempted.current) return;
+        completionAttempted.current = true;
+        onComplete();
+    }, [allPaid, busy, shared?.loading, shared?.error, onComplete]);
+    return <div className="activity-dialog-layer" onPointerMove={followGlassPointer} onKeyDown={event => {
+        if (event.key === "Escape" && !busy) { event.stopPropagation(); onClose(); }
+    }}><div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}
+        aria-busy={busy} className={`activity-action-dialog ${styles.completionDialog}`}>
+        <div className={styles.completionHeading}><div><PayWordmark /><h2 id={titleId}>Auftrag abschließen</h2></div>
+            <button type="button" className={`app-glass-control ${styles.completionClose}`} aria-label="Abschluss schließen" onClick={onClose} disabled={busy}><X size={18} aria-hidden="true" /></button></div>
+        {job.title && <p className={styles.completionTitle}>{job.title}</p>}
+        {allPaid ? <p className={styles.hint} role="status">Die Zahlung ist bestätigt.{pending ? " Der Auftrag wird abgeschlossen …" : ""}</p>
+            : <p className={styles.hint}>Prüfe die Vergütung und bestätige die Zahlung. Danach wird der Auftrag abgeschlossen und der Chat geschlossen.</p>}
+        {!shared || !shared.available ? <p className={styles.hint} role="alert">Workfare Pay ist gerade nicht verfügbar. Bitte öffne den Abschluss später erneut.</p>
+            : !currentAppointments.length ? <p className={styles.hint}>Vereinbare zuerst einen Termin für diesen Auftrag.</p>
+                : <div className={styles.completionTerms}>{currentAppointments.map(appointment => <PaymentTerm key={appointment.id}
+                    appointment={appointment} job={job} shared={shared} completion onBusyChange={onBusyChange} />)}</div>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
+        {allPaid && error && <button type="button" className={`app-glass-control ${styles.primary}`} onClick={onComplete} disabled={busy}>Abschluss erneut prüfen</button>}
+        <p className={styles.completionFooter}>Zahlungsabwicklung durch Stripe</p>
+    </div></div>;
+}
+
 export function AppointmentPaymentAmounts({ earnings, fee = 0, provider, feePolicy = TEST_SERVICE_FEE_POLICY }: { earnings: number; fee?: number; provider: boolean; feePolicy?: PaymentFeePolicy }) {
     return <dl className={styles.amounts}><div><dt>Vergütung</dt><dd>{formatAppointmentMoney(earnings)}</dd></div>{provider && <><div><dt>Servicegebühr{feePolicy !== LIVE_SERVICE_FEE_POLICY && <span> (Testtarif)</span>}</dt><dd>{formatAppointmentMoney(fee)}</dd></div><div className={styles.total}><dt>Gesamt</dt><dd>{formatAppointmentMoney(earnings + fee)}</dd></div></>}</dl>;
 }
@@ -186,7 +260,8 @@ function estimatedFee(earnings: number | null, policy: PaymentFeePolicy | null) 
     try { return policy === "local-zero-fee-v1" ? 0 : policy === LIVE_SERVICE_FEE_POLICY ? quoteLiveServiceFee(earnings).grossCents : quoteTestServiceFee(earnings).grossCents; } catch { return null; }
 }
 
-function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; shared: Shared }) {
+function PaymentTerm({ appointment, job, shared, completion = false, onBusyChange }: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; shared: Shared;
+    completion?: boolean; onBusyChange?: (appointmentId: string, busy: boolean) => void }) {
     const order = latestAppointmentPaymentOrder(shared.orders, appointment.id);
     const live = order ? order.mode === "live" : shared.quoteFeePolicy === LIVE_SERVICE_FEE_POLICY;
     const refundLabel = live ? "Erstattung" : "Test-Erstattung";
@@ -207,16 +282,20 @@ function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointmen
     useEffect(() => { const update = () => setNow(Date.now()); update(); const timer = setInterval(update, 60_000); return () => clearInterval(timer); }, []);
     const estimated = estimateAppointmentPrice(job.wage_hourly, job.payment_type, Number(minutes));
     const proposalFee = estimatedFee(estimated, shared.quoteFeePolicy);
-    const consentScope = `${order?.id ?? appointment.id}:${order?.totalCents ?? estimated}:${intent ?? "propose"}:${minutes}:${order?.feePolicy ?? shared.quoteFeePolicy}`;
+    const primary = order ? nextAppointmentPaymentAction(order, shared.isProvider, now) : null;
+    const completionCanPay = completion && Boolean(order && Date.parse(order.startsAt) <= now);
+    const displayedIntent = intent ?? (completionCanPay && (primary === "authorize" || primary === "capture") ? primary : null);
+    const consentScope = `${order?.id ?? appointment.id}:${order?.totalCents ?? estimated}:${displayedIntent ?? "propose"}:${minutes}:${order?.feePolicy ?? shared.quoteFeePolicy}:${completionCanPay}`;
     const consent = acceptedScope === consentScope;
     function setConsent(value: boolean) { setAcceptedScope(value ? consentScope : null); }
     const canPropose = shared.isProvider && appointment.status === "scheduled" && !!appointment.updated_at && estimated !== null && proposalFee !== null && (!order || order.state === "canceled" || order.state === "refunded");
-    const primary = order ? nextAppointmentPaymentAction(order, shared.isProvider, now) : null;
     const nextLabel = primary === "cancel" ? "Storno fortsetzen" : primary === "refund" ? `${refundLabel} fortsetzen`
         : primary === "capture" ? order?.state === "capture_pending" ? "Einzug fortsetzen" : "Vergütung bezahlen"
         : primary === "confirm" ? "Preis bestätigen" : order?.state === "authorization_pending" ? "Zahlung bestätigen" : "Zahlung freigeben";
     const canCancel = order && canCancelAppointmentPayment(order, shared.isProvider);
+    const canRenew = order && canRenewAppointmentPayment(order, shared.isProvider, now);
     const settingsHref = getPaymentSettingsHref(getPaymentConversationReturnPath(shared.applicationId));
+    useEffect(() => { onBusyChange?.(appointment.id, pending); return () => onBusyChange?.(appointment.id, false); }, [appointment.id, pending, onBusyChange]);
     function open(action: PaymentOrderAction | "confirm") { setIntent(action); setConsent(false); setError(null); }
     async function refreshStatus() {
         if (locked.current) return;
@@ -239,8 +318,9 @@ function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointmen
                 ...(job.payment_type === "hourly" ? { plannedMinutes: Number(minutes) } : {}), quoteFeePolicy: shared.quoteFeePolicy, consent: true }, operation);
             else if (action === "confirm") result = await paymentRequest(`/api/payments/orders/${order!.id}/confirm`, { termsVersion: order!.termsVersion, consent: true });
             else result = await paymentRequest(`/api/payments/orders/${order!.id}/action`, { action, consent: true }, operation);
-            if (!validOrder(result.order, shared)) throw new PaymentRequestError("payment_unavailable");
-            shared.publish(result.order);
+            if (!validOrder(result.order, shared) || (action !== "propose" && result.order.id !== order?.id)) throw new PaymentRequestError("payment_unavailable");
+            let currentOrder = result.order;
+            shared.publish(currentOrder);
             if (result.kind === "confirmation") {
                 if (!stripeKeyMatchesKind(result.order.mode === "live" ? "live" : "sandbox", result.publishableKey)
                     || typeof result.clientSecret !== "string" || !/^pi_[a-zA-Z0-9]+_secret_.+/.test(result.clientSecret)
@@ -253,7 +333,16 @@ function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointmen
                 const confirmation = await stripe.confirmCardPayment(result.clientSecret);
                 const synced = await refreshAppointmentPaymentStatus(result.order, shared);
                 shared.publish(synced);
+                currentOrder = synced;
                 if (confirmation.error && synced.state === "authorization_pending") throw new PaymentRequestError("bank_confirmation_pending");
+            }
+            // A completion consent explicitly covers paying this exact total.
+            // Normal pre-work authorization still never captures by itself.
+            if (completionCanPay && action === "authorize" && currentOrder.state === "authorized") {
+                const captureKey = `${currentOrder.id}:capture`;
+                let captureOperation = operationIds.current.get(captureKey);
+                if (!captureOperation) { captureOperation = crypto.randomUUID(); operationIds.current.set(captureKey, captureOperation); }
+                shared.publish(await captureCompletionPayment(currentOrder, shared, captureOperation));
             }
             setIntent(null); setEditor(false); setConsent(false);
             requestAnimationFrame(() => headingRef.current?.focus({ preventScroll: true }));
@@ -262,21 +351,22 @@ function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointmen
     }
     if (!order && appointment.status !== "scheduled") return null;
     return <section className={styles.payment} data-payment-appointment={appointment.id} aria-label="Workfare Pay für diesen Termin" aria-busy={pending}>
-        <div className={styles.heading}><WalletCards size={17} aria-hidden="true" /><h4 ref={headingRef} tabIndex={-1}><PayWordmark /></h4><button type="button" className={styles.refresh} aria-label="Zahlungsstand aktualisieren" onClick={() => void refreshStatus()} disabled={pending || shared.loading}><RefreshCw size={15} aria-hidden="true" /></button></div>
+        <div className={styles.heading}><WalletCards size={17} aria-hidden="true" /><h4 ref={headingRef} tabIndex={-1}>{completion ? <time dateTime={appointment.starts_at}>{Number.isFinite(Date.parse(appointment.starts_at)) ? APPOINTMENT_TIME.format(new Date(appointment.starts_at)) : "Vereinbarter Termin"}</time> : <PayWordmark />}</h4><button type="button" className={styles.refresh} aria-label="Zahlungsstand aktualisieren" onClick={() => void refreshStatus()} disabled={pending || shared.loading}><RefreshCw size={15} aria-hidden="true" /></button></div>
         {shared.loading ? <p className={styles.hint} role="status">Zahlungsstand wird geladen …</p> : shared.error ? <p className={styles.hint} role="alert">{shared.error}<button type="button" className={styles.textButton} onClick={() => void shared.refresh()}>Erneut laden</button></p> : <>
             {order ? <>
-                <div className={styles.summary}><strong>{formatAppointmentMoney(shared.isProvider ? order.totalCents : order.earningsCents)}</strong><span>{stateLabels[order.state]}</span></div>
-                {shared.isProvider && order.serviceFeeCents > 0 && <p className={styles.hint}>{formatAppointmentMoney(order.earningsCents)} Vergütung + {formatAppointmentMoney(order.serviceFeeCents)} Servicegebühr</p>}
+                {(!completion || !displayedIntent) && <div className={styles.summary}><strong>{formatAppointmentMoney(shared.isProvider ? order.totalCents : order.earningsCents)}</strong><span>{stateLabels[order.state]}</span></div>}
+                {(!completion || !displayedIntent) && shared.isProvider && order.serviceFeeCents > 0 && <p className={styles.hint}>{formatAppointmentMoney(order.earningsCents)} Vergütung + {formatAppointmentMoney(order.serviceFeeCents)} Servicegebühr</p>}
                 {order.paymentType === "hourly" && <p className={styles.hint}>{order.plannedMinutes} vereinbarte Minuten · fester Terminpreis</p>}
                 {order.state === "awaiting_confirmation" && shared.isProvider && <p className={styles.hint}>Die Bestätigung deines Gegenübers steht noch aus.</p>}
                 {order.state === "ready" && !shared.isProvider && <p className={styles.hint}>Dein Auftraggeber übernimmt die Zahlungsfreigabe.</p>}
                 {order.state === "authorized" && <p className={styles.hint}>Noch nicht abgebucht.{shared.isProvider ? " Nach erledigter Arbeit bestätigst du die Zahlung." : " Dein Auftraggeber bestätigt die Zahlung nach der Arbeit."}</p>}
                 {order.state === "paid" && <p className={styles.hint}>{shared.isProvider ? "Die vereinbarte Vergütung wurde bezahlt." : "Der Bankauszahlungsstand steht in Workfare Pay."}</p>}
+                {completion && shared.isProvider && order.state === "awaiting_confirmation" && <p className={styles.hint}>Dein Gegenüber bestätigt zuerst den vereinbarten Terminpreis.</p>}
                 {!order.termsCurrent && !["paid", "refunded", "canceled"].includes(order.state) && <p className={styles.hint}>Der Termin hat sich geändert. Dieser Preisstand muss zuerst storniert werden.</p>}
                 {order.state === "review_required" && <p className={styles.hint}>Bitte wende dich an den Support, bevor du weitere Zahlungsaktionen ausführst.</p>}
-                {!intent && !editor && <div className={styles.controls}>{primary && <button type="button" className={`app-glass-control ${styles.primary}`} onClick={() => open(primary)}>{nextLabel}<ArrowRight size={15} aria-hidden="true" /></button>}{canCancel && <button type="button" className={styles.textButton} onClick={() => open("cancel")}>Stornieren</button>}{shared.isProvider && order.state === "paid" && <button type="button" className={styles.textButton} onClick={() => open("refund")}>{refundLabel}</button>}</div>}
+                {!displayedIntent && !editor && <div className={styles.controls}>{primary && <button type="button" className={`app-glass-control ${styles.primary}`} onClick={() => open(primary)}>{nextLabel}<ArrowRight size={15} aria-hidden="true" /></button>}{canCancel && (!completion || canRenew) && <button type="button" className={styles.textButton} onClick={() => open("cancel")}>{completion ? "Zahlungsversuch erneuern" : "Stornieren"}</button>}{!completion && shared.isProvider && order.state === "paid" && <button type="button" className={styles.textButton} onClick={() => open("refund")}>{refundLabel}</button>}</div>}
             </> : !editor && <p className={styles.hint}>{shared.isProvider ? "Vereinbare einen klaren Preis für diesen Termin." : "Dein Auftraggeber legt den Terminpreis fest."}</p>}
-            {canPropose && !intent && !editor && <button type="button" className={`app-glass-control ${styles.primary}`} onClick={() => { setEditor(true); setConsent(false); setError(null); }}>Terminpreis festlegen<ArrowRight size={15} aria-hidden="true" /></button>}
+            {canPropose && !displayedIntent && !editor && <button type="button" className={`app-glass-control ${styles.primary}`} onClick={() => { setEditor(true); setConsent(false); setError(null); }}>Terminpreis festlegen<ArrowRight size={15} aria-hidden="true" /></button>}
             {editor && <div className={styles.editor}><div className={styles.editorHeading}><h5>Terminpreis vorschlagen</h5><button type="button" className={styles.refresh} aria-label="Preisvorschlag schließen" disabled={pending} onClick={() => setEditor(false)}><X size={16} /></button></div>
                 {job.payment_type === "hourly" && <label className={styles.minutes}>Vereinbarte Arbeitszeit<span><input type="number" inputMode="numeric" min={1} max={480} step={1} value={minutes} disabled={pending} onChange={event => { setMinutes(event.target.value); setConsent(false); }} />Minuten</span></label>}
                 {estimated !== null && proposalFee !== null && <AppointmentPaymentAmounts earnings={estimated} fee={proposalFee} provider feePolicy={shared.quoteFeePolicy ?? undefined} />}
@@ -284,12 +374,12 @@ function PaymentTerm({ appointment, job, shared }: { appointment: ChatAppointmen
                 <label className={styles.consent} htmlFor={`${consentId}-proposal`}><input id={`${consentId}-proposal`} type="checkbox" checked={consent} disabled={pending} onChange={event => setConsent(event.target.checked)} />Diesen Terminpreis möchte ich vorschlagen.</label>
                 <button type="button" className={`app-glass-control ${styles.primary}`} disabled={pending || !consent || estimated === null || proposalFee === null} onClick={() => void execute("propose")}>{pending ? <LoaderCircle size={16} className={styles.spinner} /> : <ArrowRight size={16} />}Preis vorschlagen</button>
             </div>}
-            {intent && order && <div className={styles.editor}><div className={styles.editorHeading}><h5>{intent === "confirm" ? "Vereinbarten Preis bestätigen" : intent === "authorize" ? "Zahlung freigeben" : intent === "capture" ? "Erledigte Arbeit bezahlen" : intent === "cancel" ? "Zahlungsauftrag stornieren" : `Vollständige ${refundLabel}`}</h5><button type="button" className={styles.refresh} aria-label="Zahlungsaktion schließen" disabled={pending} onClick={() => setIntent(null)}><X size={16} /></button></div>
+            {displayedIntent && order && <div className={styles.editor}><div className={styles.editorHeading}><h5>{displayedIntent === "confirm" ? "Vereinbarten Preis bestätigen" : displayedIntent === "authorize" ? completionCanPay ? "Erledigte Arbeit bezahlen" : "Zahlung freigeben" : displayedIntent === "capture" ? "Erledigte Arbeit bezahlen" : displayedIntent === "cancel" ? completion ? "Zahlungsversuch erneuern" : "Zahlungsauftrag stornieren" : `Vollständige ${refundLabel}`}</h5>{!completion && <button type="button" className={styles.refresh} aria-label="Zahlungsaktion schließen" disabled={pending} onClick={() => setIntent(null)}><X size={16} /></button>}</div>
                 <AppointmentPaymentAmounts earnings={order.earningsCents} fee={order.serviceFeeCents} provider={shared.isProvider} feePolicy={order.feePolicy} />
                 {!shared.isProvider && order.serviceFeeCents > 0 && <p className={styles.hint}>Die Servicegebühr übernimmt dein Auftraggeber zusätzlich. Du erhältst die vereinbarte Vergütung vollständig.</p>}
-                <p className={styles.hint}>{intent === "authorize" ? "Der Betrag wird auf deiner Karte vorgemerkt. Es wird noch nichts abgebucht." : intent === "capture" ? "Du bestätigst die erledigte Arbeit und bezahlst den angezeigten Gesamtbetrag." : intent === "cancel" ? "Die Zahlungsfreigabe wird aufgehoben. Der Termin und der Chat bleiben erhalten." : intent === "refund" ? `${live ? "Der" : "Im Test wird der"} gesamte Betrag ${live ? "wird " : ""}an das ursprüngliche Zahlungsmittel erstattet und die Vergütung zurückgebucht.` : "Dieser Betrag gilt für genau diesen Termin."}</p>
-                <label className={styles.consent} htmlFor={`${consentId}-action`}><input id={`${consentId}-action`} type="checkbox" checked={consent} disabled={pending} onChange={event => setConsent(event.target.checked)} />{intent === "capture" ? "Die Arbeit ist erledigt. Ich möchte jetzt bezahlen." : intent === "authorize" ? "Ich gebe diesen Gesamtbetrag für den Termin frei." : intent === "cancel" ? "Diesen Zahlungsauftrag möchte ich stornieren." : intent === "refund" ? `Diese vollständige ${refundLabel} möchte ich auslösen.` : "Diese Vergütung ist für den Termin vereinbart."}</label>
-                <button type="button" className={`app-glass-control ${styles.primary}`} disabled={pending || !consent} onClick={() => void execute(intent)}>{pending ? <LoaderCircle size={16} className={styles.spinner} /> : intent === "confirm" ? <Check size={16} /> : <CreditCard size={16} />}{intent === "cancel" ? "Storno bestätigen" : intent === "refund" ? `${refundLabel} bestätigen` : intent === "capture" ? `${formatAppointmentMoney(order.totalCents)} bezahlen` : intent === "confirm" ? "Preis bestätigen" : "Freigabe bestätigen"}</button>
+                <p className={styles.hint}>{displayedIntent === "authorize" && !completionCanPay ? "Der Betrag wird auf deiner Karte vorgemerkt. Es wird noch nichts abgebucht." : displayedIntent === "capture" || (displayedIntent === "authorize" && completionCanPay) ? "Du bezahlst mit deinem hinterlegten Zahlungsmittel. Falls erforderlich, fragt Stripe deine Bankfreigabe ab." : displayedIntent === "cancel" ? completion ? "Der bisherige Zahlungsversuch wird beendet. Danach lässt du den Terminpreis erneut bestätigen. Termin und Chat bleiben erhalten." : "Die Zahlungsfreigabe wird aufgehoben. Der Termin und der Chat bleiben erhalten." : displayedIntent === "refund" ? `${live ? "Der" : "Im Test wird der"} gesamte Betrag ${live ? "wird " : ""}an das ursprüngliche Zahlungsmittel erstattet und die Vergütung zurückgebucht.` : "Dieser Betrag gilt für genau diesen Termin."}</p>
+                <label className={styles.consent} htmlFor={`${consentId}-action`}><input id={`${consentId}-action`} type="checkbox" checked={consent} disabled={pending} onChange={event => setConsent(event.target.checked)} />{displayedIntent === "capture" || (displayedIntent === "authorize" && completionCanPay) ? "Die Arbeit ist erledigt. Ich möchte jetzt bezahlen." : displayedIntent === "authorize" ? "Ich gebe diesen Gesamtbetrag für den Termin frei." : displayedIntent === "cancel" ? completion ? "Diesen Zahlungsversuch möchte ich beenden." : "Diesen Zahlungsauftrag möchte ich stornieren." : displayedIntent === "refund" ? `Diese vollständige ${refundLabel} möchte ich auslösen.` : "Diese Vergütung ist für den Termin vereinbart."}</label>
+                <button type="button" className={`app-glass-control ${styles.primary}`} disabled={pending || !consent} onClick={() => void execute(displayedIntent)}>{pending ? <LoaderCircle size={16} className={styles.spinner} /> : displayedIntent === "confirm" ? <Check size={16} /> : <CreditCard size={16} />}{displayedIntent === "cancel" ? completion ? "Zahlungsversuch beenden" : "Storno bestätigen" : displayedIntent === "refund" ? `${refundLabel} bestätigen` : displayedIntent === "capture" || (displayedIntent === "authorize" && completionCanPay) ? `${formatAppointmentMoney(order.totalCents)} bezahlen und abschließen` : displayedIntent === "confirm" ? "Preis bestätigen" : "Freigabe bestätigen"}</button>
             </div>}
             {error && <div className={styles.error} role="alert"><p>{error}</p><button type="button" className={styles.textButton} onClick={() => void refreshStatus()} disabled={pending}>Stand aktualisieren</button>{shared.isProvider && <Link href={settingsHref} className={styles.textButton}>Zahlungsmittel verwalten</Link>}</div>}
             <PaymentEnvironment kind={live ? "live" : order?.mode === "local_simulation" ? "local" : "sandbox"} className={styles.test} />

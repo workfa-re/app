@@ -26,6 +26,13 @@ describe("job publication payment setup entry", () => {
         expect(html).not.toContain("/app-home/settings/payments");
     });
 
+    it("offers only a one-off job without an unnecessary frequency selector", () => {
+        const html = renderToStaticMarkup(<CreateJobForm marketName="Rheinbach" />);
+        expect(html).toContain('name="job_kind" value="one_time"');
+        expect(html).not.toContain("Regelmäßige Hilfe");
+        expect(html).not.toContain("Wie oft wird die Hilfe gebraucht?");
+    });
+
     it("keeps saving a draft available and offers the allowlisted setup return without promising payment", () => {
         const html = renderToStaticMarkup(<CreateJobForm marketName="Rheinbach" paymentRequired />);
         expect(submitIntents(html)).toEqual(["draft"]);
@@ -72,6 +79,16 @@ describe("edit payment setup keeps publication explicit", () => {
         expect(selected(notReady)).toBe("draft");
         expect(ready).toContain("Änderungen speichern");
         expect(ready).not.toContain("<script");
+    });
+
+    it("shows recurrence controls only for an existing recurring job", () => {
+        const oneOff = renderToStaticMarkup(<EditJobForm job={job} marketName="Rheinbach" />);
+        const legacy = renderToStaticMarkup(<EditJobForm job={{ ...job, job_kind: "recurring", recurrence_rule: "biweekly", continuity_preferred: true }} marketName="Rheinbach" />);
+        expect(oneOff).not.toContain("Regelmäßige Hilfe");
+        expect(oneOff).not.toContain("Wie häufig?");
+        expect(legacy).toContain("Regelmäßige Hilfe");
+        expect(legacy).toContain("Wie häufig?");
+        expect(legacy).toContain('<option value="biweekly" selected="">');
     });
 
     it("does not offer a completed archived cooperation for republishing", () => {

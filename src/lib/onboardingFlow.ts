@@ -9,7 +9,16 @@ export type OnboardingStep =
   | "role"
   | "profile"
   | "contact"
+  | "address"
   | "summary";
+
+export function onboardingNeedsProviderAddress(role: OnboardingRole | null | undefined) {
+  return role === "adult" || role === "senior" || role === "company";
+}
+
+export function getOnboardingProfileNextStep(role: OnboardingRole | null): OnboardingStep {
+  return role === "company" ? "contact" : onboardingNeedsProviderAddress(role) ? "address" : "summary";
+}
 
 export function getOnboardingEntryStep({ forcedStep, initialMode, draftStep }: {
   forcedStep?: OnboardingStep | null;

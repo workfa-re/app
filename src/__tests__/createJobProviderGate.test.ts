@@ -90,6 +90,23 @@ describe("provider job creation matches the database verification gate", () => {
         expect(state.create).not.toHaveBeenCalled();
     });
 
+    it.each([
+        { job_kind: "recurring" },
+        { job_kind: "one_time", recurrence_rule: "weekly" },
+        { job_kind: "one_time", continuity_preferred: "true" },
+    ])("rejects forged recurring creation metadata (%j) before any database write", async fields => {
+        const form = validJob();
+        for (const [key, value] of Object.entries(fields)) if (value !== undefined) form.set(key, value);
+        expect(await createJob(null, form)).toMatchObject({ status: "error", error: { message: "Aktuell kannst du nur einmalige Jobs erstellen." } });
+        expect(state.create).not.toHaveBeenCalled();
+        expect(state.payment).not.toHaveBeenCalled();
+    });
+
+    it("persists new offers with one-off semantics even without client-supplied kind fields", async () => {
+        expect(await createJob(null, validJob())).toEqual({ status: "success" });
+        expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ job: expect.objectContaining({ job_kind: "one_time", recurrence_rule: null, continuity_preferred: false }) }));
+    });
+
     it("never confirms success or clears a draft when the actual database creation failed", async () => {
         state.create.mockResolvedValue({ ok: false, error: { message: "Der Job konnte nicht gespeichert werden." } });
         const form = validJob();

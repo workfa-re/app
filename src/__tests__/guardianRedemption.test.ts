@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mock=vi.hoisted(()=>({getUser:vi.fn(),rpc:vi.fn(),send:vi.fn(),verify:vi.fn(),adminRpc:vi.fn(),cookie:vi.fn(),schema:vi.fn()}));
+import { createHash } from "node:crypto";
+const mock=vi.hoisted(()=>({getUser:vi.fn(),rpc:vi.fn(),send:vi.fn(),verify:vi.fn(),adminRpc:vi.fn(),cookie:vi.fn(),schema:vi.fn(),mailConfigured:vi.fn(),receiptMail:vi.fn()}));
 vi.mock("server-only",()=>({}));
 vi.mock("@/lib/guardian/schema-readiness.server",()=>({readGuardianSchemaState:mock.schema}));
+vi.mock("@/lib/guardian/permission-mail.server",()=>({guardianMailConfigured:mock.mailConfigured,sendGuardianLinkedReceipt:mock.receiptMail}));
 vi.mock("next/headers",()=>({cookies:async()=>({get:mock.cookie})}));
 vi.mock("@/lib/supabaseServer",()=>({supabaseServer:async()=>({auth:{getUser:mock.getUser,signInWithOtp:mock.send,verifyOtp:mock.verify},rpc:mock.rpc})}));
 vi.mock("@/lib/supabase/admin",()=>({getSupabaseAdminClient:()=>({rpc:mock.adminRpc})}));
@@ -22,6 +24,42 @@ describe("purpose-scoped guardian server actions",()=>{
  it("does not infer acceptance from the legacy one-argument call",async()=>{expect((await redeemGuardianInvitation(token)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
  it("requires the current declaration version and explicit consent",async()=>{expect((await redeemGuardianInvitation(token,{...consent,accepted:false} as never)).success).toBe(false);expect((await redeemGuardianInvitation(token,{...consent,declarationVersion:"old"} as never)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
  it("redeems only through the explicit family consent RPC",async()=>{const result={success:true,state:"linked",childId:child,consentRequired:true};mock.rpc.mockResolvedValue({data:result,error:null});expect(await redeemGuardianInvitation(token,consent)).toEqual(result);expect(mock.rpc).toHaveBeenCalledWith("redeem_family_invitation",{p_token:token,p_accepted:true,p_version:GUARDIAN_DECLARATION_VERSION,p_relationship:"mother"});});
+ it("prepares a private receipt only after the database commits the actual minor consent",async()=>{
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL","https://app.workfa.re");mock.mailConfigured.mockReturnValue(true);
+  const receipt="b".repeat(64),linked={success:true,state:"linked",childId:child,consentRequired:true};
+  mock.rpc.mockResolvedValueOnce({data:linked,error:null}).mockResolvedValueOnce({data:{ok:true,reused:false,childName:"Anna",parentEmail:email},error:null});
+  expect(await redeemGuardianInvitation(token,consent,receipt)).toEqual({...linked,receiptReady:true,receiptSent:true});
+  expect(mock.rpc.mock.calls.map(call=>call[0])).toEqual(["redeem_family_invitation","record_my_guardian_consent_receipt"]);
+  expect(mock.rpc.mock.calls[1][1]).toEqual({p_child:child,p_receipt_hash:createHash("sha256").update(receipt).digest("hex")});
+  expect(mock.receiptMail).toHaveBeenCalledWith(email,"Anna",`https://app.workfa.re/guardian/permission#receipt=${receipt}`,"https://app.workfa.re/guardian/access");
+  expect(JSON.stringify(mock.rpc.mock.calls)).not.toContain(receipt);
+ });
+ it.each(["pending_guardian_confirmation","failed"])("does not mail a declaration that is %s",async state=>{
+  const result=state==="failed"?{success:false,error:"explicit_consent_required"}:{success:true,state,childId:child,consentRequired:true};
+  mock.rpc.mockResolvedValue({data:result,error:null});
+  await redeemGuardianInvitation(token,consent,"b".repeat(64));expect(mock.rpc).toHaveBeenCalledOnce();expect(mock.receiptMail).not.toHaveBeenCalled();
+ });
+ it.each([true,false])("does not duplicate a committed receipt or claim delivery when mail is unavailable (%s)",async reused=>{
+  mock.mailConfigured.mockReturnValue(false);
+  mock.rpc.mockResolvedValueOnce({data:{success:true,state:"linked",childId:child,consentRequired:true},error:null})
+   .mockResolvedValueOnce({data:{ok:true,reused,childName:"Anna",parentEmail:email},error:null});
+  expect(await redeemGuardianInvitation(token,consent,"b".repeat(64))).toMatchObject({success:true,receiptReady:true,receiptSent:false});expect(mock.receiptMail).not.toHaveBeenCalled();
+ });
+ it("keeps a committed legal declaration when the confirmation email fails",async()=>{
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL","https://app.workfa.re");mock.mailConfigured.mockReturnValue(true);mock.receiptMail.mockRejectedValue(new Error("private SMTP diagnostics"));
+  mock.rpc.mockResolvedValueOnce({data:{success:true,state:"linked",childId:child,consentRequired:true},error:null})
+   .mockResolvedValueOnce({data:{ok:true,reused:false,childName:"Anna",parentEmail:email},error:null});
+  expect(await redeemGuardianInvitation(token,consent,"b".repeat(64))).toMatchObject({success:true,receiptReady:true,receiptSent:false});expect(console.error).not.toHaveBeenCalled();
+ });
+ it("will not mail a receipt to a mailbox other than the confirmed signed-in parent's",async()=>{
+  mock.mailConfigured.mockReturnValue(true);
+  mock.rpc.mockResolvedValueOnce({data:{success:true,state:"linked",childId:child,consentRequired:true},error:null})
+   .mockResolvedValueOnce({data:{ok:true,reused:false,childName:"Anna",parentEmail:"another@example.invalid"},error:null});
+  expect(await redeemGuardianInvitation(token,consent,"b".repeat(64))).toMatchObject({success:true,receiptReady:false,receiptSent:false});expect(mock.receiptMail).not.toHaveBeenCalled();
+ });
+ it("rejects malformed receipt tokens before committing a declaration",async()=>{
+  expect(await redeemGuardianInvitation(token,consent,"invalid")).toMatchObject({success:false,code:"invalid_input"});expect(mock.getUser).not.toHaveBeenCalled();expect(mock.rpc).not.toHaveBeenCalled();
+ });
  it("keeps reverse invitation pending instead of claiming parent approval",async()=>{mock.rpc.mockResolvedValue({data:{success:true,state:"pending_guardian_confirmation",childId:child,consentRequired:true},error:null});expect(await redeemGuardianInvitation(token,consent)).toMatchObject({success:true,state:"pending_guardian_confirmation"});});
  it("requires a confirmed email even if a session object exists",async()=>{mock.getUser.mockResolvedValue({data:{user:{...user,email_confirmed_at:null}},error:null});expect((await redeemGuardianInvitation(token,consent)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});
  it("fails closed on auth errors without trusting the included user",async()=>{mock.getUser.mockResolvedValue({data:{user},error:{name:"AuthError"}});expect((await redeemGuardianInvitation(token,consent)).success).toBe(false);expect(mock.rpc).not.toHaveBeenCalled();});

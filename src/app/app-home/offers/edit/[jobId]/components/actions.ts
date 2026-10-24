@@ -34,6 +34,10 @@ export async function updateJobAction(jobId: string, formData: FormData): Promis
         return { success: false, error: "Du hast keine Berechtigung, diesen Job zu bearbeiten." };
     }
 
+    if (existingJob.job_kind !== "recurring" && parsedForm.data.job_kind === "recurring") {
+        return { success: false, error: "Aktuell kannst du nur einmalige Jobs erstellen." };
+    }
+
     const statusResult = resolveJobStatusTransition(existingJob.status, parsedForm.data.status);
     if (!statusResult.success) {
         return statusResult;
@@ -76,6 +80,7 @@ export async function updateJobAction(jobId: string, formData: FormData): Promis
     });
 
     if (error) {
+        if (error.message.includes("one_time_jobs_only")) return { success: false, error: "Aktuell kannst du nur einmalige Jobs erstellen." };
         if (error.message.includes("buyer_payment_required")) {
             return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
         }

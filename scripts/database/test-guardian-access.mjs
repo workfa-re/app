@@ -339,5 +339,61 @@ try {
  check((await workspace(upgradeParent)).relationships.some(r=>r.childId===ids.second&&r.status==='active'),true,'completed provider retains its active parental family rights');
 
  }
+ // Linked guardian receipts reuse the existing private consent-link ledger.
+ await execute(await readFile(new URL('../../infrastructure/database/migrations/20261024202242_guardian_linked_consent_receipt.sql',import.meta.url),'utf8'));
+ {
+ const receiptChild=id(), receiptParent=id(), rawReceipt='1'.repeat(64), replacementReceipt='2'.repeat(64), otherReceipt='3'.repeat(64);
+ const digest=raw=>json(`SELECT to_json(encode(extensions.digest(${quote(raw)},'sha256'),'hex'))`);
+ await execute(`INSERT INTO auth.users(id,email,email_confirmed_at) VALUES(${args([receiptChild,'linked-receipt-youth@example.invalid'])},now());
+ INSERT INTO profiles(id,full_name,birthdate,account_type) VALUES(${args([receiptChild,'Robin Beispiel','2010-01-01'])},'job_seeker');`);
+ const invitation=await invite(receiptChild);
+ check((await redeem(upgradeParent,invitation.token)).state,'linked','own password parent explicitly approves before a receipt exists');
+ const record=(parent,child,hash)=>invoke(parent,'record_my_guardian_consent_receipt',[child,hash]);
+ const receiptHash=await digest(rawReceipt);
+ const consentEvidence=()=>json(`SELECT to_jsonb(c)-'link_id'-'updated_at' FROM guardian_consents c WHERE child_id=${quote(receiptChild)} AND linked_guardian_id=${quote(upgradeParent)} AND status='approved'`);
+ const approvedEvidence=await consentEvidence();
+ const counts=()=>json(`SELECT json_build_array((SELECT count(*) FROM auth.users),(SELECT count(*) FROM profiles),(SELECT count(*) FROM guardian_relationships))`);
+ const before=await counts();
+ await deny(asRole('anon',null,`SELECT public.record_my_guardian_consent_receipt(${args([receiptChild,receiptHash])})`),'anonymous cannot attach a consent receipt');
+ check((await record(ids.adult,receiptChild,receiptHash)).ok,false,'unrelated parent cannot obtain another family receipt');
+ check((await record(receiptChild,receiptChild,receiptHash)).ok,false,'child cannot mint their own guardian receipt');
+ check((await record(upgradeParent,receiptChild,'invalid')).ok,false,'malformed receipt digest is rejected');
+ const attached=await record(upgradeParent,receiptChild,receiptHash);
+ check(attached.ok,true,'actual approved parent receives their receipt');
+ check(attached.reused,false,'first receipt is attached once');
+ check(attached.childName,'Robin','receipt mail gets only child first name');
+ check(await consentEvidence(),approvedEvidence,'attaching a receipt never rewrites the signed legal declaration');
+ check(await json(`SELECT to_json(prosecdef) FROM pg_proc WHERE oid='public.record_my_guardian_consent_receipt(uuid,text)'::regprocedure`),false,'new public receipt wrapper has no elevated privileges');
+ check((await record(upgradeParent,receiptChild,receiptHash)).reused,true,'lost-response retry uses same attached receipt');
+ check((await record(upgradeParent,receiptChild,await digest(replacementReceipt))).code,'receipt_already_recorded','new token cannot invalidate an existing personal link');
+ check(await counts(),before,'receipt adds no accounts, profiles or relationships');
+ check(await json(`SELECT to_json(position(${quote(rawReceipt)} in (SELECT row_to_json(l)::text FROM guardian_consent_links l WHERE receipt_hash=${quote(receiptHash)}))=0)`),true,'raw receipt is never stored');
+ const receiptPreview=await call('get_guardian_permission_context',[null,rawReceipt]);
+ check(receiptPreview.accountLinked,true,'private receipt projects authenticated-family origin');
+ check(receiptPreview.status,'approved','current own consent is approved');
+ check(Object.keys(receiptPreview).sort(),['accountLinked','childName','direction','expiresAt','minorRequired','ok','status'].sort(),'receipt reveals no emails, DOBs or internal family IDs');
+ await deny(asRole('authenticated',receiptChild,`SELECT public.get_guardian_permission_context(NULL,${quote(rawReceipt)})`),'browser cannot call service-only receipt context directly');
+ check((await call('get_guardian_permission_context',[null,'4'.repeat(64)])).ok,false,'random receipt grants no context');
+ check((await call('revoke_guardian_permission',[rawReceipt])).ok,true,'private receipt revokes its linked declaration');
+ check(await eligible(receiptChild),false,'revoked linked consent closes application eligibility');
+ check((await context(upgradeParent)).relationships.find(r=>r.childId===receiptChild).status,'pending','family connection remains manageable after permission withdrawal');
+ check((await call('get_guardian_permission_context',[null,rawReceipt])).status,'revoked','receipt shows withdrawal');
+ check((await call('revoke_guardian_permission',[rawReceipt])).ok,true,'receipt withdrawal is idempotent');
+ check((await approve(upgradeParent,receiptChild)).success,true,'same parent can give a fresh explicit approval in their account');
+ check(await eligible(receiptChild),true,'fresh declaration restores normal application eligibility');
+ check((await call('revoke_guardian_permission',[rawReceipt])).ok,true,'old receipt remains safely replayable after a new approval');
+ check(await eligible(receiptChild),true,'old receipt cannot revoke a later separate legal declaration');
+ check((await record(upgradeParent,receiptChild,await digest(replacementReceipt))).ok,true,'new declaration receives its own private receipt');
+ await execute(`INSERT INTO auth.users(id,email,email_confirmed_at,encrypted_password) VALUES(${args([receiptParent,'other-receipt-parent@example.invalid'])},now(),'generated-disposable-password-hash');
+ INSERT INTO profiles(id,full_name,birthdate) VALUES(${args([receiptParent,'Second Parent','1980-01-01'])});`);
+ const secondInvite=await invite(receiptChild);
+ check((await redeem(receiptParent,secondInvite.token)).success,true,'second eligible parent gives an independent legal declaration');
+ check((await record(receiptParent,receiptChild,await digest(otherReceipt))).ok,true,'second parent gets a distinct receipt');
+ check((await call('revoke_guardian_permission',[replacementReceipt])).ok,true,'first parent withdraws only their current declaration');
+ check(await eligible(receiptChild),true,'other parent consent survives receipt withdrawal');
+ check((await call('get_guardian_permission_context',[null,otherReceipt])).status,'approved','second parent personal link remains active');
+ check((await call('revoke_guardian_permission',[otherReceipt])).ok,true,'last parent can independently withdraw');
+ check(await eligible(receiptChild),false,'no active declaration means no permission');
+ }
  console.log(JSON.stringify({ok:true,checks,database:f.database,remoteDatabases:0,emailsSent:0}));
-} finally { await dispose(); }
+} catch (error) { console.error(`Guardian fixture failed after ${checks} checks`); throw error; } finally { await dispose(); }

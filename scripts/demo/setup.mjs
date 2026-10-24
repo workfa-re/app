@@ -38,6 +38,9 @@ const schemaNames = [
   "../../database/migrations/20261024175803_guardian_shared_login_permission.sql",
   "../../database/migrations/20261024180507_guardian_permission_reinvitation.sql",
   "../../database/migrations/20261024190713_provider_address_without_manual_review.sql",
+  "../../database/migrations/20261024202239_provider_onboarding_address_and_one_time_jobs.sql",
+  "../../database/migrations/20261024202242_guardian_linked_consent_receipt.sql",
+  "../../database/migrations/20261024202657_complete_jobs_after_verified_payment.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"

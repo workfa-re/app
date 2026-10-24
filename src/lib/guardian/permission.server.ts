@@ -9,6 +9,7 @@ export const permissionPreviewSchema = z.object({
     ok: z.literal(true), direction: z.enum(["child_to_guardian", "guardian_to_child"]),
     childName: z.string().max(120).nullable(), minorRequired: z.boolean().nullable(),
     status: z.enum(["available", "approved", "revoked"]), expiresAt: z.string().nullable(),
+    accountLinked: z.boolean().optional(),
 });
 export type PermissionPreview = z.infer<typeof permissionPreviewSchema>;
 const receiptSchema = z.string().regex(/^[a-f0-9]{64}$/);

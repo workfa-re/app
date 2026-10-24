@@ -12,7 +12,7 @@ import { FamilyInvitation } from "./FamilyInvitation";
 import { GuardianAccountSettings, GuardianWorkspaceOffer, type GuardianPasswordInput } from "./GuardianAccount";
 import { GuardianConnections } from "./GuardianConnections";
 import { GuardianPayoutsProvider } from "./GuardianPayouts";
-import { GuardianConsentReview, GuardianEmailForm, GuardianPrivacy, GuardianProfileForm, GuardianSuccess } from "./GuardianForms";
+import { GuardianConsentReview, GuardianEmailForm, GuardianPrivacy, GuardianProfileForm, GuardianSuccess, type GuardianReviewProfile } from "./GuardianForms";
 import { GuardianShell } from "./GuardianShell";
 import { guardianAction } from "./guardian-client";
 import styles from "./Guardian.module.css";
@@ -29,8 +29,9 @@ export function guardianAccessStep(context: GuardianAccessContext, hasToken: boo
         return context.invitation.minorRequired === null ? "unavailable" : "review";
     }
     if (hasToken && context.viewer === "child") return "wrong_account";
-    if (hasToken && context.workspace.passwordConfigured === false) return "password";
-    if (context.viewer !== "child" && (!context.profile.fullName || !context.profile.birthdate || !context.profile.adultEligible)) return "profile";
+    if (hasToken && context.invitation?.minorRequired === null) return "unavailable";
+    if (hasToken && context.workspace.passwordConfigured === false && context.profile.adultEligible) return "password";
+    if (context.viewer !== "child" && (!context.profile.fullName || !context.profile.birthdate || !context.profile.adultEligible)) return hasToken ? "review" : "profile";
     if (hasToken) return context.invitation?.minorRequired === null ? "unavailable" : "review";
     return "family";
 }
@@ -67,6 +68,8 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
     const [showInvite, setShowInvite] = useState(false);
     const [reauthenticating, setReauthenticating] = useState(false);
     const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
+    const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+    const receipts = useRef(new Map<string, string>());
     const mounted = useRef(false);
     const inFlight = useRef(false);
     const loadGeneration = useRef(0);
@@ -82,7 +85,7 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
             if (result.ok) {
                 if (ownerId.current !== result.context.userId) {
                     ++ownerEpoch.current;
-                    setSuccess(null); setShowInvite(false); setCodeSent(false); setReauthenticating(false); setPasswordNotice(null);
+                    setSuccess(null); setReceiptUrl(null); receipts.current.clear(); setShowInvite(false); setCodeSent(false); setReauthenticating(false); setPasswordNotice(null);
                 }
                 ownerId.current = result.context.userId;
                 setContext(result.context); setError(null);
@@ -102,12 +105,33 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
             if (event !== "SIGNED_OUT" && !changedOwner) return;
             ++ownerEpoch.current; ++loadGeneration.current;
             ownerId.current = null;
-            setContext(null); setSuccess(null); setShowInvite(false); setCodeSent(false); setReauthenticating(false); setPasswordNotice(null); setError(null); setLoading(true);
+            setContext(null); setSuccess(null); setReceiptUrl(null); receipts.current.clear(); setShowInvite(false); setCodeSent(false); setReauthenticating(false); setPasswordNotice(null); setError(null); setLoading(true);
             // Avoid running another auth request while Supabase dispatches its event.
             void Promise.resolve().then(load);
         });
         return () => { mounted.current = false; ++generation.current; ++epoch.current; subscription.unsubscribe(); if (resendTimer.current) clearTimeout(resendTimer.current); };
     }, [load]);
+
+    useEffect(() => {
+        if (!context?.authenticated || context.invitation?.status !== "redeemed") return;
+        const receipt = new URLSearchParams(window.location.hash.slice(1)).get("receipt");
+        if (receipt && /^[a-f0-9]{64}$/.test(receipt)) router.replace(`/guardian/permission#receipt=${receipt}`);
+    }, [context, router]);
+
+    function prepareReceipt(scope: string) {
+        const saved = receipts.current.get(scope);
+        if (saved) return saved;
+        const location = new URL(window.location.href);
+        const fragment = new URLSearchParams(location.hash.slice(1));
+        const previous = fragment.get("receipt");
+        const receipt = fragment.get("scope") === scope && previous && /^[a-f0-9]{64}$/.test(previous)
+            ? previous : Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, "0")).join("");
+        receipts.current.set(scope, receipt);
+        // Survives a lost response without putting the receipt in HTTP URLs or storage.
+        location.hash = new URLSearchParams({ receipt, scope }).toString();
+        window.history.replaceState(null, "", `${location.pathname}${location.search}${location.hash}`);
+        return receipt;
+    }
 
     async function run(action: () => Promise<void>) {
         if (inFlight.current) return;
@@ -163,13 +187,23 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
         });
     }
 
-    async function confirm(input: GuardianConsentInput) {
+    async function confirm(input: GuardianConsentInput, profile?: GuardianReviewProfile) {
         if (!token) return;
         await run(async () => {
             const epoch = ownerEpoch.current;
-            const result = await guardianAction(() => redeemGuardianInvitation(token, input));
+            if (profile) {
+                const completed = await guardianAction(() => completeGuardianProfile(profile));
+                if (!mounted.current || epoch !== ownerEpoch.current) return;
+                if (!completed.ok) { setError(completed.error); return; }
+                // Existing passwordless family accounts finish their real
+                // profile before the password guard can accept an update.
+                if (context?.workspace.passwordConfigured === false) { await load(); return; }
+            }
+            const receipt = context?.invitation?.direction === "child_to_guardian" && context.invitation.minorRequired ? prepareReceipt(`invitation:${token}`) : undefined;
+            const result = await guardianAction(() => redeemGuardianInvitation(token, input, receipt));
             if (!mounted.current || epoch !== ownerEpoch.current) return;
             if (!result.success) { setError(result.message); return; }
+            setReceiptUrl(result.receiptReady && receipt ? `/guardian/permission#receipt=${receipt}` : null);
             setSuccess(result);
         });
     }
@@ -177,10 +211,13 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
     async function approve(childId: string, input: GuardianConsentInput) {
         await run(async () => {
             const epoch = ownerEpoch.current;
-            const result = await guardianAction(() => approveGuardianRelationship(childId, input));
+            const receipt = prepareReceipt(`child:${childId}`);
+            const result = await guardianAction(() => approveGuardianRelationship(childId, input, receipt));
             if (!mounted.current || epoch !== ownerEpoch.current) return;
             if (!result.ok) { setError(result.error); return; }
-            await load();
+            setReceiptUrl(result.receiptReady ? `/guardian/permission#receipt=${receipt}` : null);
+            setSuccess({ success: true, state: "linked", childId, consentRequired: context?.relationships.find(value => value.childId === childId)?.consentRequired === true,
+                receiptReady: result.receiptReady, receiptSent: result.receiptSent });
         });
     }
 
@@ -215,19 +252,19 @@ function GuardianAccess({ token, returnChildId }: { token: string | null; return
             {context?.authenticated ? <div className={styles.account}><div><strong>{context.profile.fullName || "Dein Zugang"}</strong><span>{context.email}</span></div><button type="button" className={styles.quiet} disabled={busy} onClick={() => void switchAccount()}>Konto wechseln</button></div> : null}
             {loading ? <p className={styles.loading} role="status"><Loader2 size={18} className={styles.spinner} aria-hidden="true" />Zugang wird geladen …</p>
                 : reauthenticating && context?.authenticated ? <><GuardianEmailForm key="confirm-access" email={context.email || ""} codeSent={codeSent} busy={busy} resendAllowed={resendAllowed} fixedEmail onRequest={value => void request(value)} onVerify={(value, code) => void verify(value, code)} onChangeEmail={() => undefined} /><button type="button" className={styles.quiet} disabled={busy} onClick={() => { setReauthenticating(false); setCodeSent(false); setError(null); }}>Zurück zur Familie</button></>
-                : success ? <GuardianSuccess pending={success.state === "pending_guardian_confirmation"} consentRequired={success.consentRequired} onContinue={() => { router.replace("/guardian/access"); if (!token) { setSuccess(null); void load(); } }} />
+                : success ? <GuardianSuccess pending={success.state === "pending_guardian_confirmation"} consentRequired={success.consentRequired} receiptUrl={receiptUrl} receiptSent={success.receiptSent} receiptUnavailable={success.receiptReady === false} onContinue={() => { receipts.current.clear(); router.replace("/guardian/access"); if (!token) { setSuccess(null); setReceiptUrl(null); void load(); } }} />
                 : !context ? <><h2>Gerade nicht erreichbar</h2><button type="button" className={`${styles.action} ${styles.glass}`} onClick={() => { setLoading(true); void load(); }}>Erneut versuchen</button></>
                 : step === "email" ? <GuardianGuestEntry token={token} />
                 : step === "password" ? <><h2>Dein dauerhafter Familienzugang</h2><p className={styles.intro}>Lege ein Passwort fest. Danach meldest du dich überall mit deiner E-Mail-Adresse und diesem Passwort an.</p>{context.profile.adultEligible ? <GuardianAccountSettings requiredSetup email={context.email} passwordConfigured={false} busy={busy} notice={passwordNotice} onSavePassword={input => void savePassword(input)} onReauthenticate={() => { setReauthenticating(true); setCodeSent(false); setError(null); }} /> : <Link className={`${styles.action} ${styles.glass}`} href={`/auth/forgot-password?redirectTo=${encodeURIComponent(token ? `/guardian/access?token=${encodeURIComponent(token)}` : "/guardian/access")}`} prefetch={false}>Passwort einrichten</Link>}</>
                 : step === "profile" ? <GuardianProfileForm key={context.email} fullName={context.profile.fullName} birthdate={context.profile.birthdate} busy={busy} onComplete={data => void complete(data)} />
-                : step === "review" && context.invitation ? <GuardianConsentReview key={`${context.email}:${context.invitation.direction}`} invitation={context.invitation} busy={busy} onConfirm={input => void confirm(input)} />
+                : step === "review" && context.invitation ? <GuardianConsentReview key={`${context.email}:${context.invitation.direction}`} invitation={context.invitation} profile={context.profile} busy={busy} onConfirm={(input, profile) => void confirm(input, profile)} />
                 : step === "wrong_account" ? <><h2>Dieser Link ist für {context.invitation?.direction === "guardian_to_child" ? "dein Kind" : "dein Elternteil"}</h2><p className={styles.intro}>{context.invitation?.direction === "guardian_to_child" ? "Die Einladung wird im Konto der jobsuchenden Person angenommen." : "Die Zustimmung muss über den eigenen Zugang deines Elternteils oder deiner gesetzlichen Vertretung erfolgen."}</p><button type="button" className={`${styles.action} ${styles.glass}`} disabled={busy} onClick={() => void switchAccount()}>Mit passendem Konto fortfahren</button></>
                 : step === "child_profile" ? <><h2>Richte dein Profil ein</h2><p className={styles.intro}>Für diese Einladung brauchst du ein Workfare-Profil als jobsuchende Person. Danach kannst du die Familienverbindung bestätigen.</p><Link href={setupPath} prefetch={false} className={`${styles.action} ${styles.glass}`}>Profil einrichten<ChevronRight size={16} aria-hidden="true" /></Link></>
                 : step === "unavailable" ? <><h2>{context.invitation?.status === "redeemed" ? "Bereits angenommen" : "Bitte prüfe deinen Link"}</h2><p className={styles.intro}>{context.invitation?.status === "redeemed" ? "Diese Einladung wurde bereits angenommen. Deine eigenen Verbindungen findest du in der Familienübersicht." : "Die Einladung ist abgelaufen, wurde zurückgezogen oder kann nicht bestätigt werden. Bitte lass dir einen neuen Link senden."}</p><Link href="/guardian/access" prefetch={false} className={`${styles.action} ${styles.glass}`}>Zum Familienbereich</Link></>
                 : step === "family" ? <>
                     {child && context.permission?.required && context.permission.granted ? <div><h2>Elternfreigabe aktiv</h2><p className={styles.fieldHint}>Eine dauerhafte Familienverknüpfung ist freiwillig. Für Workfare Pay gelten weiterhin eigene Voraussetzungen.</p></div> : null}
                     <GuardianPayoutsProvider key={`${context.userId}:${context.relationships.map(value => `${value.id}:${value.consented}`).join("|")}`} ownerId={child ? null : context.userId} returnChildId={returnChildId}><GuardianConnections relationships={context.relationships} busy={busy} onApprove={(id, input) => void approve(id, input)} onRevoke={id => void revoke(id)} /></GuardianPayoutsProvider>
-                    {showInvite ? <div><h2>{child ? minor ? "Elternteil einladen" : "Familie verbinden" : "Dein Kind einladen"}</h2><p className={styles.intro}>{child ? minor ? "Dein Elternteil kann nur die Erlaubnis erteilen oder eure Familie dauerhaft verknüpfen." : "Die Verbindung ist freiwillig. Deine privaten Chats und Zahlungsdaten bleiben getrennt." : "Dein Kind nimmt den Link im eigenen Konto an. Unter 18 bestätigst du anschließend hier die Zustimmung."}</p><FamilyInvitation direction={child ? "child_to_guardian" : "guardian_to_child"} /><button type="button" className={styles.quiet} onClick={() => setShowInvite(false)}>Schließen</button></div>
+                    {showInvite ? <div><h2>{child ? minor ? "Elternteil einladen" : "Familie verbinden" : "Dein Kind einladen"}</h2><p className={styles.intro}>{child ? minor ? "Dein Elternteil öffnet den Link, meldet sich an und erteilt deine Freigabe." : "Die Verbindung ist freiwillig. Deine privaten Chats und Zahlungsdaten bleiben getrennt." : "Dein Kind nimmt den Link im eigenen Konto an. Unter 18 bestätigst du anschließend hier die Zustimmung."}</p><FamilyInvitation direction={child ? "child_to_guardian" : "guardian_to_child"} /><button type="button" className={styles.quiet} onClick={() => setShowInvite(false)}>Schließen</button></div>
                         : child || context.workspace.passwordConfigured === true ? <button type="button" className={`${styles.action} ${styles.glass}`} onClick={() => setShowInvite(true)}><Users size={17} aria-hidden="true" />{child ? context.permission?.granted ? "Familie verknüpfen" : "Elternteil einladen" : "Kind einladen"}</button> : null}
                     {child ? <Link href="/app-home/profile" prefetch={false} className={styles.quiet}>Zu deinem Profil<ChevronRight size={15} aria-hidden="true" /></Link> : null}
                     {!child ? <GuardianAccountSettings requiredSetup={context.workspace.passwordConfigured === false} email={context.email} passwordConfigured={context.workspace.passwordConfigured} busy={busy} notice={passwordNotice} onSavePassword={input => void savePassword(input)} onReauthenticate={() => { setReauthenticating(true); setCodeSent(false); setError(null); }} /> : null}

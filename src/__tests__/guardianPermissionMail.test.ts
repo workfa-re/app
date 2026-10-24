@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mock = vi.hoisted(() => ({ create: vi.fn(), send: vi.fn(), close: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("nodemailer", () => ({ default: { createTransport: mock.create } }));
-import { guardianMailConfigured, sendGuardianCode, sendGuardianReceipt } from "@/lib/guardian/permission-mail.server";
+import { guardianMailConfigured, sendGuardianCode, sendGuardianReceipt, sendGuardianLinkedReceipt } from "@/lib/guardian/permission-mail.server";
 describe("private guardian SMTP adapter", () => {
     beforeEach(() => {
         vi.resetAllMocks(); vi.stubEnv("WORKFARE_DEMO_ENABLED", "false");
@@ -22,6 +22,15 @@ describe("private guardian SMTP adapter", () => {
         await sendGuardianReceipt("parent@example.invalid", "https://app.workfa.re/guardian/permission?receipt=private-receipt");
         expect(mock.create).toHaveBeenCalledWith(expect.objectContaining({ host: "smtp.mailgun.org", secure: true, port: 465 }));
         expect(mock.send.mock.calls[0][0].text).toContain("private-receipt");
+    });
+    it("confirms the actual child's permission with a private revocation link and normal account access", async () => {
+        const receiptUrl="https://app.workfa.re/guardian/permission#receipt=private-receipt";
+        await sendGuardianLinkedReceipt("parent@example.invalid","Anna",receiptUrl,"https://app.workfa.re/guardian/access");
+        const mail=mock.send.mock.calls[0][0];
+        expect(mail.to).toBe("parent@example.invalid");expect(mail.text).toContain("Elternfreigabe für Anna");expect(mail.text).toContain(receiptUrl);
+        expect(mail.text).toContain("jederzeit widerrufen");expect(mail.text).toContain("E-Mail-Adresse und deinem Passwort");expect(mail.text).toContain("https://app.workfa.re/guardian/access");
+        expect(mail.text).not.toContain("kein Konto angelegt");expect(mail.text).toContain("ersetzt keine erforderliche Zahlungs- oder Auszahlungseinrichtung");
+        expect(mail.headers).toEqual({"X-Mailgun-Track":"no","X-Mailgun-Track-Clicks":"no","X-Mailgun-Track-Opens":"no"});expect(mock.close).toHaveBeenCalledOnce();
     });
     it.each([undefined, "https://not-smtp.invalid", "smtp://smtp.eu.mailgun.org:587"])("fails closed on missing or malformed private mail configuration", async url => {
         vi.stubEnv("WORKFARE_GUARDIAN_SMTP_URL", url);

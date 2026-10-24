@@ -1,7 +1,7 @@
 "use client";
 
 import { createJob, type CreateJobActionState } from "@/app/app-home/offers/actions";
-import { AlertTriangle, CalendarDays, CheckCircle2, CreditCard, FileEdit, Loader2, MapPin, Repeat2, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, FileEdit, Loader2, MapPin, Save, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
@@ -87,9 +87,6 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
     const [wage, setWage] = useState("");
     const [categoryId, setCategoryId] = useState<string>("");
     const [paymentType, setPaymentType] = useState<PaymentType>("hourly");
-    const [jobKind, setJobKind] = useState<"one_time" | "recurring">("one_time");
-    const [recurrenceRule, setRecurrenceRule] = useState<"weekly" | "biweekly" | "monthly" | "flexible">("weekly");
-    const [continuityPreferred, setContinuityPreferred] = useState(true);
     const [useCustomLocation, setUseCustomLocation] = useState(!defaultLocation);
     const [location, setLocation] = useState<LocationDetails | null>(null);
     const [reach, setReach] = useState<"internal_rheinbach" | "extended">("internal_rheinbach");
@@ -134,9 +131,6 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
             if (draft.wage) setWage(draft.wage);
             if (draft.category) setCategoryId(draft.category);
             if (draft.paymentType) setPaymentType(draft.paymentType as "hourly" | "fixed");
-            if (draft.jobKind === "recurring") setJobKind("recurring");
-            if (draft.recurrenceRule) setRecurrenceRule(draft.recurrenceRule);
-            if (typeof draft.continuityPreferred === "boolean") setContinuityPreferred(draft.continuityPreferred);
             if (draft.reach === "extended") setReach("extended");
             if (typeof draft.isDefaultLocation === "boolean") setUseCustomLocation(!draft.isDefaultLocation);
 
@@ -160,9 +154,7 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
             wage,
             category: categoryId,
             paymentType,
-            jobKind,
-            recurrenceRule,
-            continuityPreferred,
+            jobKind: "one_time",
             location: useCustomLocation && location ? {
                 address: location.address_line1,
                 lat: location.lat,
@@ -174,7 +166,7 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
             } : undefined,
             isDefaultLocation: !useCustomLocation,
             reach,
-        }), [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, reach]);
+        }), [title, description, wage, categoryId, paymentType, location, useCustomLocation, reach]);
 
     // Keep the normal debounce; leaving for payment explicitly flushes it below.
     useEffect(() => {
@@ -204,9 +196,9 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
             <input type="hidden" name="use_default_location" value={(!useCustomLocation && defaultLocation) ? "true" : "false"} />
             <input type="hidden" name="category" value={categoryId} />
             <input type="hidden" name="payment_type" value={paymentType} />
-            <input type="hidden" name="job_kind" value={jobKind} />
-            <input type="hidden" name="recurrence_rule" value={jobKind === "recurring" ? recurrenceRule : ""} />
-            <input type="hidden" name="continuity_preferred" value={jobKind === "recurring" && continuityPreferred ? "true" : "false"} />
+            <input type="hidden" name="job_kind" value="one_time" />
+            <input type="hidden" name="recurrence_rule" value="" />
+            <input type="hidden" name="continuity_preferred" value="false" />
             {/* Hidden inputs for Location Data (to be picked up by Server Action) */}
             {useCustomLocation && location && (
                 <>
@@ -226,7 +218,7 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
                         </span>
                         <button
                             type="button"
-                            onClick={() => { clearDraft(); setTitle(""); setDescription(""); setWage(""); setCategoryId(""); setPaymentType("hourly"); setJobKind("one_time"); setRecurrenceRule("weekly"); setContinuityPreferred(true); setLocation(null); setUseCustomLocation(!defaultLocation); setReach("internal_rheinbach"); setDraftSaveError(null); }}
+                            onClick={() => { clearDraft(); setTitle(""); setDescription(""); setWage(""); setCategoryId(""); setPaymentType("hourly"); setLocation(null); setUseCustomLocation(!defaultLocation); setReach("internal_rheinbach"); setDraftSaveError(null); }}
                             className={styles.discard}
                         >
                             <Trash2 size={12} />
@@ -313,79 +305,6 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
                         placeholder="Beschreibe, was zu tun ist..."
                         className={cn(inputClass, "resize-y py-3 leading-relaxed")}
                     />
-                </div>
-
-                <div className={cn(sectionClass, "space-y-3")}>
-                    <div>
-                        <label className={fieldLabelClass}>Wie oft wird die Hilfe gebraucht?</label>
-                        <p className="-mt-1 text-xs leading-5 text-[var(--text-muted)]">Das bestimmt, ob später ein einzelner oder mehrere Termine vereinbart werden können.</p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <button
-                            type="button"
-                            onClick={() => setJobKind("one_time")}
-                            className={cn("app-glass-control", styles.option)}
-                            aria-pressed={jobKind === "one_time"}
-                        >
-                            <CalendarDays size={20} className={jobKind === "one_time" ? "text-[var(--brand)]" : "text-[var(--text-muted)]"} />
-                            <span>
-                                <strong className="block text-sm text-[var(--text-strong)]">Einmaliger Auftrag</strong>
-                                <small className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">Ein Termin, danach kann der Job abgeschlossen werden.</small>
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setJobKind("recurring")}
-                            className={cn("app-glass-control", styles.option)}
-                            aria-pressed={jobKind === "recurring"}
-                        >
-                            <Repeat2 size={20} className={jobKind === "recurring" ? "text-[var(--brand)]" : "text-[var(--text-muted)]"} />
-                            <span>
-                                <strong className="block text-sm text-[var(--text-strong)]">Regelmäßige Hilfe</strong>
-                                <small className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">Dieselbe Zusammenarbeit mit mehreren Terminen.</small>
-                            </span>
-                        </button>
-                    </div>
-
-                    <AnimatePresence initial={false}>
-                        {jobKind === "recurring" ? (
-                            <motion.div
-                                initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-                                transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <div className={cn(styles.inset, "grid gap-3 sm:grid-cols-2")}>
-                                    <label>
-                                        <span className={fieldLabelClass}>Ungefähre Häufigkeit</span>
-                                        <select
-                                            value={recurrenceRule}
-                                            onChange={(event) => setRecurrenceRule(event.target.value as typeof recurrenceRule)}
-                                            className={cn(inputClass, "h-12")}
-                                        >
-                                            <option value="weekly">Wöchentlich</option>
-                                            <option value="biweekly">Alle zwei Wochen</option>
-                                            <option value="monthly">Monatlich</option>
-                                            <option value="flexible">Nach Absprache</option>
-                                        </select>
-                                    </label>
-                                    <label className={styles.checkOption}>
-                                        <input
-                                            type="checkbox"
-                                            checked={continuityPreferred}
-                                            onChange={(event) => setContinuityPreferred(event.target.checked)}
-                                            className="mt-1 h-4 w-4 accent-[var(--brand)]"
-                                        />
-                                        <span>
-                                            <strong className="block text-sm text-[var(--text-strong)]">Möglichst dieselbe Person</strong>
-                                            <small className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">Die Zusammenarbeit bleibt offen, bis du sie ausdrücklich abschließt.</small>
-                                        </span>
-                                    </label>
-                                </div>
-                            </motion.div>
-                        ) : null}
-                    </AnimatePresence>
                 </div>
 
                 {/* Location Section */}

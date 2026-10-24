@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { getOnboardingCompanyError, getOnboardingProfileError, validateOnboardingBirthdate } from "@/lib/onboarding-validation";
+import { getOnboardingCompanyError, getOnboardingProfileError, getProviderOnboardingAddressError, validateOnboardingBirthdate } from "@/lib/onboarding-validation";
 
 const originalTimezone = process.env.TZ;
 afterAll(() => {
@@ -67,5 +67,23 @@ describe("validation before saving edited summary data", () => {
     expect(getOnboardingCompanyError({ ...company, companyEmail: "invalid" })).toContain("E-Mail-Adresse");
     expect(getOnboardingCompanyError({ ...company, companyMessage: "" })).toContain("Nachricht");
     expect(getOnboardingCompanyError({ ...company, companyMessage: "x".repeat(2001) })).toContain("2000 Zeichen");
+  });
+});
+
+
+describe("provider home address validation", () => {
+  const address = { street: "Musterweg", houseNumber: "12a", city: "Rheinbach", zip: "53359", latitude: 50.63, longitude: 6.95 };
+  it("accepts a complete selected address", () => {
+    expect(getProviderOnboardingAddressError(address)).toBeNull();
+  });
+  it("requires the house number, postcode and city without accepting a free-text-only address", () => {
+    for (const value of [undefined, null, { ...address, houseNumber: "" }, { ...address, zip: "5335" }, { ...address, city: "" }]) {
+      expect(getProviderOnboardingAddressError(value)).toContain("vollständige Adresse");
+    }
+  });
+  it("requires real finite coordinates from the selected result", () => {
+    for (const patch of [{ latitude: null }, { longitude: Infinity }, { latitude: NaN }, { latitude: 91 }, { longitude: -181 }]) {
+      expect(getProviderOnboardingAddressError({ ...address, ...patch })).toContain("Suchvorschlägen");
+    }
   });
 });

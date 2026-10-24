@@ -68,6 +68,12 @@ describe("accountless email-confirmed guardian permission", () => {
         mock.rpc.mockImplementation(async name => ({ data: name === "get_guardian_permission_readiness" ? ready : { ...preview, email: "never-returned@example.invalid", birthdate: "2010-01-01" }, error: null }));
         expect(await loadPermissionPreview({ token })).toEqual({ ok: true, preview, emailAvailable: true });
     });
+    it("opens an account-linked receipt with the same minimal revocation view", async () => {
+        const preview={ok:true,direction:"child_to_guardian",childName:"Anna",minorRequired:true,status:"approved",expiresAt:null,accountLinked:true};
+        mock.rpc.mockImplementation(async name=>({data:name==="get_guardian_permission_readiness"?ready:{...preview,parentEmail:"private@example.invalid",guardianId:challengeId},error:null}));
+        expect(await loadPermissionPreview({receipt})).toEqual({ok:true,preview,emailAvailable:true});
+        expect(mock.rpc).toHaveBeenLastCalledWith("get_guardian_permission_context",{p_token:null,p_receipt:receipt});
+    });
     it("revokes only by its own unpredictable receipt and does not fabricate a target ID", async () => {
         expect(await revokePermission(receipt)).toEqual({ ok: true });
         expect(mock.rpc.mock.calls[1]).toEqual(["revoke_guardian_permission", { p_receipt: receipt }]);

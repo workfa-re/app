@@ -5,6 +5,7 @@ import { getSafeInternalRedirect } from "@/lib/safe-redirect";
 import type { OnboardingStep } from "@/lib/onboardingFlow";
 import { isIncompletePrivateProviderProfile } from "@/lib/guardian/workspace";
 import { guardianReturnPath } from "@/lib/guardian/navigation";
+import { hasCompleteProviderAddress } from "@/lib/provider-address";
 
 // server component
 export default async function OnboardingPage(props: {
@@ -59,7 +60,8 @@ export default async function OnboardingPage(props: {
   if (authState.state === "incomplete-profile" && !forcedStep) {
     forcedStep = "role";
   }
-  if (providerUpgrade) forcedStep = initialProfile?.market_id && initialProfile.city ? "summary" : "location";
+  if (providerUpgrade) forcedStep = initialProfile?.market_id && initialProfile.city
+    ? hasCompleteProviderAddress(initialProfile) ? "summary" : "address" : "location";
 
   if (isJustVerified) {
     forcedStep = "email-confirm";

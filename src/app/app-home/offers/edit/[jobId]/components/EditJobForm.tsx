@@ -165,7 +165,7 @@ export function EditJobForm({ job, marketName, paymentRequired = false, resumePu
                 />
             </div>
 
-            <fieldset>
+            {job.job_kind === "recurring" && <fieldset>
                 <legend className={styles.label}>Jobart</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <JobKindOption
@@ -190,7 +190,7 @@ export function EditJobForm({ job, marketName, paymentRequired = false, resumePu
                         <Lock size={12} /> Die Jobart bleibt während eines laufenden Bewerbungsablaufs unverändert.
                     </p>
                 ) : null}
-            </fieldset>
+            </fieldset>}
 
             <AnimatePresence initial={false}>
                 {jobKind === "recurring" ? (

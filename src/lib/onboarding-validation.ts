@@ -1,5 +1,28 @@
 import type { OnboardingRole } from "@/lib/types";
 
+export type ProviderOnboardingAddress = {
+  street: string;
+  houseNumber: string;
+  city: string;
+  zip: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+export function getProviderOnboardingAddressError(address: ProviderOnboardingAddress | null | undefined): string | null {
+  if (!address || typeof address !== "object" || typeof address.street !== "string" || typeof address.houseNumber !== "string"
+    || typeof address.city !== "string" || typeof address.zip !== "string"
+    || !address.street.trim() || address.street.trim().length > 160
+    || !address.houseNumber.trim() || address.houseNumber.trim().length > 24
+    || address.city.trim().length < 2 || address.city.trim().length > 120
+    || !/^\d{5}$/.test(address.zip.trim())) return "Bitte wähle deine vollständige Adresse mit Hausnummer aus.";
+  if (typeof address.latitude !== "number" || !Number.isFinite(address.latitude) || Math.abs(address.latitude) > 90
+    || typeof address.longitude !== "number" || !Number.isFinite(address.longitude) || Math.abs(address.longitude) > 180) {
+    return "Bitte wähle deine Adresse aus den Suchvorschlägen.";
+  }
+  return null;
+}
+
 /** Parse calendar dates without treating an ISO date-only value as UTC. */
 export function validateOnboardingBirthdate(value: string, role?: OnboardingRole | null, now = new Date()) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
