@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { Pause, Play } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { createPaymentMotionRuntime, type MotionIntent, type MotionPlayback } from "./payment-motion-runtime";
 import styles from "./Payments.module.css";
 
 /** Decorative local media: no third-party player, audio, tracking or financial claims. */
@@ -11,47 +13,39 @@ export function PaymentMotion() {
     const { resolvedTheme, isHydrated } = useTheme();
     const container = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
-    const [playing, setPlaying] = useState(false);
-    const [visible, setVisible] = useState(true);
-    const [intersects, setIntersects] = useState(true);
-    const [readyTheme, setReadyTheme] = useState<string | null>(null);
+    const intent = useRef<MotionIntent>("auto");
+    const runtime = useRef<ReturnType<typeof createPaymentMotionRuntime> | null>(null);
+    const [playback, setPlayback] = useState<MotionPlayback & { theme: string } | null>(null);
     const theme = resolvedTheme === "dark" ? "dark" : "light";
-
-    useEffect(() => {
-        const motion = matchMedia("(prefers-reduced-motion: reduce)");
-        const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-        const preference = () => setPlaying(!motion.matches && !connection?.saveData);
-        const visibility = () => setVisible(document.visibilityState !== "hidden");
-        preference(); visibility();
-        motion.addEventListener("change", preference);
-        document.addEventListener("visibilitychange", visibility);
-        return () => { motion.removeEventListener("change", preference); document.removeEventListener("visibilitychange", visibility); };
-    }, []);
-    useEffect(() => {
-        if (!container.current || typeof IntersectionObserver === "undefined") return;
-        const observer = new IntersectionObserver(([entry]) => setIntersects(entry.isIntersecting), { threshold: .05 });
-        observer.observe(container.current);
-        return () => observer.disconnect();
-    }, []);
+    const playing = playback?.theme === theme && playback.playing;
+    const ready = playback?.theme === theme && playback.ready;
+    const reduceMotion = playback?.reducedMotion ?? true;
     useEffect(() => {
         const element = video.current;
-        if (!element || !isHydrated) return;
-        let current = true;
-        if (playing && visible && intersects) void element.play().catch(() => { if (current) setPlaying(false); });
-        else element.pause();
-        return () => { current = false; element.pause(); };
-    }, [playing, visible, intersects, theme, isHydrated]);
+        const parent = container.current;
+        if (!element || !parent || !isHydrated) return;
+        const controller = createPaymentMotionRuntime(element, parent, `/media/pay/workfare-pay-bridge-v3-${theme}.mp4`, intent.current,
+            (state) => setPlayback({ ...state, theme }));
+        runtime.current = controller;
+        return () => { controller.dispose(); if (runtime.current === controller) runtime.current = null; };
+    }, [theme, isHydrated]);
 
     return <div ref={container} className={styles.motion}>
         <div className={styles.motionVisual} aria-hidden="true">
-            <Image src="/media/pay/workfare-pay-bridge-v2-light.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterLight} />
-            <Image src="/media/pay/workfare-pay-bridge-v2-dark.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterDark} />
+            <Image src="/media/pay/workfare-pay-bridge-v3-light.webp" alt="" fill sizes="(max-width: 600px) 100vw, 660px" className={styles.posterLight} />
+            <Image src="/media/pay/workfare-pay-bridge-v3-dark.webp" alt="" fill sizes="(max-width: 600px) 100vw, 660px" className={styles.posterDark} />
             <video ref={video} key={theme} muted playsInline loop preload="none" tabIndex={-1}
-                src={isHydrated && (playing || readyTheme === theme) ? `/media/pay/workfare-pay-bridge-loop-v2-${theme}.mp4` : undefined}
-                poster={`/media/pay/workfare-pay-bridge-v2-${theme}.jpg`} onError={() => { setReadyTheme(null); setPlaying(false); }}
-                onLoadedData={() => setReadyTheme(theme)} className={styles.motionVideo} data-ready={readyTheme === theme} />
+                poster={`/media/pay/workfare-pay-bridge-v3-${theme}.webp`} className={styles.motionVideo} data-ready={ready} />
         </div>
-        <button type="button" className={styles.motionToggle} aria-pressed={playing} aria-label={playing ? "Animation pausieren" : "Animation abspielen"}
-            onClick={() => setPlaying(value => !value)}>{playing ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}</button>
+        <button type="button" className={`app-glass-control ${styles.motionToggle}`} aria-pressed={playing} aria-label={playing ? "Animation pausieren" : "Animation abspielen"}
+            onClick={() => { intent.current = playing ? "pause" : "play"; runtime.current?.setIntent(intent.current); }}>
+            <AnimatePresence initial={false}>
+                <motion.span key={playing ? "pause" : "play"} style={{ gridArea: "1 / 1", display: "grid", placeItems: "center" }}
+                    initial={reduceMotion ? false : { opacity: 0, scale: .25, filter: "blur(4px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: .25, filter: "blur(4px)" }} transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: .3, bounce: 0 }}>
+                    {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+                </motion.span>
+            </AnimatePresence>
+        </button>
     </div>;
 }

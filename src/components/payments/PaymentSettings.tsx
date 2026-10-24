@@ -69,7 +69,7 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
 
     return <div className={styles.page}>
         <Link href={returnTo || "/app-home/settings"} prefetch={false} className={styles.back}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
-        <header className={`${styles.header} ${styles.hero}`}><PaymentMotion /><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div></header>
+        <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
         <div className={styles.stack} key={kind}>
             {result === "canceled" && <p role="status" className={styles.feedback}>Einrichtung abgebrochen. Dein bisheriger Stand bleibt erhalten.</p>}
             {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}
