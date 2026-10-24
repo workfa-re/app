@@ -30,7 +30,7 @@ describe("protected pages start their data without waiting for header notificati
     beforeEach(() => {
         vi.clearAllMocks();
         state.context.mockResolvedValue({ profile: { id: "provider", market_id: "market" }, effectiveView: { viewRole: "job_provider" }, accountEmail: "synthetic@example.invalid" });
-        state.access.mockResolvedValue({ isVerified: true });
+        state.access.mockResolvedValue({ isVerified: false, canCreateJobs: true });
         state.market.mockResolvedValue({ display_name: "Teststadt" });
         state.payment.mockResolvedValue({ kind: "disabled", featureEnabled: false, buyerReady: false, method: null, recipientStatus: "not_started" });
         state.rpc.mockResolvedValue({ data: [], error: null });
@@ -63,7 +63,7 @@ describe("protected pages start their data without waiting for header notificati
         expect(state.payment).not.toHaveBeenCalled();
     });
 
-    it("reuses the request-scoped market summary for verified job creation", async () => {
+    it("reuses the request-scoped market summary for address-complete job creation", async () => {
         renderToStaticMarkup(await NewOfferPage());
         expect(state.market).toHaveBeenCalledWith("market");
         expect(state.payment).toHaveBeenCalledExactlyOnceWith("provider");
@@ -78,8 +78,8 @@ describe("protected pages start their data without waiting for header notificati
         expect(state.createForm.mock.calls[0][0]).not.toHaveProperty("method");
     });
 
-    it("keeps the verification redirect ahead of form and market loading", async () => {
-        state.access.mockResolvedValue({ isVerified: false });
+    it("keeps the address redirect ahead of form and market loading", async () => {
+        state.access.mockResolvedValue({ isVerified: true, canCreateJobs: false });
         await expect(NewOfferPage()).rejects.toThrow("REDIRECT:/app-home/profile?focus=provider-verification&from=create-job");
         expect(state.market).not.toHaveBeenCalled();
         expect(state.payment).not.toHaveBeenCalled();

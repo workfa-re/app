@@ -12,6 +12,13 @@ Zahlungsmittel und Zahlungsbereitschaft bleiben ein eigener Workfare-Pay-
 Schritt. Eine bestätigte Karte ist kein Ausweis- oder Wohnadressnachweis.
 Die bestehenden Zahlungsfreigaben werden durch den Adressfix nicht geändert.
 
+Separat ist für diesen Pilotablauf die Veröffentlichungssperre bei fehlendem
+Zahlungsmittel aktiviert: vollständige Adresse → Zahlungsmittel hinterlegen →
+ausdrücklich veröffentlichen. Der aktuelle Produktions-Trigger wurde im
+Rollback mit einem vollständig adressierten Anbieter ohne Zahlungsmittel
+geprüft und weist ihn mit `buyer_payment_required` zurück. Der Empfänger-
+Reservierungszwang bleibt unverändert deaktiviert. Keine Testzahlung nötig.
+
 ## Nächster Ausbau
 
 1. Adresse als kurzen Anbieter-Onboarding-Schritt integrieren; spätere Änderung

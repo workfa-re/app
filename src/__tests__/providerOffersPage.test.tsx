@@ -8,7 +8,7 @@ vi.mock("@/lib/dal/platform", () => ({ fetchJobs: state.fetchJobs }));
 vi.mock("@/lib/app-shell", () => ({
     getAppHomeContext: async () => ({ profile: { id: "provider", market_id: "market", lat: null, lng: null }, effectiveView: { viewRole: "job_provider" } }),
     getMarketSummary: state.market,
-    getAppHomeAccess: async () => ({ isVerified: true }),
+    getAppHomeAccess: async () => ({ isVerified: false, canCreateJobs: true }),
 }));
 vi.mock("@/components/layout/AppNavigationProvider", () => ({ AppRouteReady: () => null }));
 vi.mock("@/components/ui/CumulativeLoadMoreLink", () => ({ CumulativeLoadMoreLink: () => null }));

@@ -80,6 +80,6 @@ describe("edit publication checks the private buyer evidence", () => {
     it("keeps address approval separate from a ready buyer method during reopening", async () => {
         state.payment.mockResolvedValue({ featureEnabled: true, buyerReady: true });
         state.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "provider_verification_required" } });
-        expect(await updateJobAction(jobId, validForm())).toMatchObject({ success: false, code: "provider_verification_required", error: expect.stringContaining("Adresse im Profil prüfen") });
+        expect(await updateJobAction(jobId, validForm())).toMatchObject({ success: false, code: "provider_verification_required", error: expect.stringContaining("Ergänze deine Adresse im Profil") });
     });
 });
