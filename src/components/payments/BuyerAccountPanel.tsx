@@ -132,7 +132,7 @@ function initialBilling(details: BuyerBillingDetails | null): BuyerBillingInput 
         city: details?.address?.city ?? "", country: "DE",
     } };
 }
-function Billing({ snapshot, onSaved, onSavingChange, isOwnerCurrent }: { snapshot: BuyerAccountSnapshot; onSaved: (details: BuyerBillingDetails) => void; onSavingChange: (saving: boolean) => void; isOwnerCurrent: () => boolean }) {
+function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCurrent }: { snapshot: BuyerAccountSnapshot; onSaved: (details: BuyerBillingDetails) => void; onSavingChange: (saving: boolean) => void; onEditingChange: (editing: boolean) => void; isOwnerCurrent: () => boolean }) {
     const fieldId = useId();
     const editRef = useRef<HTMLButtonElement>(null);
     const firstField = useRef<HTMLInputElement>(null);
@@ -145,6 +145,10 @@ function Billing({ snapshot, onSaved, onSavingChange, isOwnerCurrent }: { snapsh
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
     useEffect(() => { mounted.current = true; return () => { mounted.current = false; onSavingChange(false); }; }, [onSavingChange]);
+    useEffect(() => {
+        onEditingChange(editing);
+        return () => onEditingChange(false);
+    }, [editing, onEditingChange]);
     useEffect(() => {
         if (editing) firstField.current?.focus();
         else if (wasEditing.current) editRef.current?.focus();
@@ -231,20 +235,21 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
 }) {
     const titleId = useId();
     const [savingBilling, setSavingBilling] = useState(false);
+    const [editingBilling, setEditingBilling] = useState(false);
     return <section className={`${styles.surface} ${account.utilities}`} aria-label="Rechnungsdaten und Hilfe">
         <details className={account.billing}>
             <summary className={account.billingSummary}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
             <div className={account.billingBody} aria-labelledby={titleId} aria-busy={loading}>
             <header className={account.heading}>
                 <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
-                {!loading && !error && <button type="button" className={`app-glass-control ${styles.quietButton} ${account.refresh}`} disabled={savingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren"><RotateCw size={16} aria-hidden="true" /></button>}
+                {!loading && !error && <button type="button" className={`app-glass-control ${styles.quietButton} ${account.refresh}`} disabled={savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren"><RotateCw size={16} aria-hidden="true" /></button>}
             </header>
             {loading ? <p className={`${styles.loading} ${account.notice}`} role="status"><Loader2 size={16} className={account.spinner} aria-hidden="true" />Übersicht wird geladen …</p>
                 : error ? <div className={account.failure}><p className={styles.error} role="alert">{error}</p><button type="button" className={`app-glass-control ${styles.quietButton}`} onClick={onRetry}>Erneut versuchen</button></div>
                     : snapshot && <History snapshot={snapshot} />}
             </div>
         </details>
-        {!loading && !error && snapshot && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} isOwnerCurrent={isOwnerCurrent} />}
+        {!loading && !error && snapshot && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
         {children}
     </section>;
 }

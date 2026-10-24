@@ -10,8 +10,8 @@ describe("decorative Workfare Pay motion",()=>{
     it.each(["light","dark"])("keeps a versioned still fallback without fetching or autoplaying a video during initial %s rendering",resolvedTheme=>{
         Object.assign(theme,{resolvedTheme,isHydrated:false});
         const html=renderToStaticMarkup(<PaymentMotion/>);
-        expect(html).toContain('/media/pay/workfare-pay-bridge-v3-light.webp');
-        expect(html).toContain('/media/pay/workfare-pay-bridge-v3-dark.webp');
+        expect(html).toContain('/media/pay/v4/workfare-pay-depth-v4-light.webp');
+        expect(html).toContain('/media/pay/v4/workfare-pay-depth-v4-dark.webp');
         expect(html).toMatch(/<video[^>]*muted=""[^>]*playsInline=""[^>]*loop=""[^>]*preload="none"/);
         expect(html).not.toMatch(/<video[^>]*\ssrc=/);expect(html).not.toMatch(/\sautoPlay=|\scontrols=|<iframe/);
         expect(html).toContain('aria-label="Animation abspielen"');expect(html).toContain('aria-pressed="false"');
@@ -22,6 +22,6 @@ describe("decorative Workfare Pay motion",()=>{
         Object.assign(theme,{resolvedTheme:"dark",isHydrated:true});
         const html=renderToStaticMarkup(<PaymentMotion/>);
         expect(html).not.toMatch(/<video[^>]*\ssrc=/);
-        expect(html).toContain('poster="/media/pay/workfare-pay-bridge-v3-dark.webp"');
+        expect(html).toContain('poster="/media/pay/v4/workfare-pay-depth-v4-dark.webp"');
     });
 });

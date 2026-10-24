@@ -24,7 +24,7 @@ export function PaymentMotion() {
         const element = video.current;
         const parent = container.current;
         if (!element || !parent || !isHydrated) return;
-        const controller = createPaymentMotionRuntime(element, parent, `/media/pay/workfare-pay-bridge-v3-${theme}.mp4`, intent.current,
+        const controller = createPaymentMotionRuntime(element, parent, `/media/pay/v4/workfare-pay-depth-v4-${theme}.mp4`, intent.current,
             (state) => setPlayback({ ...state, theme }));
         runtime.current = controller;
         return () => { controller.dispose(); if (runtime.current === controller) runtime.current = null; };
@@ -32,10 +32,10 @@ export function PaymentMotion() {
 
     return <div ref={container} className={styles.motion}>
         <div className={styles.motionVisual} aria-hidden="true">
-            <Image src="/media/pay/workfare-pay-bridge-v3-light.webp" alt="" fill sizes="(max-width: 600px) 100vw, 660px" className={styles.posterLight} />
-            <Image src="/media/pay/workfare-pay-bridge-v3-dark.webp" alt="" fill sizes="(max-width: 600px) 100vw, 660px" className={styles.posterDark} />
+            <Image src="/media/pay/v4/workfare-pay-depth-v4-light.webp" alt="" fill sizes="(max-width: 1128px) 100vw, 1280px" className={styles.posterLight} />
+            <Image src="/media/pay/v4/workfare-pay-depth-v4-dark.webp" alt="" fill sizes="(max-width: 1128px) 100vw, 1280px" className={styles.posterDark} />
             <video ref={video} key={theme} muted playsInline loop preload="none" tabIndex={-1}
-                poster={`/media/pay/workfare-pay-bridge-v3-${theme}.webp`} className={styles.motionVideo} data-ready={ready} />
+                poster={`/media/pay/v4/workfare-pay-depth-v4-${theme}.webp`} className={styles.motionVideo} data-ready={ready} />
         </div>
         <button type="button" className={`app-glass-control ${styles.motionToggle}`} aria-pressed={playing} aria-label={playing ? "Animation pausieren" : "Animation abspielen"}
             onClick={() => { intent.current = playing ? "pause" : "play"; runtime.current?.setIntent(intent.current); }}>

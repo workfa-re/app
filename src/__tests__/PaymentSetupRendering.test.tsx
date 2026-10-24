@@ -26,10 +26,10 @@ describe("truthful payment setup states",()=>{
     });
     it("offers explicitly enabled live setup without claiming publication is already mandatory",()=>{
         const html=renderToStaticMarkup(<BuyerPaymentMethod initial={{...buyer,kind:"live",featureEnabled:false,setupEnabled:true}} returnTo={null}/>);
-        expect(html).toContain("Zahlungsmittel hinzufügen");expect(html).toContain("für kommende Aufträge");
+        expect(html).toContain("Zahlungsmittel einrichten");expect(html).toContain("für kommende Aufträge");
         expect(html).not.toContain("vor dem Veröffentlichen");expect(html).not.toContain("Test-Zahlungsmittel");
         const off=renderToStaticMarkup(<BuyerPaymentMethod initial={{...buyer,kind:"live",featureEnabled:false,setupEnabled:false}} returnTo={null}/>);
-        expect(off).not.toContain("Zahlungsmittel hinzufügen");
+        expect(off).not.toContain("Zahlungsmittel einrichten");
     });
     it("preserves a separately enabled recipient setup while respecting recipient canStart",()=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"live",featureEnabled:false,setupEnabled:true}} returnTo={null}/>);

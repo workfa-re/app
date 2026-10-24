@@ -32,6 +32,7 @@ export function recipientFinancialActionsEnabled(snapshot: RecipientSettingsSnap
 
 export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned = false }: { initial: RecipientSettingsSnapshot | null; returnTo: string | null; ownerId?: string; hostedReturned?: boolean }) {
     const router = useRouter();
+    const initialKind = initial?.kind;
     const { isCurrentOwner, ownerChanged } = usePaymentOwner(ownerId);
     const { snapshot, setSnapshot, unknown: unconfirmedStatus, setUnknown: setStatusUnknown, isCurrentSource } = usePaymentSnapshot(initial);
     const [session, setSession] = useState<RecipientSessionResult | null>(null);
@@ -43,10 +44,22 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
     const inFlight = useRef(false);
     const setupOperation = useRef<{ component: RecipientComponent; id: string } | null>(null);
     const consentRef = useRef<HTMLInputElement>(null);
+    const editorRef = useRef<HTMLFormElement>(null);
+    const embedRef = useRef<HTMLDivElement>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
     const headingRef = useRef<HTMLHeadingElement>(null);
     const consentId = useId();
     const handledHostedReturn = useRef(false);
+    const restoreFocus = useCallback(() => {
+        requestAnimationFrame(() => (editButtonRef.current ?? headingRef.current)?.focus({ preventScroll: true }));
+    }, []);
+    useEffect(() => {
+        if (!editing && !session) return;
+        const frame = requestAnimationFrame(() => {
+            (session ? embedRef.current : editorRef.current)?.scrollIntoView({ block: "nearest", behavior: "auto" });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [editing, session]);
     const statusUnknown = unconfirmedStatus || (isStripeSurfaceKind(snapshot?.kind) && snapshot?.status === "pending" && snapshot.checkedAt === null);
     const ready = snapshot?.status === "ready" && !statusUnknown;
     const local = snapshot?.kind === "local";
@@ -71,7 +84,7 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         inFlight.current = true; setBusy(true); setError(null); setStatusUnknown(true);
         try {
             const result = await paymentRequest<{ ok: boolean; snapshot: RecipientSettingsSnapshot }>("/api/payments/recipient/sync", {}, undefined, ownerId ?? "");
-            if (result.ok !== true || !result.snapshot || result.snapshot.kind !== initial?.kind) throw new Error("not_confirmed");
+            if (result.ok !== true || !result.snapshot || result.snapshot.kind !== initialKind) throw new Error("not_confirmed");
             if (!isCurrentSource() || !isCurrentOwner()) { router.refresh(); return; }
             setSnapshot(result.snapshot); setStatusUnknown(false);
             if (result.snapshot.status === "ready") {
@@ -87,13 +100,18 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
             setError(paymentErrorMessage(failure));
         }
         finally { setBusy(false); inFlight.current = false; }
-    }, [returnTo, router, setSnapshot, setStatusUnknown, isCurrentSource, isCurrentOwner, ownerId, initial?.kind]);
+    }, [returnTo, router, setSnapshot, setStatusUnknown, isCurrentSource, isCurrentOwner, ownerId, initialKind]);
     useEffect(() => {
         if (!hostedReturned || handledHostedReturn.current) return;
         const frame = requestAnimationFrame(() => { handledHostedReturn.current = true; void sync(true); });
         return () => cancelAnimationFrame(frame);
     }, [hostedReturned, sync]);
-    const onStripeExit = useCallback(() => { void sync(true); }, [sync]);
+    const onStripeExit = useCallback(() => {
+        if (session && session.component !== "onboarding" && session.component !== "management") {
+            setSession(null); setEditing(false); setConsent(false); setError(null);
+            restoreFocus();
+        } else void sync(true);
+    }, [sync, session, restoreFocus]);
     const onNotificationChanged = useCallback(async () => {
         await sync(false);
         requestAnimationFrame(() => headingRef.current?.focus({ preventScroll: true }));
@@ -125,7 +143,7 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         inFlight.current = true; setBusy(true); setError(null);
         try {
             const result = await paymentRequest<{ ok: boolean; snapshot: RecipientSettingsSnapshot }>("/api/payments/recipient/local", { sessionId: session.sessionId, outcome }, undefined, ownerId ?? "");
-            if (result.ok !== true || !result.snapshot || result.snapshot.kind !== initial?.kind) throw new Error("not_confirmed");
+            if (result.ok !== true || !result.snapshot || result.snapshot.kind !== initialKind) throw new Error("not_confirmed");
             setupOperation.current = null;
             if (!isCurrentSource() || !isCurrentOwner()) { setSession(null); setEditing(false); setConsent(false); router.refresh(); restoreFocus(); return; }
             setSnapshot(result.snapshot); setStatusUnknown(false); setSession(null); setEditing(false); setConsent(false);
@@ -144,9 +162,6 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         setupOperation.current = null;
         setEditing(true); setConsent(false); setError(null); setFeedback(null);
         requestAnimationFrame(() => consentRef.current?.focus({preventScroll:true}));
-    }
-    function restoreFocus() {
-        requestAnimationFrame(() => (editButtonRef.current ?? headingRef.current)?.focus({preventScroll:true}));
     }
     async function close() {
         if (inFlight.current || !isCurrentOwner()) return;
@@ -174,9 +189,9 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
                 {!canStart && !ready && <p className={styles.smallCopy}>{snapshot?.eligibility === "minor_review_required" ? "Dein Elternteil richtet die Auszahlung im Familienbereich mit Stripe ein. Die Auszahlung bleibt bis zum Abschluss der Prüfung gesperrt." : "Die Auszahlungseinrichtung ist für dieses Konto noch nicht freigeschaltet."}</p>}
                 {snapshot?.eligibility === "minor_review_required" && <Link href="/guardian/access" className={`app-glass-control ${styles.action}`}><ArrowRight size={17} aria-hidden="true" />Zur Familie</Link>}
             </>}
-            {editing && !session && <form className={styles.editor} onSubmit={event => { event.preventDefault(); void start(ready ? "management" : "onboarding"); }}><p className={styles.editorIntro}>{local ? "Du prüfst den Ablauf ohne echte Bankdaten und ohne Auszahlung." : !ready ? "Beim ersten Einrichten übernehmen wir deinen Namen und deine bestätigte E-Mail. Bank- und Prüfdaten gibst du direkt bei Stripe ein." : "Stripe führt dich durch die benötigten Angaben. Bank- und Prüfdaten bleiben bei Stripe."}</p><label className={styles.consent} htmlFor={consentId}><input ref={consentRef} id={consentId} type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} disabled={busy} /><span>{local ? "Ich möchte die Auszahlungseinrichtung mit Testdaten ausprobieren." : ready ? "Ich möchte meine Auszahlungsdaten bei Stripe verwalten." : "Ich möchte meine Auszahlung bei Stripe einrichten und dafür die erforderlichen Angaben machen."}</span></label><div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={busy || !consent}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Weiter</button><button type="button" className={styles.quietButton} disabled={busy} onClick={() => void close()}>Abbrechen</button></div></form>}
-            {session && session.kind !== "local" && isStripeSurfaceKind(session.kind) && <div className={styles.embedded}><PaymentEmbedBoundary onCancel={() => void close()}><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} clientSecret={session.clientSecret} publishableKey={session.publishableKey} component={session.component} onExit={onStripeExit} onError={onStripeError} onRetry={onStripeRetry} /></PaymentEmbedBoundary>{session.component === "management" && <button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void sync(true)} disabled={busy}>Fertig</button>}</div>}
-            {session?.kind === "local" && <div className={styles.editor}>{session.component === "onboarding" || session.component === "management" ? <><div className={styles.localPreview}><Wallet size={27} /><div><strong>Test-Auszahlung</strong><span>Keine IBAN, kein Ausweis und kein echtes Geld.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void localFinish("complete")} disabled={busy}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} onClick={() => void localFinish("cancel")} disabled={busy}>Abbrechen</button></div></> : <p className={styles.smallCopy}>In der lokalen Simulation gibt es keine Geldbewegungen. Echte Testdaten werden hier im Stripe-Testbetrieb angezeigt.</p>}</div>}
+            {editing && !session && <form ref={editorRef} className={styles.editor} onSubmit={event => { event.preventDefault(); void start(ready ? "management" : "onboarding"); }}><p className={styles.editorIntro}>{local ? "Du prüfst den Ablauf ohne echte Bankdaten und ohne Auszahlung." : !ready ? "Beim ersten Einrichten übernehmen wir deinen Namen und deine bestätigte E-Mail. Bank- und Prüfdaten gibst du direkt bei Stripe ein." : "Stripe führt dich durch die benötigten Angaben. Bank- und Prüfdaten bleiben bei Stripe."}</p><label className={styles.consent} htmlFor={consentId}><input ref={consentRef} id={consentId} type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} disabled={busy} /><span>{local ? "Ich möchte die Auszahlungseinrichtung mit Testdaten ausprobieren." : ready ? "Ich möchte meine Auszahlungsdaten bei Stripe verwalten." : "Ich möchte meine Auszahlung bei Stripe einrichten und dafür die erforderlichen Angaben machen."}</span></label><div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={busy || !consent}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Weiter</button><button type="button" className={styles.quietButton} disabled={busy} onClick={() => void close()}>Abbrechen</button></div></form>}
+            {session && session.kind !== "local" && isStripeSurfaceKind(session.kind) && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={() => void close()}><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} clientSecret={session.clientSecret} publishableKey={session.publishableKey} component={session.component} onExit={onStripeExit} onError={onStripeError} onRetry={onStripeRetry} /></PaymentEmbedBoundary>{session.component === "management" && <button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void sync(true)} disabled={busy}>Fertig</button>}</div>}
+            {session?.kind === "local" && <div ref={embedRef} className={styles.editor}>{session.component === "onboarding" || session.component === "management" ? <><div className={styles.localPreview}><Wallet size={27} /><div><strong>Test-Auszahlung</strong><span>Keine IBAN, kein Ausweis und kein echtes Geld.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void localFinish("complete")} disabled={busy}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} onClick={() => void localFinish("cancel")} disabled={busy}>Abbrechen</button></div></> : <p className={styles.smallCopy}>In der lokalen Simulation gibt es keine Geldbewegungen. Echte Testdaten werden hier im Stripe-Testbetrieb angezeigt.</p>}</div>}
             {error && <p role="alert" className={styles.error}>{error}</p>}{feedback && !error && <p role="status" className={styles.feedback}><Check size={15} />{feedback}</p>}
             {snapshot && isStripeSurfaceKind(snapshot.kind) && canStart && snapshot.eligibility === "adult" && ownerId && (session?.kind === snapshot.kind || snapshot.status !== "not_started") && <RecipientHostedFallback key={ownerId} ownerId={ownerId} kind={snapshot.kind} returnTo={returnTo} />}
         </section>

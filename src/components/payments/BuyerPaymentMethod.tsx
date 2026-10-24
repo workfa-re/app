@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, CreditCard, Loader2, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
+import { ArrowRight, Check, CreditCard, Loader2, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import type { PaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 import { sanitizePaymentReturnPath } from "@/lib/payments/return-path";
@@ -22,6 +22,15 @@ type SetupResult = Setup | { kind: "complete"; sessionId: string; returnTo: stri
 type Props = { initial: PaymentSettingsSnapshot; returnTo: string | null; resumeSetupId?: string | null; onChanged?: () => void; ownerId?: string };
 const cardBrands: Record<string, string> = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", diners: "Diners Club", discover: "Discover", jcb: "JCB", unionpay: "UnionPay" };
 
+/** A finished Stripe frame is not proof that the owner-bound method was stored. */
+export async function confirmBuyerSetupSession(sessionId: string, ownerId: string, kind: PaymentSettingsSnapshot["kind"]) {
+    const result = await paymentRequest<{ status: string; returnTo: string | null }>("/api/payments/setup/sync", { sessionId }, undefined, ownerId);
+    const snapshot = await paymentRequest<PaymentSettingsSnapshot>("/api/payments/status", undefined, undefined, ownerId);
+    if (snapshot.kind !== kind) throw new Error("payment_mode_changed");
+    if (result.status !== "complete" || !snapshot.buyerReady || !snapshot.method) throw new Error("not_ready");
+    return { snapshot, returnTo: sanitizePaymentReturnPath(result.returnTo) };
+}
+
 export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged, ownerId }: Props) {
     const router = useRouter();
     const { resolvedTheme } = useTheme();
@@ -39,6 +48,8 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
     const operationTheme = useRef<"light" | "dark" | null>(null);
     const inFlight = useRef(false);
     const consentRef = useRef<HTMLInputElement>(null);
+    const editorRef = useRef<HTMLFormElement>(null);
+    const embedRef = useRef<HTMLDivElement>(null);
     const headingRef = useRef<HTMLHeadingElement>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -48,6 +59,15 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
     const removeTitleId = useId();
     const ready = snapshot.buyerReady && snapshot.method !== null && !unknown;
     const setupAvailable = snapshot.featureEnabled || snapshot.setupEnabled === true;
+
+    useEffect(() => {
+        if (!editing) return;
+        const frame = requestAnimationFrame(() => {
+            const target = setup ? embedRef.current : editorRef.current;
+            target?.scrollIntoView({ block: "nearest", behavior: "auto" });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [editing, setup]);
 
     useEffect(() => {
         if (!menu) return;
@@ -62,15 +82,12 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
         if (inFlight.current || !isCurrentOwner()) return;
         inFlight.current = true; setBusy("confirm"); setError(null);
         try {
-            const result = await paymentRequest<{ status: string; returnTo: string | null }>("/api/payments/setup/sync", { sessionId }, undefined, ownerId ?? "");
-            const current = await paymentRequest<PaymentSettingsSnapshot>("/api/payments/status", undefined, undefined, ownerId ?? "");
+            const { snapshot: current, returnTo: confirmedReturn } = await confirmBuyerSetupSession(sessionId, ownerId ?? "", initial.kind);
             if (!isCurrentSource() || !isCurrentOwner()) { router.refresh(); return; }
-            if (current.kind !== initial.kind) throw new Error("payment_mode_changed");
             setSnapshot(current); setUnknown(false);
-            if (result.status !== "complete" || !current.buyerReady || !current.method) throw new Error("not_ready");
             setSetup(null); setEditing(false); setConsent(false); operationId.current = null; operationTheme.current = null;
             onChanged?.();
-            const destination = sanitizePaymentReturnPath(result.returnTo);
+            const destination = confirmedReturn;
             if (destination) { router.replace(destination); router.refresh(); }
             else { setFeedback("Zahlungsmittel hinterlegt."); headingRef.current?.focus({preventScroll:true}); }
         } catch (failure) { if (!isCurrentSource() || !isCurrentOwner()) { router.refresh(); return; } setUnknown(true); setError(paymentErrorMessage(failure)); }
@@ -178,23 +195,24 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
                 </div>
             </div>
         </div> : !editing && <div className={styles.emptyMethod}>
-            <p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Bereit für deinen ersten Job?" : "Die Einrichtung ist noch nicht verfügbar."}</p>
+            <span className={styles.cardMark} aria-hidden="true"><CreditCard size={26} strokeWidth={1.5} /></span>
+            <p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Bereit für deinen ersten Job." : "Die Einrichtung ist noch nicht verfügbar."}</p>
             <span>{unknown ? "Bitte lade den Status neu, bevor du fortfährst." : snapshot.featureEnabled ? "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Jetzt wird nichts abgebucht." : setupAvailable ? "Hinterlege dein Zahlungsmittel für kommende Aufträge. Jetzt wird nichts abgebucht." : "Du kannst dein Konto und deine Jobentwürfe weiter vorbereiten."}</span>
-            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={Boolean(busy)}><Plus size={17} />Zahlungsmittel hinzufügen</button>}
+            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={Boolean(busy)}><ArrowRight size={17} />Zahlungsmittel einrichten</button>}
         </div>}
 
-        {editing && !setup && <form className={styles.editor} onSubmit={start}>
+        {editing && !setup && <form ref={editorRef} className={styles.editor} onSubmit={start}>
             <p className={styles.editorIntro}>{ready ? "Das bisherige Zahlungsmittel bleibt bis zum bestätigten Austausch erhalten." : "Heute wird nichts abgebucht. Eine spätere Zahlung bestätigst du gesondert."}</p>
             <label className={styles.consent} htmlFor={consentId}><input ref={consentRef} type="checkbox" id={consentId} checked={consent} onChange={event => setConsent(event.target.checked)} disabled={Boolean(busy)} /><span>{snapshot.kind === "local" ? "Ich möchte den Ablauf mit einem Test-Zahlungsmittel ausprobieren. Es findet keine Zahlung statt." : "Stripe darf mein Zahlungsmittel für künftige Aufträge speichern."}</span></label>
             <div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={!consent || Boolean(busy)}>{busy === "start" ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Sicher einrichten</button><button type="button" className={styles.quietButton} onClick={closeEditor} disabled={Boolean(busy)}>Abbrechen</button></div>
         </form>}
 
-        {setup?.kind === "embedded" && <div className={styles.embedded}><PaymentEmbedBoundary onCancel={closeEditor}><EmbeddedBuyerSetup publishableKey={setup.publishableKey} clientSecret={setup.clientSecret} onComplete={onStripeComplete} onCancel={closeEditor} /></PaymentEmbedBoundary>{busy === "confirm" && <p className={styles.loading} role="status">Zahlungsmittel wird geprüft …</p>}</div>}
-        {setup?.kind === "local" && <div className={styles.editor}><div className={styles.localPreview}><CreditCard size={26} strokeWidth={1.5} /><div><strong>Lokales Test-Zahlungsmittel</strong><span>Keine Karte und keine Bankdaten erforderlich.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => void finishLocal("complete")}>{busy === "confirm" ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} disabled={Boolean(busy)} onClick={() => void finishLocal("cancel")}>Abbrechen</button></div></div>}
+        {setup?.kind === "embedded" && !unknown && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={closeEditor}><EmbeddedBuyerSetup publishableKey={setup.publishableKey} clientSecret={setup.clientSecret} onComplete={onStripeComplete} onCancel={closeEditor} /></PaymentEmbedBoundary>{busy === "confirm" && <p className={styles.loading} role="status">Zahlungsmittel wird geprüft …</p>}</div>}
+        {setup?.kind === "local" && !unknown && <div ref={embedRef} className={styles.editor}><div className={styles.localPreview}><CreditCard size={26} strokeWidth={1.5} /><div><strong>Lokales Test-Zahlungsmittel</strong><span>Keine Karte und keine Bankdaten erforderlich.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => void finishLocal("complete")}>{busy === "confirm" ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} disabled={Boolean(busy)} onClick={() => void finishLocal("cancel")}>Abbrechen</button></div></div>}
 
         {removing && <div className={styles.confirmation} role="group" aria-labelledby={removeTitleId}><h3 id={removeTitleId}>Zahlungsmittel entfernen?</h3><p>Für einen neuen Job brauchst du anschließend wieder eines. Bestehende Aufträge bleiben erhalten.</p><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={remove} disabled={Boolean(busy)}>{busy === "remove" && <Loader2 size={16} className={styles.spinner} />}Entfernen</button><button type="button" ref={keepButtonRef} className={styles.quietButton} onClick={() => { setRemoving(false); restoreFocus(); }} disabled={Boolean(busy)}>Behalten</button></div></div>}
         {snapshot.pendingRemoval && <div className={styles.notice}><p>Eine frühere Karte muss bei Stripe noch entfernt werden. Dein aktuelles Zahlungsmittel bleibt dabei erhalten.</p><button type="button" className={styles.textAction} disabled={Boolean(busy)} onClick={() => void refreshOrCleanup(true)}>Entfernung abschließen</button></div>}
-        {unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => void refreshOrCleanup(false)}>Status neu laden</button>}
+        {unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => setup ? void confirmed(setup.sessionId) : void refreshOrCleanup(false)}>{setup ? "Einrichtung prüfen" : "Status neu laden"}</button>}
         {error && <p className={styles.error} role="alert">{error}</p>}
         {feedback && !error && <p className={styles.feedback} role="status"><Check size={15} />{feedback}</p>}
         {setupAvailable && !editing && !unknown && <BuyerPaymentOptions />}
