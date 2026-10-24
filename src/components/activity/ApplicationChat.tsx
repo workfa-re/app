@@ -46,6 +46,7 @@ import { useAppointmentRequests } from "./useAppointmentRequests";
 import detailsStyles from "./ChatDetails.module.css";
 import { ReportDialog } from "./ReportDialog";
 import { getReportableContent, type ActivityReportInput } from "@/lib/activity/reporting";
+import { createChatReconnectHandler, createChatRefreshQueue, mergeChatHistory, mergeChatMessages as mergeMessages } from "./chat-sync";
 
 type RealtimeState = "connecting" | "live" | "delayed";
 
@@ -96,15 +97,6 @@ type ReopenRequest = {
     resolved_at?: string | null;
 };
 
-
-function mergeMessages(current: ActivityMessage[], incoming: ActivityMessage[]) {
-    const byId = new Map(current.map((message) => [message.id, message]));
-    for (const message of incoming) byId.set(message.id, { ...byId.get(message.id), ...message });
-    return Array.from(byId.values()).sort((a, b) => {
-        const timeDifference = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-        return timeDifference || a.id.localeCompare(b.id);
-    });
-}
 
 function mergeReopenRequests(current: ReopenRequest[], incoming: ReopenRequest[]) {
     const byId = new Map(current.map((request) => [request.id, request]));
@@ -402,21 +394,8 @@ export function ApplicationChat({
         return () => cancelAnimationFrame(frame);
     }, [compactDetails, detailsOpen, scrollToEnd]);
 
-    const markRead = useCallback(async () => {
-        if (readOnly) return;
-        const result = await markApplicationMessagesRead(liveApplication.id);
-        if ("error" in result && result.error) return;
-        const readAt = new Date().toISOString();
-        setMessages((current) => current.map((message) => (
-            message.sender_id !== currentUserId && !message.read_at
-                ? { ...message, read_at: readAt }
-                : message
-        )));
-        onConversationRead?.();
-    }, [currentUserId, liveApplication.id, onConversationRead, readOnly]);
-
     useEffect(() => {
-        const generation = ++requestGenerationRef.current;
+        requestGenerationRef.current++;
         let active = true;
         initialScrollDoneRef.current = false;
         setMessages([]);
@@ -433,7 +412,54 @@ export function ApplicationChat({
             return;
         }
 
+        const readReceipts = createChatRefreshQueue(async () => {
+            const result = await markApplicationMessagesRead(liveApplication.id);
+            if ("error" in result && result.error) throw new Error(result.error);
+        }, () => {
+            const readAt = new Date().toISOString();
+            setMessages(current => current.map(message => message.sender_id !== currentUserId && !message.read_at
+                ? { ...message, read_at: readAt } : message));
+            onConversationRead?.();
+        });
+        let historyOverlay: Map<string, ActivityMessage> | null = null;
+        const rememberRealtimeMessage = (message: ActivityMessage) => {
+            if (!historyOverlay) return;
+            const previous = historyOverlay.get(message.id);
+            historyOverlay.set(message.id, mergeMessages(previous ? [previous] : [], [message])[0]);
+        };
+        const history = createChatRefreshQueue(async () => {
+            const overlay = new Map<string, ActivityMessage>();
+            historyOverlay = overlay;
+            const { data, error } = await supabaseBrowser
+                .from("messages")
+                .select("id, application_id, sender_id, content, created_at, read_at, kind, deleted_at")
+                .eq("application_id", liveApplication.id)
+                .order("created_at", { ascending: false })
+                .order("id", { ascending: false })
+                .limit(120);
+            if (error) throw error;
+            return { rows: (data ?? []) as unknown as ActivityMessage[], overlay };
+        }, ({ rows, overlay }) => {
+            const ordered = [...rows].reverse();
+            const realtimeDuringLoad = [...overlay.values()];
+            if (historyOverlay === overlay) historyOverlay = null;
+            setHasOlderMessages(current => current || rows.length === 120);
+            setMessages(current => mergeChatHistory(current, ordered, realtimeDuringLoad));
+            setLoadError(null);
+            setLoadingMessages(false);
+            if (ordered.some(message => message.sender_id !== currentUserId && !message.read_at)) void readReceipts.refresh();
+        }, () => {
+            historyOverlay = null;
+            setLoadError("Der Verlauf konnte nicht geladen werden.");
+            setLoadingMessages(false);
+        });
+        const reconnect = createChatReconnectHandler(() => { void history.refresh(); });
+        const refreshVisible = () => { if (document.visibilityState === "visible") void history.refresh(); };
+        document.addEventListener("visibilitychange", refreshVisible);
+        window.addEventListener("online", refreshVisible);
+
         const mergeReopenPayload = (payload: { new?: unknown }) => {
+            if (!active) return;
             const request = payload.new as ReopenRequest;
             if (!request?.id) return;
             setReopenRequests((current) => mergeReopenRequests(current, [request]));
@@ -450,9 +476,11 @@ export function ApplicationChat({
                     filter: `application_id=eq.${liveApplication.id}`,
                 },
                 (payload) => {
+                    if (!active) return;
                     const incoming = payload.new as ActivityMessage;
+                    rememberRealtimeMessage(incoming);
                     setMessages((current) => mergeMessages(current, [incoming]));
-                    if (incoming.sender_id !== currentUserId) void markRead();
+                    if (incoming.sender_id !== currentUserId) void readReceipts.refresh();
                     if (nearBottomRef.current || incoming.sender_id === currentUserId) {
                         requestAnimationFrame(() => scrollToEnd("smooth"));
                     } else {
@@ -469,7 +497,10 @@ export function ApplicationChat({
                     filter: `application_id=eq.${liveApplication.id}`,
                 },
                 (payload) => {
-                    setMessages((current) => mergeMessages(current, [payload.new as ActivityMessage]));
+                    if (!active) return;
+                    const incoming = payload.new as ActivityMessage;
+                    rememberRealtimeMessage(incoming);
+                    setMessages((current) => mergeMessages(current, [incoming]));
                 },
             )
             .on(
@@ -481,6 +512,7 @@ export function ApplicationChat({
                     filter: `id=eq.${liveApplication.id}`,
                 },
                 (payload) => {
+                    if (!active) return;
                     setLiveApplication((current: any) => ({ ...current, ...(payload.new as any) }));
                 },
             )
@@ -506,46 +538,24 @@ export function ApplicationChat({
             )
             .subscribe((status) => {
                 if (!active) return;
+                reconnect(status);
                 if (status === "SUBSCRIBED") setRealtimeState("live");
                 if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) setRealtimeState("delayed");
             });
 
-        const loadMessages = async () => {
-            const { data, error } = await supabaseBrowser
-                .from("messages")
-                .select("id, application_id, sender_id, content, created_at, read_at, kind, deleted_at")
-                .eq("application_id", liveApplication.id)
-                .order("created_at", { ascending: false })
-                .order("id", { ascending: false })
-                .limit(120);
-
-            if (!active || generation !== requestGenerationRef.current) return;
-            if (error) {
-                setLoadError("Der Verlauf konnte nicht geladen werden.");
-            } else {
-                const ordered = [...(data ?? [])].reverse() as unknown as ActivityMessage[];
-                setHasOlderMessages((data?.length ?? 0) === 120);
-                setMessages((current) => mergeMessages(ordered, current));
-                if (ordered.some((message) => message.sender_id !== currentUserId && !message.read_at)) {
-                    void markRead();
-                }
-            }
-            setLoadingMessages(false);
-        };
-
-        void loadMessages().catch(() => {
-            if (active && generation === requestGenerationRef.current) {
-                setLoadError("Der Verlauf konnte nicht geladen werden.");
-                setLoadingMessages(false);
-            }
-        });
+        void history.refresh();
 
         return () => {
             active = false;
+            historyOverlay = null;
             requestGenerationRef.current++;
+            history.dispose();
+            readReceipts.dispose();
+            document.removeEventListener("visibilitychange", refreshVisible);
+            window.removeEventListener("online", refreshVisible);
             void supabaseBrowser.removeChannel(channel);
         };
-    }, [currentUserId, liveApplication.id, markRead, messageReloadKey, readOnly, scrollToEnd]);
+    }, [currentUserId, liveApplication.id, messageReloadKey, onConversationRead, readOnly, scrollToEnd]);
 
     useEffect(() => {
         if (loadingMessages || initialScrollDoneRef.current) return;
@@ -819,7 +829,7 @@ export function ApplicationChat({
     }, [isWritable, stopTyping]);
 
     const conversationTimeline = useMemo(() => buildActivityTimeline<TimelineMessage, ReopenRequest>(
-        messages.map((message) => ({
+        messages.filter(message => !message.deleted_at).map((message) => ({
             ...message,
             isApplicationMessage: message.kind === "application",
             isSystemMessage: message.kind === "system",

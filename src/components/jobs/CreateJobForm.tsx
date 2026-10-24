@@ -7,7 +7,7 @@ import { useActionState, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { ErrorInfo } from "@/lib/types/platform";
 import { LocationAutocomplete, LocationDetails } from "@/components/ui/LocationAutocomplete";
-import { useJobFormPersistence } from "@/hooks/use-job-persistence";
+import { hasMeaningfulJobDraft, useJobFormPersistence, type JobDraftData } from "@/hooks/use-job-persistence";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { JOB_CATEGORIES, PaymentType } from "@/lib/constants/jobCategories";
 import styles from "./JobForm.module.css";
@@ -72,7 +72,9 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
     const reduceMotion = useReducedMotion();
 
     // Persistence Hook
-    const { draft, isLoaded, saveDraft, clearDraft } = useJobFormPersistence();
+    const { draft, hasRestoredDraft, isLoaded, saveDraft, clearDraft } = useJobFormPersistence();
+    const hasDraft = draft !== null;
+    const hasDefaultLocation = Boolean(defaultLocation);
 
     // Local State (Controlled Inputs)
     const [title, setTitle] = useState("");
@@ -88,10 +90,13 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
 
     // Cinematic Scroll Reference
     const titleRef = useRef<HTMLDivElement>(null);
+    const hasAppliedInitialDraftRef = useRef(false);
 
     // Load from Draft on Mount
     useEffect(() => {
-        if (isLoaded && draft) {
+        if (!isLoaded || hasAppliedInitialDraftRef.current) return;
+        hasAppliedInitialDraftRef.current = true;
+        if (draft) {
             if (draft.title) setTitle(draft.title);
             if (draft.description) setDescription(draft.description);
             if (draft.wage) setWage(draft.wage);
@@ -118,35 +123,35 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
                 // Let's stick to: if location present -> custom.
             }
         }
-    }, [isLoaded]); // Run once when loaded
+    }, [isLoaded, draft]);
 
     // Save to Draft on Change (Debounced)
     useEffect(() => {
         if (!isLoaded) return;
-        const timer = setTimeout(() => {
-            saveDraft({
-                title,
-                description,
-                wage,
-                category: categoryId,
-                paymentType: paymentType,
-                jobKind,
-                recurrenceRule,
-                continuityPreferred,
-                location: location ? {
-                    address: location.address_line1,
-                    lat: location.lat,
-                    lng: location.lng,
-                    city: location.city,
-                    zip: location.postal_code,
-                    label: location.public_label,
-                    isDefault: !useCustomLocation // Persist specific location flag if needed inside location object
-                } : undefined,
-                isDefaultLocation: !useCustomLocation // Persist top-level preference
-            });
-        }, 800);
+        const nextDraft: JobDraftData = {
+            title,
+            description,
+            wage,
+            category: categoryId,
+            paymentType,
+            jobKind,
+            recurrenceRule,
+            continuityPreferred,
+            location: location ? {
+                address: location.address_line1,
+                lat: location.lat,
+                lng: location.lng,
+                city: location.city,
+                zip: location.postal_code,
+                label: location.public_label,
+                isDefault: !useCustomLocation,
+            } : undefined,
+            isDefaultLocation: !useCustomLocation,
+        };
+        if (!hasDraft && !hasMeaningfulJobDraft(nextDraft, hasDefaultLocation)) return;
+        const timer = setTimeout(() => saveDraft(nextDraft), 800);
         return () => clearTimeout(timer);
-    }, [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, isLoaded, saveDraft]);
+    }, [title, description, wage, categoryId, paymentType, jobKind, recurrenceRule, continuityPreferred, location, useCustomLocation, isLoaded, saveDraft, hasDraft, hasDefaultLocation]);
 
     return (
         <form action={formAction} className={cn(styles.form, "space-y-7")}>
@@ -167,7 +172,7 @@ export function CreateJobForm({ defaultLocation, marketName }: { defaultLocation
             )}
 
             <div className="space-y-7">
-                {isLoaded && draft && (
+                {isLoaded && hasRestoredDraft && draft && (
                     <div className={styles.draftNotice}>
                         <span className="flex items-center gap-2 font-semibold">
                             <Save size={13} />

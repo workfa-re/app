@@ -60,9 +60,20 @@ describe("app shell data and page access contract", () => {
   });
 
   it("does not query guardian relationships for provider views", async () => {
-    state.auth.mockResolvedValue({ state: "ready", profile: { ...profile, provider_verification_status: "verified" }, effectiveView: { viewRole: "job_provider", roles: [] }, systemRoles: [] });
+    state.auth.mockResolvedValue({ state: "ready", profile: { ...profile, provider_verification_status: "verified", provider_verified_at: "2026-10-20T12:00:00Z" }, effectiveView: { viewRole: "job_provider", roles: [] }, systemRoles: [] });
     const access = await getAppHomeAccess(await getAppHomeContext());
     expect(access).toMatchObject({ canApply: false, isVerified: true, hasActiveGuardian: false });
+    expect(state.from).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: "pending", verifiedAt: "2026-10-20T12:00:00Z" },
+    { status: "rejected", verifiedAt: "2026-10-20T12:00:00Z" },
+    { status: "none", verifiedAt: "2026-10-20T12:00:00Z" },
+    { status: "verified", verifiedAt: null },
+  ])("keeps provider creation access aligned with the database insert guard: %o", async ({ status, verifiedAt }) => {
+    state.auth.mockResolvedValue({ state: "ready", profile: { ...profile, provider_verification_status: status, provider_verified_at: verifiedAt }, effectiveView: { viewRole: "job_provider", roles: [] }, systemRoles: [] });
+    expect(await getAppHomeAccess(await getAppHomeContext())).toMatchObject({ isVerified: false, canApply: false });
     expect(state.from).not.toHaveBeenCalled();
   });
 

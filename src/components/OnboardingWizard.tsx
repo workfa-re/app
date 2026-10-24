@@ -631,7 +631,6 @@ export function OnboardingWizard({
         birthdate: profileData.birthdate,
         city: profileData.region.trim(),
         market_id: profileData.marketId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         role: profileData.role as any,
         company_name: profileData.role === "company" ? profileData.companyName : undefined,
         company_email: profileData.role === "company" ? profileData.companyEmail : undefined,

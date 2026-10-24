@@ -65,9 +65,9 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #090909; }
 .app-logo-orb img { filter: brightness(0); }
 .dark .app-logo-orb img { filter: brightness(0) invert(1); }
 .app-brand-name { font-size: 24px; font-weight: 600; line-height: 1.05; letter-spacing: -.04em; white-space: nowrap; }
-.app-brand-copy { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 5px; min-width: 0; }
+.app-brand-copy { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 3px; min-width: 0; }
 /* The city is the local signature of the wordmark, not a separate control. */
-.app-brand-location { max-width: min(100%, 16ch); overflow: hidden; padding-left: 1px; color: var(--app-muted); font-size: 10px; font-weight: 600; line-height: 1.3; letter-spacing: .15em; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+.app-brand-location { max-width: min(100%, 16ch); overflow: hidden; padding-left: 1px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.3; letter-spacing: normal; text-transform: none; text-overflow: ellipsis; white-space: nowrap; }
 .app-glass-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 2px; width: 450px; height: var(--app-header-control-size, 52px); padding: 3px; }
 .app-nav-link { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; height: calc(var(--app-header-control-size, 52px) - 8px); min-height: 40px; padding: 0 17px; border-radius: 999px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.2; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease; }
 .app-nav-link > :not(.app-glass-selection) { position: relative; z-index: 1; }

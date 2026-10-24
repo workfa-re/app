@@ -1,6 +1,6 @@
 import { requireCompleteProfile } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { EditJobForm } from "./components/EditJobForm";
 import styles from "@/components/jobs/JobForm.module.css";
 import Link from "next/link";

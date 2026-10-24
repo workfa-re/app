@@ -6,6 +6,7 @@ import { CalendarPlus, Check, Pencil, X } from "lucide-react";
 import { manageJobAppointment } from "@/app/app-home/applications/actions";
 import { appointmentInputValue, type AppointmentMutation, type AppointmentRequest } from "@/lib/activity/appointments";
 import styles from "./ChatAppointments.module.css";
+import { useMinuteClock } from "./useMinuteClock";
 
 type Appointment = { id: string; starts_at: string; ends_at?: string | null; note?: string | null; status: string };
 type Props = {
@@ -43,8 +44,9 @@ function AppointmentTools(props: Props) {
     const [startsAt, setStartsAt] = useState("");
     const [endsAt, setEndsAt] = useState("");
     const [note, setNote] = useState("");
+    const now = useMinuteClock();
     const active = props.appointments.filter(item => item.status === "scheduled").sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-    const defaultAppointment = active.find(item => new Date(item.starts_at).getTime() >= Date.now() - 60_000) ?? active.at(-1);
+    const defaultAppointment = active.find(item => new Date(item.starts_at).getTime() >= now - 60_000) ?? active.at(-1);
     const canManage = props.canManage ?? true;
     const hasFocusedRequest = props.focusedRequest !== undefined;
     const request = hasFocusedRequest ? props.focusedRequest : props.requests[0];

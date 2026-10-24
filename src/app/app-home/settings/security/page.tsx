@@ -1,6 +1,6 @@
 import { History, ArrowLeft, Laptop, Smartphone, Key } from "lucide-react";
 import Link from "next/link";
-import { getAppHomeSnapshot } from "@/lib/app-shell";
+import { getAppHomeContext } from "@/lib/app-shell";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { PasswordResetButton } from "@/components/settings/PasswordResetButton";
 import styles from "@/components/settings/Settings.module.css";
@@ -14,7 +14,7 @@ type SecurityEvent = {
 };
 
 export default async function SecuritySettingsPage() {
-  const snapshot = await getAppHomeSnapshot();
+  const context = await getAppHomeContext();
   const supabase = await supabaseServer();
 
   const { data, error } = await supabase.rpc("get_my_security_events", { p_limit: 5 });
@@ -74,7 +74,7 @@ export default async function SecuritySettingsPage() {
           <p className={styles.detailCopy}>
             Wenn du denkst, dass dein Account gefährdet ist, ändere sofort dein Passwort.
           </p>
-          <PasswordResetButton email={snapshot.accountEmail} />
+          <PasswordResetButton email={context.accountEmail} />
         </section>
       </div>
     </div>

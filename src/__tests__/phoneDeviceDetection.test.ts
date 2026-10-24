@@ -75,7 +75,7 @@ function installDeviceEnvironment(environment: DeviceEnvironment) {
     return { mediaListeners, windowListeners };
 }
 
-function detectedPhoneValue() {
+function PhoneDeviceProbe() {
     usePhoneDevice();
     return hookState.updates.at(-1);
 }
@@ -101,7 +101,7 @@ describe("phone device detection", () => {
             width: 390,
         });
 
-        expect(detectedPhoneValue()).toBe(true);
+        expect(PhoneDeviceProbe()).toBe(true);
     });
 
     it("recognizes a phone-sized coarse device in landscape", () => {
@@ -116,7 +116,7 @@ describe("phone device detection", () => {
             width: 844,
         });
 
-        expect(detectedPhoneValue()).toBe(true);
+        expect(PhoneDeviceProbe()).toBe(true);
     });
 
     it("keeps an iPad with a desktop user agent on the tablet navigation", () => {
@@ -132,7 +132,7 @@ describe("phone device detection", () => {
             width: 1024,
         });
 
-        expect(detectedPhoneValue()).toBe(false);
+        expect(PhoneDeviceProbe()).toBe(false);
     });
 
     it("does not classify a narrow desktop browser window as a phone", () => {
@@ -145,6 +145,6 @@ describe("phone device detection", () => {
             width: 390,
         });
 
-        expect(detectedPhoneValue()).toBe(false);
+        expect(PhoneDeviceProbe()).toBe(false);
     });
 });

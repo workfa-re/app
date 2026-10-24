@@ -52,16 +52,18 @@ const getCurrentSessionAndProfileCached = cache(async (): Promise<{
     return { session: null, profile: null, systemRoles: [], effectiveView: null };
   }
 
-  // Now safe to read session metadata (tokens are already refreshed by getUser above)
-  const { data: { session } } = await supabase.auth.getSession();
+  // Read raw tokens only; cookie-backed session.user is not an authorization
+  // source. Every identity/profile field comes from the verified Auth response.
+  const { data: { session: storedSession }, error: sessionError } = await supabase.auth.getSession();
 
-  if (!session) {
+  if (sessionError || !storedSession || storedSession.user?.id !== user.id) {
     return { session: null, profile: null, systemRoles: [], effectiveView: null };
   }
+  const session: Session = { ...storedSession, user };
 
   const [profileResult, rolesResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
-    supabase.from("user_system_roles").select("role:system_roles(name)").eq("user_id", session.user.id),
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    supabase.from("user_system_roles").select("role:system_roles(name)").eq("user_id", user.id),
   ]);
 
   const profile = profileResult.data as Profile | null;
@@ -70,7 +72,6 @@ const getCurrentSessionAndProfileCached = cache(async (): Promise<{
   }
 
   // Extract system roles
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const systemRoles = rolesResult.data ? (rolesResult.data as any[]).map((r) => r.role?.name).filter(Boolean) : [];
 
   let effectiveView: EffectiveViewSnapshot | null = null;
@@ -107,9 +108,7 @@ const getAuthStateCached = cache(async (): Promise<AuthState> => {
     return { state: "no-session" } as const;
   }
 
-  const confirmedAt = (session.user as { confirmed_at?: string } | null | undefined)?.confirmed_at;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isEmailConfirmed = Boolean((session.user as any)?.email_confirmed_at || confirmedAt);
+  const isEmailConfirmed = Boolean(session.user.email_confirmed_at);
 
   if (!isEmailConfirmed) {
     return { state: "email-unconfirmed", session, profile, systemRoles, effectiveView } as const;

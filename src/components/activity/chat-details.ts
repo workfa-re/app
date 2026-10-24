@@ -28,7 +28,7 @@ export function splitChatHighlight(text: string, query: string): { text: string;
 export function findChatMessages(messages: ActivityMessage[], query: string) {
     const needle = query.trim().toLocaleLowerCase("de-DE");
     if (!needle) return [];
-    return messages.filter(message => !message.is_temp && message.content.toLocaleLowerCase("de-DE").includes(needle)).slice().reverse();
+    return messages.filter(message => !message.is_temp && !message.deleted_at && message.content.toLocaleLowerCase("de-DE").includes(needle)).slice().reverse();
 }
 
 export function chatSearchExcerpt(content: string, query: string) {

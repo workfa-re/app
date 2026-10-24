@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, Check, CircleHelp, Headphones, Route, X } from "lucide-react";
 import type { OnboardingStep } from "@/lib/onboardingFlow";
 import { BRAND_SUPPORT_EMAIL } from "@/lib/constants";
@@ -104,10 +105,10 @@ export function OnboardingFrame({ step, mode, children, onBack }: {
     <OnboardingFilm />
     <a className="onboarding-skip-link" href="#onboarding-content">Zum nächsten Schritt</a>
     <header className="onboarding-topbar">
-      <a href="/" className="onboarding-brand" aria-label="Workfare Startseite">
+      <Link href="/" prefetch={false} className="onboarding-brand" aria-label="Workfare Startseite">
         <span className="onboarding-brand-symbol"><Image className="onboarding-brand-mark" src="/brand/workfare-mark-compact.png" width={40} height={24} alt="" priority /></span>
         <span>Workfare</span>
-      </a>
+      </Link>
       <nav className="onboarding-top-actions" aria-label="Einstieg und Hilfe">
         {step !== "welcome" && step !== "mode" && onBack && <button className="onboarding-text-button onboarding-back-button" type="button" aria-label="Zurück" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /><span>Zurück</span></button>}
         <OnboardingThemeToggle />

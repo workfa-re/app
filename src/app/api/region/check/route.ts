@@ -6,7 +6,7 @@ import { getRegionAvailabilityStatus } from "@/lib/regionCheck";
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { city, postal_code, federal_state, country } = body;
+        const { city, federal_state, country } = body;
 
         if (!city || !federal_state) {
             return NextResponse.json(

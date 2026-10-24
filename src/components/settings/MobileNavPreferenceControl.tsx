@@ -5,10 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Settings.module.css";
-import {
-    normalizeMobileNavPreference,
-    type MobileNavPreference,
-} from "@/lib/mobile-nav-preference";
+import type { MobileNavPreference } from "@/lib/mobile-nav-preference";
 
 type MobileNavPreferenceControlProps = {
     initialPreference: MobileNavPreference;

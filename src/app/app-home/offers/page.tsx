@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { MyJobsView } from "./components/MyJobsView";
 import { fetchJobs } from "@/lib/dal/platform";
 import type { ApplicationStatus, JobsListItem } from "@/lib/types/platform";
-import { getAppHomeSnapshot } from "@/lib/app-shell";
+import { getAppHomeAccess, getAppHomeContext, getMarketSummary } from "@/lib/app-shell";
 import { summarizeProviderApplications, type ProviderJobApplicationSummary } from "./presentation";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import { CumulativeLoadMoreLink } from "@/components/ui/CumulativeLoadMoreLink";
@@ -93,14 +93,12 @@ export default async function OffersPage({
 }: {
     searchParams: Promise<OffersSearchParams>;
 }) {
-    const snapshot = await getAppHomeSnapshot();
-    const profile = snapshot.profile;
-    const effectiveView = snapshot.effectiveView;
+    const [context, params] = await Promise.all([getAppHomeContext(), searchParams]);
+    const { profile, effectiveView } = context;
     if (effectiveView.viewRole === "job_seeker") {
         redirect("/app-home/jobs");
     }
 
-    const params = await searchParams;
     const offersPage = parsePage(params[OFFERS_PAGE_PARAM]);
     const visibleOfferLimit = offersPage * OFFERS_PAGE_SIZE;
     if (params.view === "region") {
@@ -110,28 +108,26 @@ export default async function OffersPage({
         redirect("/app-home/activities");
     }
 
-    let jobs: JobsListItem[] = [];
-    const regionName: string | null = snapshot.market?.display_name || snapshot.market?.brand_prefix || null;
-    let jobsError: { code?: string; message: string } | null = null;
-    let applicationSummaries: Record<string, ProviderJobApplicationSummary> | null = {};
-
-    const offersPageResult = await fetchCumulativeOffers({
+    const offersPromise = fetchCumulativeOffers({
         mode: "my_jobs",
         userId: profile.id,
         userCoordinates: { lat: profile.lat ?? null, lng: profile.lng ?? null },
         includeApplicationState: false,
     }, visibleOfferLimit);
+    const summariesPromise = offersPromise.then(({ result }) => result.ok
+        ? fetchApplicationSummaries(result.data.map((job) => job.id))
+        : null);
+    const [offersPageResult, applicationSummaries, market, access] = await Promise.all([
+        offersPromise,
+        summariesPromise,
+        getMarketSummary(profile.market_id),
+        getAppHomeAccess(context),
+    ]);
     const res = offersPageResult.result;
-
-    let canLoadMoreOffers = false;
-    if (res.ok) {
-        canLoadMoreOffers = offersPage < MAX_OFFERS_PAGE && offersPageResult.hasMore;
-        jobs = res.data;
-        applicationSummaries = await fetchApplicationSummaries(jobs.map((job) => job.id));
-    } else {
-        jobsError = { code: res.error.code, message: res.error.message };
-    }
-
+    const jobs = res.ok ? res.data : [];
+    const jobsError = res.ok ? null : res.error;
+    const canLoadMoreOffers = res.ok && offersPage < MAX_OFFERS_PAGE && offersPageResult.hasMore;
+    const regionName = market?.display_name || market?.brand_prefix;
     const marketLabel = regionName || "deiner Region";
 
     return (
@@ -161,10 +157,10 @@ export default async function OffersPage({
                         <MyJobsView
                             jobs={jobs}
                             marketName={marketLabel}
-                            isVerified={snapshot.isVerified}
+                            isVerified={access.isVerified}
                             applicationSummaries={applicationSummaries}
                         />
-                        {snapshot.isVerified && canLoadMoreOffers ? (
+                        {access.isVerified && canLoadMoreOffers ? (
                             <CumulativeLoadMoreLink
                                 pathname="/app-home/offers"
                                 searchParams={params}

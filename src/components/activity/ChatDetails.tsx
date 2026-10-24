@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Coins, MapPin, Se
 import { type ActivityMessage, type ActivityStage } from "@/lib/activity/chat";
 import { toPublicProfile, type VisibleProfile } from "@/components/profile/public-profile";
 import { chatSearchExcerpt, findChatMessages, formatChatCompensation, orderChatAppointments, splitChatHighlight, type ChatAppointment } from "./chat-details";
+import { useMinuteClock } from "./useMinuteClock";
 import styles from "./ChatDetails.module.css";
 
 type DetailJob = {
@@ -32,8 +33,11 @@ export function HighlightedChatText({ text, query }: { text: string; query: stri
         ? <mark key={index} className={styles.match}>{part.text}</mark> : part.text);
 }
 
-export function ChatDetails(props: ChatDetailsProps) {
-    const { searchOpen, query, messages, job, jobTitle, appointmentFocusKey = 0, appointmentFocusReady = true } = props;
+export function ChatDetails({
+    dialogRef, searchOpen, query, messages, job, jobTitle,
+    appointments, scheduledFor, scheduleNote,
+    appointmentFocusKey = 0, appointmentFocusReady = true, ...props
+}: ChatDetailsProps) {
     const searchRef = useRef<HTMLInputElement>(null);
     const searchButtonRef = useRef<HTMLButtonElement>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -42,12 +46,13 @@ export function ChatDetails(props: ChatDetailsProps) {
     const reducedMotion = useReducedMotion();
     const headingId = useId();
     const jobHeadingId = useId();
+    const now = useMinuteClock();
     const person = props.profile ? toPublicProfile(props.profile) : null;
     const personName = person?.displayName || props.name;
     const matches = useMemo(() => findChatMessages(messages, query), [messages, query]);
-    const orderedAppointments = useMemo(() => orderChatAppointments(props.appointments, props.scheduledFor, props.scheduleNote), [props.appointments, props.scheduledFor, props.scheduleNote]);
+    const orderedAppointments = useMemo(() => orderChatAppointments(appointments, scheduledFor, scheduleNote, now), [appointments, scheduledFor, scheduleNote, now]);
     const next = orderedAppointments[0];
-    const nextIsUpcoming = next?.status === "scheduled" && new Date(next.starts_at).getTime() >= Date.now();
+    const nextIsUpcoming = next?.status === "scheduled" && new Date(next.starts_at).getTime() >= now;
 
     useEffect(() => {
         bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
@@ -91,7 +96,7 @@ export function ChatDetails(props: ChatDetailsProps) {
         return () => { cancelAnimationFrame(frame); cancelAnimationFrame(focusFrame); };
     }, [appointmentFocusKey, appointmentFocusReady, reducedMotion, searchOpen]);
 
-    return <motion.aside ref={props.dialogRef} className={styles.rail} role="dialog" aria-modal={props.compact} aria-labelledby={headingId} tabIndex={-1}
+    return <motion.aside ref={dialogRef} className={styles.rail} role="dialog" aria-modal={props.compact} aria-labelledby={headingId} tabIndex={-1}
         initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
         transition={{ type: "spring", duration: .3, bounce: 0 }}>
         <div className={styles.heading}>

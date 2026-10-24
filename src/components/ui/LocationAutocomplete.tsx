@@ -123,7 +123,7 @@ export function LocationAutocomplete({ inputId = "location-search", onSelect, on
 
   const handleSelect = (item: LocationSearchResult) => {
     const addr = item.address || {};
-    let street = addr.road || addr.pedestrian || addr.footway || "";
+    const street = addr.road || addr.pedestrian || addr.footway || "";
     let houseNumber = addr.house_number ? String(addr.house_number) : "";
 
     if (!houseNumber && query) {

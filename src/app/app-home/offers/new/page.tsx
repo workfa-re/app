@@ -1,8 +1,6 @@
-import { requireCompleteProfile } from "@/lib/auth";
+import { getAppHomeAccess, getAppHomeContext, getMarketSummary } from "@/lib/app-shell";
 import { redirect } from "next/navigation";
 import { CreateJobForm } from "@/components/jobs/CreateJobForm";
-import { supabaseServer } from "@/lib/supabaseServer";
-import { getEffectiveView } from "@/lib/dal/platform";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import styles from "@/components/jobs/JobForm.module.css";
@@ -16,19 +14,17 @@ type DefaultLocation = {
 };
 
 export default async function NewOfferPage() {
-    const { profile } = await requireCompleteProfile();
-
-    const viewRes = await getEffectiveView({ userId: profile.id, baseAccountType: profile.account_type });
-    const viewRole = viewRes.ok ? viewRes.data.viewRole : (profile.account_type ?? "job_seeker");
+    const context = await getAppHomeContext();
+    const { profile, effectiveView } = context;
 
     // Server-side guard to avoid "kurz sichtbar, dann weg" client redirects.
-    if (viewRole !== "job_provider") {
+    if (effectiveView.viewRole !== "job_provider") {
         redirect("/app-home/jobs");
     }
 
     // Provider Verification Guard
-    const isVerified = profile.provider_verification_status === 'verified' || Boolean(profile.provider_verified_at);
-    if (!isVerified) {
+    const access = await getAppHomeAccess(context);
+    if (!access.isVerified) {
         redirect("/app-home/profile?focus=provider-verification&from=create-job");
     }
 
@@ -46,12 +42,7 @@ export default async function NewOfferPage() {
         }
         : null;
 
-    // Fetch market_name to dynamically display reach text
-    const supabase = await supabaseServer();
-    const { data: region } = await supabase.from("regions_live")
-        .select("display_name")
-        .eq("id", profile.market_id as string)
-        .single();
+    const region = await getMarketSummary(profile.market_id);
     const marketName = region?.display_name || "deiner Stadt";
 
     return (

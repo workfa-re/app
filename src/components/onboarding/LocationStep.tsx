@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { LocationAutocomplete, type LocationDetails } from "@/components/ui/LocationAutocomplete";
 
 interface LocationStepProps {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onComplete: (regionData: any) => void;
     onBusyChange?: (busy: boolean) => void;
 }

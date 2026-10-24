@@ -80,7 +80,7 @@ export function GuardianConsentModal({ isOpen, onClose, variant = "initial", gua
             } else {
                 setError("Einladungslink konnte nicht erstellt werden.");
             }
-        } catch (e) {
+        } catch {
             if (!mountedRef.current || requestId !== requestIdRef.current) return;
             setError("Ein unerwarteter Fehler ist aufgetreten.");
         } finally {

@@ -74,7 +74,9 @@ export async function getEffectiveView(opts?: {
   if (!userId) return { ok: false, error: { message: "Missing userId" } };
 
   const [profileResult, rolesResult] = await Promise.all([
-    supabase.from("profiles").select("account_type").eq("id", userId).maybeSingle(),
+    opts?.baseAccountType === undefined
+      ? supabase.from("profiles").select("account_type").eq("id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase.from("user_system_roles").select("role:system_roles(name)").eq("user_id", userId),
   ]);
 
@@ -146,26 +148,48 @@ async function resolveUserCoordinates(
   };
 }
 
-/** Fetch the map of job IDs -> Application Data the current user has applied to. */
-async function fetchAppliedJobIds(userId: string): Promise<Map<string, { id: string; status: ApplicationStatus }>> {
-  if (!userId) return new Map();
+type AppliedJobState = Map<string, { id: string; status: ApplicationStatus }>;
 
-  const client = await supabaseServer();
-
-  const { data, error } = await client
-    .from("applications")
-    .select("id, job_id, status")
-    .eq("user_id", userId);
-
-  if (error) {
-    console.warn("[DAL] fetchAppliedJobIds error", error.message);
-    return new Map();
+/** Load application state only for returned cards, retaining lower API row caps. */
+async function fetchAppliedJobIds(
+  client: SupabaseClient<Database>,
+  userId: string,
+  jobIds: string[],
+): Promise<Result<AppliedJobState>> {
+  const applied: AppliedJobState = new Map();
+  const ids = [...new Set(jobIds)];
+  if (!userId || ids.length === 0) return { ok: true, data: applied };
+  const batchSize = 100;
+  for (let start = 0; start < ids.length; start += batchSize) {
+    const batch = ids.slice(start, start + batchSize);
+    let total: number | null = null;
+    for (let offset = 0; ;) {
+      const { data, error, count } = await client.from("applications")
+        .select("id, job_id, status", offset === 0 ? { count: "exact" } : undefined)
+        .eq("user_id", userId).in("job_id", batch)
+        .order("id", { ascending: true }).range(offset, offset + batchSize - 1);
+      if (error) return { ok: false, error: toErrorInfo(error) };
+      if (offset === 0) total = count ?? null;
+      for (const application of data ?? []) {
+        applied.set(application.job_id, { id: application.id, status: application.status });
+      }
+      const returned = data?.length ?? 0;
+      offset += returned;
+      if (!returned || (total !== null && offset >= total)) break;
+    }
   }
-  return new Map(data?.map((a) => [a.job_id, { id: a.id, status: a.status as ApplicationStatus }]) ?? []);
+  return { ok: true, data: applied };
 }
 
+const JOB_CARD_COLUMNS = "id, title, description, posted_by, status, created_at, market_id, public_location_label, public_lat, public_lng, wage_hourly, payment_type, job_kind, recurrence_rule, continuity_preferred, category, address_reveal_policy, reach" as const;
+type JobCardRow = Pick<Database["public"]["Tables"]["jobs"]["Row"],
+  "id" | "title" | "description" | "posted_by" | "status" | "created_at" | "market_id" |
+  "public_location_label" | "public_lat" | "public_lng" | "wage_hourly" | "payment_type" |
+  "job_kind" | "recurrence_rule" | "continuity_preferred" | "category" | "address_reveal_policy" | "reach"
+>;
+
 /** Map a raw DB row to the normalized `JobsListItem` shape. */
-function toJobsListItem(row: Database["public"]["Tables"]["jobs"]["Row"]): JobsListItem {
+function toJobsListItem(row: JobCardRow): JobsListItem {
   return {
     id: row.id,
     title: row.title,
@@ -186,7 +210,7 @@ function toJobsListItem(row: Database["public"]["Tables"]["jobs"]["Row"]): JobsL
     continuity_preferred: Boolean(row.continuity_preferred),
     category: row.category ?? "",
     address_reveal_policy: row.address_reveal_policy ?? "after_apply",
-    reach: (row as any).reach ?? 'internal_rheinbach',
+    reach: row.reach === "extended" ? "extended" : "internal_rheinbach",
     is_applied: false,
   };
 }
@@ -284,17 +308,7 @@ export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsLis
     return q.range(offset, offset + limit - 1);
   };
 
-  const { lat: userLat, lng: userLng } = await resolveUserCoordinates(
-    supabase,
-    params.userId,
-    params.userCoordinates,
-  );
-
-  const appliedJobIds = params.includeApplicationState === false
-    ? new Map<string, { id: string; status: ApplicationStatus }>()
-    : await fetchAppliedJobIds(params.userId);
-
-  let q = supabase.from("jobs").select("*");
+  let q = supabase.from("jobs").select(JOB_CARD_COLUMNS);
   if (params.jobIds) q = q.in("id", [...params.jobIds]);
   if (params.mode === "feed") {
     if (Array.isArray(status)) {
@@ -314,23 +328,32 @@ export async function fetchJobs(params: FetchJobsParams): Promise<Result<JobsLis
   q = q.order("created_at", { ascending: false });
   q = applyRange(q) as typeof q;
 
-  const { data, error } = await q;
+  const [{ lat: userLat, lng: userLng }, { data, error }] = await Promise.all([
+    resolveUserCoordinates(supabase, params.userId, params.userCoordinates),
+    q,
+  ]);
   if (error) return { ok: false, error: toErrorInfo(error) };
 
-  let items = (data ?? []).map((row) => {
-    const appData = appliedJobIds.get(row.id);
-    const distance_km = jobDistanceKm({ lat: userLat, lng: userLng }, { lat: row.public_lat, lng: row.public_lng });
+  const [applications, enrichedItems] = await Promise.all([
+    params.includeApplicationState === false
+      ? Promise.resolve({ ok: true as const, data: new Map() as AppliedJobState })
+      : fetchAppliedJobIds(supabase, params.userId, (data ?? []).map(row => row.id)),
+    enrichJobsInParallel(supabase, (data ?? []).map(toJobsListItem)),
+  ]);
+  if (!applications.ok) return applications;
+
+  const items = enrichedItems.map((item) => {
+    const appData = applications.data.get(item.id);
+    const distance_km = jobDistanceKm({ lat: userLat, lng: userLng }, { lat: item.public_lat, lng: item.public_lng });
 
     return {
-      ...toJobsListItem(row),
+      ...item,
       is_applied: !!appData,
       application_id: appData?.id || null,
       application_status: appData?.status || null,
       distance_km
     };
   });
-
-  items = await enrichJobsInParallel(supabase, items) as typeof items;
 
   return { ok: true, data: items };
 }
@@ -511,11 +534,20 @@ export async function fetchCandidateApplicationLinks(
   userId: string,
 ): Promise<Result<Pick<ApplicationRow, "id" | "job_id">[]>> {
   const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("applications")
-    .select("id, job_id")
-    .eq("user_id", userId);
-
-  if (error) return { ok: false, error: toErrorInfo(error) };
-  return { ok: true, data: data ?? [] };
+  const links: Pick<ApplicationRow, "id" | "job_id">[] = [];
+  const batchSize = 100;
+  let total: number | null = null;
+  for (let offset = 0; ;) {
+    const { data, error, count } = await supabase.from("applications")
+      .select("id, job_id", offset === 0 ? { count: "exact" } : undefined)
+      .eq("user_id", userId)
+      .order("id", { ascending: true }).range(offset, offset + batchSize - 1);
+    if (error) return { ok: false, error: toErrorInfo(error) };
+    if (offset === 0) total = count ?? null;
+    links.push(...data ?? []);
+    const returned = data?.length ?? 0;
+    offset += returned;
+    if (!returned || (total !== null && offset >= total)) break;
+  }
+  return { ok: true, data: links };
 }

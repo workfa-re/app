@@ -2,17 +2,17 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { NotificationSettingsForm } from "@/components/notifications/NotificationSettingsForm";
 import { normalizeNotificationPreferences } from "@/components/notifications/notificationPreferences";
-import { getAppHomeSnapshot } from "@/lib/app-shell";
+import { getAppHomeContext } from "@/lib/app-shell";
 import { supabaseServer } from "@/lib/supabaseServer";
 import styles from "@/components/settings/Settings.module.css";
 
 export default async function NotificationSettingsPage() {
-    const snapshot = await getAppHomeSnapshot();
+    const context = await getAppHomeContext();
     const supabase = await supabaseServer();
     const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
-        .eq("user_id", snapshot.profile.id)
+        .eq("user_id", context.profile.id)
         .maybeSingle();
     const initialPrefs = normalizeNotificationPreferences(data);
 
@@ -29,7 +29,7 @@ export default async function NotificationSettingsPage() {
             <div className={styles.notificationContent}>
                 <NotificationSettingsForm
                     initialPrefs={initialPrefs}
-                    currentUserId={snapshot.profile.id}
+                    currentUserId={context.profile.id}
                     initialLoadError={Boolean(error)}
                 />
             </div>

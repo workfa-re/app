@@ -84,7 +84,7 @@ export function useEmailResend(email: string): UseEmailResendReturn {
         setError(null);
 
         try {
-            let { error: err } = await supabaseBrowser.auth.resend({
+            const { error: err } = await supabaseBrowser.auth.resend({
                 type: "signup",
                 email,
             });

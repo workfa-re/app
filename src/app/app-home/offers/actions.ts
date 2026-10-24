@@ -90,7 +90,7 @@ export async function createJob(_prevState: CreateJobActionState, formData: Form
     }
 
     const providerIsVerified = profile.provider_verification_status === "verified"
-        || Boolean(profile.provider_verified_at);
+        && Boolean(profile.provider_verified_at);
     if (!providerIsVerified) {
         return {
             status: "error",

@@ -53,7 +53,7 @@ const getVerificationState = cache(async (
   canApply: boolean;
 }> => {
   if (viewRole === "job_provider") {
-    const isVerified = providerVerificationStatus === "verified" || Boolean(providerVerifiedAt);
+    const isVerified = providerVerificationStatus === "verified" && Boolean(providerVerifiedAt);
     return {
       guardianStatus: guardianStatus ?? "none",
       hasActiveGuardian: false,

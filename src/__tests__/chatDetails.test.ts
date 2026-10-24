@@ -16,6 +16,13 @@ describe("chat details tools", () => {
         expect(findChatMessages(messages, " ")).toEqual([]);
         expect(messages[0].id).toBe("old");
     });
+    it("keeps deleted message content out of search results", () => {
+        const messages = [
+            { id: "deleted", content: "Treffpunkt am Gartentor", deleted_at: "2026-10-24T12:00:00Z" },
+            { id: "visible", content: "Treffpunkt am Hauseingang", deleted_at: null },
+        ] as ActivityMessage[];
+        expect(findChatMessages(messages, "Treffpunkt").map(message => message.id)).toEqual(["visible"]);
+    });
     it("marks repeated literal text safely and keeps the original content", () => {
         const parts = splitChatHighlight("Hallo <b> + hallo", "HALLO");
         expect(parts.filter(part => part.match).map(part => part.text)).toEqual(["Hallo", "hallo"]);

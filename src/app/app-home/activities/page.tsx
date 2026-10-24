@@ -1,7 +1,7 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import { ActivitiesPageClient } from "@/components/activity/ActivitiesPageClient";
 import { ProviderActivityList } from "@/components/activity/ProviderActivityList";
-import { getAppHomeSnapshot } from "@/lib/app-shell";
+import { getAppHomeContext } from "@/lib/app-shell";
 import { AppRouteReady } from "@/components/layout/AppNavigationProvider";
 import styles from "@/components/activity/ActivityWorkspace.module.css";
 import {
@@ -134,12 +134,12 @@ export default async function ActivityPage({
 }) {
     const paramsPromise: Promise<{ [key: string]: string | string[] | undefined }> =
         searchParams ?? Promise.resolve({});
-    const [snapshot, params] = await Promise.all([
-        getAppHomeSnapshot(),
+    const [context, params] = await Promise.all([
+        getAppHomeContext(),
         paramsPromise,
     ]);
-    const profile = snapshot.profile;
-    const viewRole = snapshot.effectiveView.viewRole;
+    const profile = context.profile;
+    const viewRole = context.effectiveView.viewRole;
     const selectedJobId = typeof params.jobId === "string" ? params.jobId : null;
     const supabase = await supabaseServer();
 
