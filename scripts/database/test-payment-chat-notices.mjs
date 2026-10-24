@@ -1,0 +1,63 @@
+// Durable price notices in an isolated local PostgreSQL fixture; no hosted access or Stripe.
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {createPaymentFixture,quote,args,asRole} from './payment-fixture.mjs';
+const fixture=await createPaymentFixture({prefix:'workfare_price_notice',recipient:true});
+const {execute,json,call,dispose}=fixture;
+const id=()=>randomUUID(), ids=Object.fromEntries(['provider','recipient','outsider'].map(key=>[key,id()]));
+const migrationPath=new URL('../../infrastructure/database/migrations/20261024223958_payment_price_chat_notices.sql',import.meta.url);
+let checks=0;const check=(a,b,label)=>{assert.deepEqual(a,b,label);checks++;};
+const invoke=async(fn,values,role='service_role',user=null)=>{const out=(await execute(asRole(role,user,`SELECT public.${fn}(${args(values)})`))).trim().split('\n').filter(Boolean).at(-1);return out?JSON.parse(out):null;};
+const service=(fn,values)=>invoke(fn,values);
+async function appointment(){
+ const term={job:id(),application:id(),engagement:id(),id:id()};
+ await execute(`INSERT INTO public.jobs(id,title,posted_by,status,filled_by,payment_type,wage_hourly,description)VALUES(${args([term.job,'Garden help',ids.provider,'filled',ids.recipient,'fixed',17,'Care for the garden.'])});
+ INSERT INTO public.applications(id,job_id,user_id,status,is_primary,queue_position)VALUES(${args([term.application,term.job,ids.recipient,'accepted',true,1])});
+ INSERT INTO public.job_engagements(id,application_id,job_id,provider_id,seeker_id,status,engagement_type)VALUES(${args([term.engagement,term.application,term.job,ids.provider,ids.recipient,'active','one_time'])});
+ INSERT INTO public.job_appointments(id,engagement_id,starts_at,ends_at,note)VALUES(${args([term.id,term.engagement,new Date(Date.now()+60000).toISOString(),new Date(Date.now()+3600000).toISOString(),'Garden work'])});`);
+ term.version=await json(`SELECT to_json(updated_at)FROM public.job_appointments WHERE id=${quote(term.id)}`);return term;
+}
+const eventMessages=application=>json(`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'sender',m.sender_id,'content',m.content,'kind',m.kind,'event',e.event_type,'order',e.metadata->>'payment_order_id')ORDER BY m.created_at,m.id),'[]'::jsonb)FROM public.messages m JOIN public.application_events e ON e.metadata->>'message_id'=m.id::text WHERE m.application_id=${quote(application)}`);
+const target=(app,msg,user)=>invoke('get_application_payment_for_message',[app,msg],'authenticated',user);
+try{
+ await execute(await readFile(new URL('../../infrastructure/database/migrations/20261024031351_workfare_pay_appointment_orders.sql',import.meta.url),'utf8'));
+ await execute(`ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz;UPDATE payment_private.configuration SET mode='local_simulation';UPDATE payment_private.order_configuration SET enabled=true,fee_policy='local-zero-fee-v1';
+ CREATE SCHEMA demo_private;CREATE TABLE demo_private.visits(id uuid PRIMARY KEY);CREATE TABLE demo_private.personas(user_id uuid PRIMARY KEY,persona text);
+ INSERT INTO public.profiles(id,full_name,account_type,birthdate,country)VALUES(${args([ids.provider,'Provider','job_provider','1980-01-01','DE'])}),(${args([ids.recipient,'Recipient','job_seeker','2000-01-01','DE'])}),(${args([ids.outsider,'Other','job_provider','1980-01-01','DE'])});
+ INSERT INTO demo_private.personas VALUES(${args([ids.provider,'private-provider'])}),(${args([ids.recipient,'seeker'])});`);
+ await service('pay_enroll_local_preview',[ids.provider]);await service('pay_recipient_enroll_local',[ids.recipient]);
+ const migration=await readFile(migrationPath,'utf8');
+ await execute(`BEGIN;${migration.replace(/^BEGIN;\s*/,'').replace(/COMMIT;\s*$/,'')}ROLLBACK;`);
+ check(await json("SELECT to_json(to_regprocedure('payment_private.order_price_notice()')IS NULL)"),true,'rollback removes price trigger function');
+ await execute(migration);
+ const term=await appointment(),operation=id();
+ const order=await service('pay_order_create',[ids.provider,'local_simulation',operation,term.id,term.version,null]);
+ let messages=await eventMessages(term.application);check(messages.length,1,'one new order adds one proposal');
+ check(messages[0].kind,'system','price is structural notice, not chat text');check(messages[0].content,'Endpreis vorgeschlagen: 17,00 €.','notice states the exact agreed earnings');check(messages[0].sender,ids.provider,'proposal attributed to real provider');
+ check(await target(term.application,messages[0].id,ids.recipient),{applicationId:term.application,appointmentId:term.id,orderId:order.id,event:'payment_price_proposed'},'recipient resolves exact target');
+ check((await target(term.application,messages[0].id,ids.provider)).orderId,order.id,'provider can resolve own conversation notice');
+ await service('pay_order_create',[ids.provider,'local_simulation',operation,term.id,term.version,null]);
+ check((await eventMessages(term.application)).length,1,'lost create response does not duplicate notice');
+ await Promise.all([service('pay_order_confirm',[ids.recipient,order.id,'appointment-price-v1']),service('pay_order_confirm',[ids.recipient,order.id,'appointment-price-v1'])]);
+ messages=await eventMessages(term.application);check(messages.length,2,'concurrent confirmations produce one confirmation notice');
+ const confirmation=messages.find(m=>m.event==='payment_price_confirmed');check(confirmation.content,'Endpreis bestätigt: 17,00 €.','confirmation readable and exact');check(confirmation.sender,ids.recipient,'confirmation attributed to actual recipient');
+ check((await target(term.application,confirmation.id,ids.provider)).appointmentId,term.id,'confirmation goes straight to correct appointment');
+ await service('pay_order_confirm',[ids.recipient,order.id,'appointment-price-v1']);check((await eventMessages(term.application)).length,2,'confirmation replay remains idempotent');
+ await execute(`UPDATE payment_private.orders SET updated_at=now() WHERE id=${quote(order.id)}`);check((await eventMessages(term.application)).length,2,'unrelated updates do not emit notices');
+ await assert.rejects(target(term.application,messages[0].id,ids.outsider),/PAYMENT_MESSAGE_FORBIDDEN/);checks++;
+ await assert.rejects(call('get_application_payment_for_message',[term.application,messages[0].id],'anon'),/permission denied/);checks++;
+ const other=await appointment();check(await target(other.application,messages[0].id,ids.provider),null,'another authorized conversation cannot borrow a notice');
+ check(await target(term.application,id(),ids.recipient),null,'missing message does not fall back to latest order');
+ const spoof=id();await execute(`INSERT INTO public.messages(id,application_id,sender_id,content,kind)VALUES(${args([spoof,term.application,ids.provider,'Endpreis vorgeschlagen: 17,00 €.','chat'])})`);
+ check(await target(term.application,spoof,ids.recipient),null,'user-typed price text has no trusted target');
+ await execute(`UPDATE public.messages SET kind='system'WHERE id=${quote(spoof)}`);check(await target(term.application,spoof,ids.recipient),null,'system text without an audit mapping is not actionable');
+ await execute(`UPDATE public.messages SET deleted_at=now()WHERE id=${quote(messages[0].id)}`);check(await target(term.application,messages[0].id,ids.recipient),null,'deleted notice cannot resolve');
+ await execute(`UPDATE public.messages SET deleted_at=NULL WHERE id=${quote(messages[0].id)}`);
+ await execute(`INSERT INTO public.application_events(application_id,actor_id,event_type,metadata)SELECT application_id,actor_id,event_type,metadata FROM public.application_events WHERE metadata->>'message_id'=${quote(messages[0].id)}`);
+ check(await target(term.application,messages[0].id,ids.recipient),null,'ambiguous server history fails closed instead of choosing a target');
+ const rolled=await appointment();await execute(`BEGIN;SELECT public.pay_order_create(${args([ids.provider,'local_simulation',id(),rolled.id,rolled.version,null])});ROLLBACK;`);check((await eventMessages(rolled.application)).length,0,'business rollback cannot leave an orphaned visible notice');
+ check(await json("SELECT to_json(has_function_privilege('anon','payment_private.order_price_notice()','EXECUTE'))"),false,'trigger cannot be directly executed by anon');
+ check(await json("SELECT to_json(has_function_privilege('authenticated','payment_private.order_price_notice()','EXECUTE'))"),false,'trigger cannot be executed by app clients');
+ console.log(JSON.stringify({ok:true,checks,database:fixture.database,remoteDatabases:0,stripeRequests:0,emailsSent:0,existingAccountsChanged:0}));
+}finally{await dispose();}

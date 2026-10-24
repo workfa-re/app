@@ -8,6 +8,7 @@ import {
     ArrowRight,
     CalendarDays,
     CalendarClock,
+    Banknote,
     CheckCircle2,
     Clock3,
     Flag,
@@ -15,7 +16,6 @@ import {
     MessageCircleWarning,
     RotateCcw,
     Send,
-    ShieldCheck,
     Trash2,
     WifiOff,
     X,
@@ -34,7 +34,8 @@ import {
     getProfileInitials,
     resolveReopenApplicationPatch,
 } from "@/lib/activity/chat";
-import { getAppointmentRequestForMessage, markApplicationMessagesRead } from "@/app/app-home/applications/actions";
+import { getAppointmentRequestForMessage, getPaymentOrderForMessage, markApplicationMessagesRead } from "@/app/app-home/applications/actions";
+import { getPaymentSystemMessageKind } from "@/lib/activity/payment-messages";
 import { getAppointmentSystemMessageKind, isPendingAppointmentMessage, type AppointmentRequest } from "@/lib/activity/appointments";
 import { cn } from "@/lib/utils";
 import { UserProfileModal } from "@/components/profile/UserProfileModal";
@@ -639,7 +640,7 @@ export function ApplicationChat({
     const hasClosureReason = closureReason && closureReason.length >= 3 && !/^\d+$/.test(closureReason);
     const stateNote = ended
         ? historicalRequest ? stage.hint : hasClosureReason ? formatClosureReason(closureReason) : null
-        : stage.key === "reserved" ? "Termin abstimmen" : null;
+        : stage.key === "reserved" ? currentUserRole === "provider" ? "Nächster Schritt: Termin festlegen" : "Termin mit dem Anbieter abstimmen" : null;
     const StateIcon = ended
         ? stage.key === "completed" ? CheckCircle2 : MessageCircleWarning
         : stage.key === "agreed" ? CalendarDays : stage.key === "reserved" ? Clock3 : Info;
@@ -717,6 +718,26 @@ export function ApplicationChat({
         });
         return () => { active = false; };
     }, [appointmentRequests.available, appointmentRequests.requests, appointmentMessageId, appointmentFocusKey, canManageAppointments, detailsOpen, focusedAppointmentRequest?.id, focusedAppointmentRequest?.status, liveApplication.id]);
+
+    const openPaymentMessage = async (messageId: string) => {
+        const generation = ++appointmentTargetGenerationRef.current;
+        setAppointmentFocusKey(0);
+        setSearchOpen(false);
+        setDetailsOpen(true);
+        setPaymentFocus(null);
+        try {
+            const target = await getPaymentOrderForMessage(liveApplication.id, messageId);
+            if (generation !== appointmentTargetGenerationRef.current) return;
+            if (!target.available) {
+                setLoadError("Der Preis konnte nicht zugeordnet werden. Bitte lade den Gesprächsstand erneut.");
+                return;
+            }
+            setLoadError(null);
+            setPaymentFocus(current => ({ appointmentId: target.appointmentId, nonce: (current?.nonce ?? 0) + 1 }));
+        } catch {
+            if (generation === appointmentTargetGenerationRef.current) setLoadError("Der Preis konnte gerade nicht geladen werden.");
+        }
+    };
 
     const jumpToMessage = (id: string, query: string) => {
         setMessageHighlight({ id, query: query.trim() });
@@ -1146,13 +1167,14 @@ export function ApplicationChat({
                         <button
                             type="button"
                             className="activity-schedule-button"
-                            aria-label={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Termin vereinbaren"}
-                            title={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Termin vereinbaren"}
+                            data-action={headerAction}
+                            aria-label={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Termin festlegen"}
+                            title={headerAction === "complete" ? "Zusammenarbeit abschließen" : "Datum und Uhrzeit für den Auftrag festlegen"}
                             disabled={schedulePending || completePending}
                             onClick={headerAction === "complete" ? openCompleteDialog : openScheduleDialog}
                         >
                             {headerAction === "complete" ? <CheckCircle2 size={17} aria-hidden="true" /> : <CalendarDays size={17} aria-hidden="true" />}
-                            <span>{headerAction === "complete" ? "Abschließen" : "Termin vereinbaren"}</span>
+                            <span>{headerAction === "complete" ? "Abschließen" : <>Termin<span className="activity-schedule-wide-label"> festlegen</span></>}</span>
                         </button>
                     ) : null}
                     {pendingAppointmentRequest ? <button type="button" className="activity-appointment-shortcut"
@@ -1182,9 +1204,6 @@ export function ApplicationChat({
                         <time dateTime={liveApplication.scheduled_for || liveApplication.agreement?.starts_at}>{scheduleLabel}</time>
                     ) : stateNote ? <span>{stateNote}</span> : null}
                 </div>
-                {canCloseApplication && stage.key === "reserved" ? (
-                    <button type="button" className="activity-chat-state-action" aria-label={currentUserRole === "provider" ? "Bewerbung ablehnen und Job freigeben" : "Bewerbung zurückziehen"} onClick={() => { setActionReason(""); setActionError(null); setActionOpen(true); }}>{currentUserRole === "provider" ? "Job freigeben" : "Zurückziehen"}</button>
-                ) : null}
             </section>
 
             <div
@@ -1219,6 +1238,7 @@ export function ApplicationChat({
                             const timelineMessage = timelineEntry.item;
                             const isOwnMessage = timelineMessage.sender_id === currentUserId;
                             const appointmentMessageKind = getAppointmentSystemMessageKind(timelineMessage);
+                            const paymentMessageKind = getPaymentSystemMessageKind(timelineMessage);
                             const actionableAppointment = !readOnly && appointmentRequests.available === true
                                 && isPendingAppointmentMessage(timelineMessage, appointmentRequests.requests);
 
@@ -1228,7 +1248,13 @@ export function ApplicationChat({
                                     tabIndex={-1} data-message-id={timelineMessage.id} data-search-selected={messageHighlight?.id === timelineMessage.id}>
                                     {dateSeparator}
                                     {timelineMessage.isSystemMessage ? (
-                                        actionableAppointment ? <button type="button" className="activity-system-message activity-system-message-link"
+                                        paymentMessageKind && paymentOrdersEnabled && !readOnly ? <button type="button" className="activity-system-message activity-system-message-link"
+                                            onClick={() => void openPaymentMessage(timelineMessage.id)} aria-label={`${timelineMessage.content} Preis in Details ansehen`}>
+                                            <Banknote size={16} aria-hidden="true" />
+                                            <span><HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} /></span>
+                                            <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>
+                                            <ArrowRight size={15} aria-hidden="true" />
+                                        </button> : actionableAppointment ? <button type="button" className="activity-system-message activity-system-message-link"
                                             onClick={() => void openAppointmentMessage(timelineMessage.id)} aria-haspopup="dialog"
                                             aria-label={`${timelineMessage.content} Terminanfrage in Details ansehen`}>
                                             <CalendarClock size={16} aria-hidden="true" />
@@ -1676,7 +1702,7 @@ function ActionDialog({
     );
 }
 
-function ScheduleDialog({
+export function ScheduleDialog({
     value,
     setValue,
     note,
@@ -1700,6 +1726,7 @@ function ScheduleDialog({
     onConfirm: () => void;
 }) {
     const dialogRef = useActivityDialogFocus<HTMLDivElement>();
+    const [noteExpanded, setNoteExpanded] = useState(Boolean(note));
     return (
         <div className="activity-dialog-layer" onKeyDown={(event) => event.key === "Escape" && !pending && onCancel()}>
             <motion.div
@@ -1716,29 +1743,30 @@ function ScheduleDialog({
             >
                 <span className="activity-dialog-icon"><CalendarDays size={21} /></span>
                 <h2 id="activity-schedule-title">
-                    {isRecurring && isEditing ? "Weiteren Termin hinzufügen" : isEditing ? "Termin ändern" : "Termin verbindlich festlegen"}
+                    {isRecurring && isEditing ? "Weiteren Termin hinzufügen" : isEditing ? "Termin ändern" : "Termin festlegen"}
                 </h2>
-                <p>
-                    {isRecurring
-                        ? "Der Termin wird Teil der langfristigen Zusammenarbeit. Der Auftrag bleibt vergeben, bis du die Zusammenarbeit abschließt."
-                        : "Danach gilt der Auftrag als vereinbart und wird nicht mehr öffentlich angeboten."}
-                </p>
-                <label>
-                    <span>Datum und Uhrzeit</span>
-                    <input disabled={pending} type="datetime-local" value={value} onChange={(event) => setValue(event.target.value)} />
-                </label>
-                <label>
-                    <span>Notiz (optional)</span>
-                    <input disabled={pending} value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder="z. B. Treffpunkt oder kurze Absprache" />
-                </label>
-                <div className="activity-schedule-trust">
-                    <ShieldCheck size={17} />
-                    <span>Die Vereinbarung wird für beide Seiten nachvollziehbar gespeichert.</span>
+                <p>Wann soll die Arbeit stattfinden?</p>
+                <div className="activity-schedule-fields">
+                    <label>
+                        <span>Datum</span>
+                        <input disabled={pending} type="date" min={toDateTimeLocalValue(new Date().toISOString()).slice(0, 10)} value={value.split("T")[0] || ""} onChange={event => setValue(`${event.target.value}T${value.split("T")[1] || ""}`)} />
+                    </label>
+                    <label>
+                        <span>Uhrzeit</span>
+                        <input disabled={pending} type="time" value={value.split("T")[1] || ""} onChange={event => setValue(`${value.split("T")[0] || toDateTimeLocalValue(new Date().toISOString()).slice(0, 10)}T${event.target.value}`)} />
+                    </label>
                 </div>
+                <details className="activity-schedule-note" open={noteExpanded} onToggle={event => setNoteExpanded(event.currentTarget.open)}>
+                    <summary>Notiz ergänzen <span>optional</span></summary>
+                    <label>
+                        <span>Treffpunkt oder kurze Absprache</span>
+                        <input disabled={pending} value={note} maxLength={1000} onChange={event => setNote(event.target.value)} placeholder="Zum Beispiel: Bitte am Gartentor klingeln" />
+                    </label>
+                </details>
                 {error ? <div className="activity-dialog-error" role="alert">{error}</div> : null}
                 <div className="activity-dialog-actions">
                     <button type="button" onClick={onCancel} disabled={pending}>Abbrechen</button>
-                    <button type="button" className="is-primary" onClick={onConfirm} disabled={pending || !value}>
+                    <button type="button" className="is-primary" onClick={onConfirm} disabled={pending || !Number.isFinite(new Date(value).getTime())}>
                         {pending
                             ? "Wird gespeichert …"
                             : isRecurring && isEditing

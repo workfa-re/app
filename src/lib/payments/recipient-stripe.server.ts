@@ -143,6 +143,8 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                     { idempotencyKey: `workfare-pay:recipient-contact:${userId}:${fingerprint}` });
                 assertOwnedAccount(updated, userId, account.id, mode);
             }
+            const { initializeRecipientMonthlySchedule } = await import("./recipient-payout-settings.server");
+            await initializeRecipientMonthlySchedule(await sdk(), userId, account.id, mode);
             return account.id;
             } catch(error) { if (minor) minorProviderError(error); throw error; }
         },

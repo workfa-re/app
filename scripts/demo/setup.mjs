@@ -43,6 +43,10 @@ const schemaNames = [
   "../../database/migrations/20261024202657_complete_jobs_after_verified_payment.sql",
   "../../database/migrations/20261024211214_minor_self_service_bank_setup_and_safe_restart.sql",
   "../../database/migrations/20261024214615_native_guardian_payment_acceptance.sql",
+  "../../database/migrations/20261024223953_direct_after_work_payment.sql",
+  "../../database/migrations/20261024223958_payment_price_chat_notices.sql",
+  "../../database/migrations/20261024224259_recipient_payout_settings_and_recovery.sql",
+  "../../database/migrations/20261024225056_recipient_payout_attempt_replay.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"

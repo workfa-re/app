@@ -5,7 +5,7 @@ export type PaymentOrderOverview = Readonly<{ orders: readonly PaymentOrder[]; q
 
 export type PaymentOrderState = "awaiting_confirmation" | "ready" | "authorization_pending" | "authorized" | "capture_pending" | "paid"
     | "cancel_pending" | "canceled" | "refund_pending" | "refunded" | "failed" | "review_required";
-export type PaymentOrderAction = "authorize" | "capture" | "cancel" | "refund";
+export type PaymentOrderAction = "pay" | "authorize" | "capture" | "cancel" | "refund";
 
 /** Contract snapshot, not a bank balance, invoice or payout confirmation. */
 export type PaymentOrder = Readonly<{

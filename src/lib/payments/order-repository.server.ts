@@ -31,6 +31,21 @@ export async function listPaymentOrders(userId: string, applicationId: string): 
 }
 export const beginPaymentOrderOperation = (userId: string, orderId: string, action: PaymentOrderAction, operationId: string) =>
     rpc<PaymentOrderOperation>("pay_order_begin", { p_user_id: userId, p_order_id: orderId, p_action: action, p_operation_id: operationId }, parsePaymentOrderOperation);
+export const beginCompletionPayment = (userId: string, orderId: string, operationId: string) =>
+    rpc("pay_order_begin_completion", { p_user_id: userId, p_order_id: orderId, p_operation_id: operationId }, value => {
+        const row = value as Record<string, unknown>;
+        if (!["authorize", "capture"].includes(String(row.paymentAction))) throw new PaymentFlowError("payment_order_invalid_snapshot", 503);
+        return { ...parsePaymentOrderOperation(value), paymentAction: row.paymentAction as "authorize" | "capture" };
+    });
+export const getCompletionPaymentContext = (userId: string, orderId: string) =>
+    rpc("pay_order_completion_context", { p_user_id: userId, p_order_id: orderId }, value => {
+        const row = value as Record<string, unknown>;
+        if (row.orderId !== orderId || typeof row.providerId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.providerId) || typeof row.requested !== "boolean"
+            || (row.requested && (typeof row.operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.operationId)))) {
+            throw new PaymentFlowError("payment_order_invalid_snapshot", 503);
+        }
+        return { orderId, providerId: row.providerId, requested: row.requested, operationId: row.operationId as string | null };
+    });
 export const applyPaymentOrderState = (orderId: string, eventId: string, state: VerifiedOrderState) => rpc<PaymentOrder>("pay_order_apply", {
     p_order_id: orderId, p_event_id: eventId, p_intent_ref: state.intentRef, p_state: state.state,
     p_capture_before: state.captureBefore, p_refund_ref: state.refundRef, p_livemode: requirePaymentRuntime().mode === "live",

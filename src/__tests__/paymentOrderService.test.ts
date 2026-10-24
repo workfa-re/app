@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const mock=vi.hoisted(()=>({auth:vi.fn(),create:vi.fn(),confirm:vi.fn(),get:vi.fn(),privateGet:vi.fn(),list:vi.fn(),begin:vi.fn(),apply:vi.fn(),authorize:vi.fn(),inspect:vi.fn(),capture:vi.fn(),cancel:vi.fn(),refund:vi.fn(),verify:vi.fn(),resolveDispute:vi.fn(),inspectRefund:vi.fn()}));
+const mock=vi.hoisted(()=>({auth:vi.fn(),create:vi.fn(),confirm:vi.fn(),get:vi.fn(),privateGet:vi.fn(),list:vi.fn(),begin:vi.fn(),apply:vi.fn(),authorize:vi.fn(),inspect:vi.fn(),capture:vi.fn(),cancel:vi.fn(),refund:vi.fn(),verify:vi.fn(),resolveDispute:vi.fn(),inspectRefund:vi.fn(),completion:vi.fn(),completionBegin:vi.fn()}));
 vi.mock("@/lib/auth",()=>({getAuthState:mock.auth}));
 vi.mock("@/lib/payments/order-repository.server",()=>({createPaymentOrder:mock.create,confirmPaymentOrder:mock.confirm,getPaymentOrder:mock.get,
-    getPrivatePaymentOrder:mock.privateGet,readPaymentOrderOverview:mock.list,beginPaymentOrderOperation:mock.begin,applyPaymentOrderState:mock.apply}));
+    getPrivatePaymentOrder:mock.privateGet,readPaymentOrderOverview:mock.list,beginPaymentOrderOperation:mock.begin,applyPaymentOrderState:mock.apply,getCompletionPaymentContext:mock.completion,beginCompletionPayment:mock.completionBegin}));
 vi.mock("@/lib/payments/order-stripe.server",()=>({createPaymentOrderStripeAdapter:()=>({authorize:mock.authorize,inspect:mock.inspect,capture:mock.capture,cancel:mock.cancel,refund:mock.refund,verifyWebhook:mock.verify,resolveDisputeOrder:mock.resolveDispute,inspectRefund:mock.inspectRefund})}));
 import {proposeAppointmentPayment,confirmAppointmentPayment,readAppointmentPayment,listAppointmentPayments,actOnAppointmentPayment,syncAppointmentPayment,handlePaymentOrderWebhook} from "@/lib/payments/order-service.server";
 import {PaymentFlowError} from "@/lib/payments/runtime.server";
@@ -14,6 +14,7 @@ beforeEach(()=>{
     for(const [key,value]of Object.entries(orderEnvironment))vi.stubEnv(key,value);
     vi.stubEnv("STRIPE_PUBLISHABLE_KEY","pk_test_publicFixture");
     mock.auth.mockResolvedValue({state:"ready",session:{user:{id:orderUser}},profile:{account_type:"job_provider"}});
+    mock.completion.mockResolvedValue({orderId,providerId:orderUser,requested:false,operationId:null});
     mock.create.mockResolvedValue(paymentOrder({state:"awaiting_confirmation"}));mock.confirm.mockResolvedValue(paymentOrder({state:"ready"}));
     mock.get.mockResolvedValue(paymentOrder());mock.privateGet.mockResolvedValue(paymentOrder());mock.list.mockResolvedValue({orders:[paymentOrder()],quoteFeePolicy:"test-service-5-v1"});
     mock.begin.mockResolvedValue({...paymentOrder({intentRef:null}),operationId:orderOperation,replay:false});mock.apply.mockImplementation(async(_id,_event,state)=>({...paymentOrder(),state:state.state}));

@@ -1,6 +1,8 @@
 import {createHash} from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+const monthlySchedule = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/payments/recipient-payout-settings.server", () => ({ initializeRecipientMonthlySchedule: monthlySchedule }));
 const api = vi.hoisted(() => ({ create: vi.fn(), update:vi.fn(),retrieve: vi.fn(), legacy: vi.fn(), external: vi.fn(), session: vi.fn(), link:vi.fn(),balance:vi.fn(),settings:vi.fn(),persons:vi.fn(),privateRecord:vi.fn(),payouts:vi.fn(),transfers:vi.fn(),charges:vi.fn(),token:vi.fn(),attach:vi.fn() }));
 vi.mock("@/lib/payments/recipient-repository.server",()=>({getRecipientAccount:api.privateRecord}));
 vi.mock("stripe", async (original) => {
@@ -41,6 +43,7 @@ describe("narrow Accounts v2 sandbox adapter", () => {
         const adapter = createRecipientStripeAdapter(env);
         expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "readNativeGuardianSetup", "saveNativeGuardianSetup", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
         expect(await adapter.createAccount(user,{contactEmail:"recipient@example.test"})).toBe(accountRef);
+        expect(monthlySchedule).toHaveBeenCalledWith(expect.any(Stripe),user,accountRef,"sandbox");
         const [params, opts] = api.create.mock.calls[0];
         expect(params).toMatchObject({ contact_email:"recipient@example.test", dashboard: "none", identity: { country: "de", entity_type: "individual" },
             configuration: { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } },

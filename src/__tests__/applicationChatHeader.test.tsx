@@ -43,10 +43,10 @@ function renderHeader(application: Record<string, unknown> = {}, props: Partial<
 describe("provider next step in the chat header", () => {
     it.each(["submitted", "negotiating"])("offers scheduling beside Details for a %s reservation", status => {
         const header = renderHeader({ status });
-        expect(header).toContain('aria-label="Termin vereinbaren"');
+        expect(header).toContain('aria-label="Termin festlegen"');
         expect(header).not.toContain('aria-label="Zusammenarbeit abschließen"');
         expect(header).toContain('data-has-primary-action="true"');
-        expect(header.indexOf('aria-label="Termin vereinbaren"'))
+        expect(header.indexOf('aria-label="Termin festlegen"'))
             .toBeLessThan(header.indexOf('aria-label="Jobdetails und Aktionen öffnen"'));
     });
 
@@ -59,7 +59,7 @@ describe("provider next step in the chat header", () => {
         });
         expect(header.match(/class="activity-schedule-button"/g)).toHaveLength(1);
         expect(header).toContain('aria-label="Zusammenarbeit abschließen"');
-        expect(header).not.toContain('aria-label="Termin vereinbaren"');
+        expect(header).not.toContain('aria-label="Termin festlegen"');
         expect(header.indexOf('aria-label="Zusammenarbeit abschließen"'))
             .toBeLessThan(header.indexOf('aria-label="Jobdetails und Aktionen öffnen"'));
     });
@@ -151,16 +151,16 @@ describe("one integrated order status below the chat header", () => {
         for (const props of [{}, { readOnly: true }, { currentUserRole: "seeker" as const }]) {
             const bar = statusBar(renderChat({}, props));
             expect(bar).toContain("Reserviert");
-            expect(bar).toContain("Termin abstimmen");
+            expect(bar).toContain(props.currentUserRole === "seeker" ? "Termin mit dem Anbieter abstimmen" : "Nächster Schritt: Termin festlegen");
             expect(bar).not.toContain('class="activity-chat-state-action"');
         }
     });
 
-    it("keeps the reservation release action available for the correct role", () => {
+    it("keeps rare reservation release actions out of the status bar", () => {
         expect(statusBar(renderChat({}, { onReject: vi.fn() })))
-            .toContain('aria-label="Bewerbung ablehnen und Job freigeben"');
+            .not.toContain('aria-label="Bewerbung ablehnen und Job freigeben"');
         expect(statusBar(renderChat({}, { currentUserRole: "seeker", onWithdraw: vi.fn() })))
-            .toContain('aria-label="Bewerbung zurückziehen"');
+            .not.toContain('aria-label="Bewerbung zurückziehen"');
         expect(statusBar(renderChat({}, { readOnly: true, onReject: vi.fn() })))
             .not.toContain('class="activity-chat-state-action"');
     });

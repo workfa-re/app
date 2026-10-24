@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { createPaymentFixture, args, quote, asRole } from './payment-fixture.mjs';
+const fixture=await createPaymentFixture({prefix:'workfare_payout_replay'}),{execute,json,call,dispose}=fixture;
+const user=randomUUID(),other=randomUUID(),account='acct_replayFixture',firstNonce=randomUUID(),secondNonce=randomUUID();let checks=0;
+const check=(a,b,label)=>{assert.deepEqual(a,b,label);checks++;};
+const deny=async(source,label)=>{await assert.rejects(execute(source),undefined,label);checks++;};
+const invoke=(name,values,role='service_role',owner=null)=>asRole(role,owner,`SELECT public.${name}(${args(values)})`);
+const attempt=(owner,nonce)=>json(asRole('service_role',null,`SELECT COALESCE(public.pay_recipient_payout_attempt(${args([owner,nonce])}),'null'::jsonb)`));
+try{
+ await execute(await readFile(new URL('../../infrastructure/database/migrations/20261024224259_recipient_payout_settings_and_recovery.sql',import.meta.url),'utf8'));
+ const addition=await readFile(new URL('../../infrastructure/database/migrations/20261024225056_recipient_payout_attempt_replay.sql',import.meta.url),'utf8');
+ await execute(`BEGIN;${addition.replace(/^BEGIN;\s*/,'').replace(/COMMIT;\s*$/,'')}ROLLBACK;`);
+ check(await json("SELECT to_json(to_regprocedure('public.pay_recipient_payout_attempt(uuid,uuid)') IS NULL)"),true,'lookup migration rolls back atomically');
+ await execute(addition);
+ await execute(`INSERT INTO public.profiles(id,full_name,account_type,birthdate) VALUES(${args([user,'Recipient Test','job_seeker','2000-01-01'])}),(${args([other,'Other Test','job_seeker','2000-01-01'])});UPDATE payment_private.configuration SET mode='sandbox';UPDATE payment_private.recipient_configuration SET sandbox_adult_enabled=true;`);
+ const claim=randomUUID();await call('pay_recipient_claim',[user,'sandbox',claim]);await execute(invoke('pay_recipient_save_account',[user,'sandbox',claim,account]));
+ await execute(`UPDATE payment_private.recipients SET status='ready',has_payout_method=true,details_submitted=true,transfers_active=true,payouts_enabled=true,verified_at=now() WHERE user_id=${quote(user)}`);
+ const first=await call('pay_recipient_payout_begin',[user,firstNonce,account,'payout',JSON.stringify({interval:'monthly',monthlyDays:[1]}),null,1700,'card','ba_fixture']);
+ await execute(invoke('pay_recipient_payout_mark',[first.id,user,account,'complete',true,'po_first','paid',new Date().toISOString()]));
+ const second=await call('pay_recipient_payout_begin',[user,secondNonce,account,'schedule',JSON.stringify({interval:'monthly',monthlyDays:[1]}),JSON.stringify({interval:'monthly',monthlyDays:[15]}),null,null,null]);
+ await execute(invoke('pay_recipient_payout_mark',[second.id,user,account,'complete',true,null,null,null]));
+ check((await call('pay_recipient_payout_current',[user])).id,second.id,'latest operation belongs to the other tab');
+ const old=await attempt(user,firstNonce);check(old.id,first.id,'old nonce resolves the original operation');check(old.finished,true,'old terminal status remains available');check(old.payoutStatus,'paid','actual stored payout status is returned');check(old.amountCents,1700,'confirmed old amount remains immutable');
+ check((await attempt(user,secondNonce)).id,second.id,'second nonce resolves its own operation');check(await attempt(other,firstNonce),null,'foreign recipient cannot retrieve another command');check(await attempt(user,randomUUID()),null,'unknown nonce returns no command');
+ for(const role of ['anon','authenticated'])await deny(invoke('pay_recipient_payout_attempt',[user,firstNonce],role,user),`${role} cannot call the private lookup`);
+ check(await json("SELECT to_json(NOT prosecdef) FROM pg_proc WHERE oid='public.pay_recipient_payout_attempt(uuid,uuid)'::regprocedure"),true,'exposed lookup is an invoker');
+ await execute("UPDATE payment_private.configuration SET mode='disabled'");check(await attempt(user,firstNonce),null,'an intent cannot be replayed outside its original active mode');await execute("UPDATE payment_private.configuration SET mode='sandbox'");
+ check(await json('SELECT to_json(count(*)) FROM payment_private.payout_operations'),2,'lookups cannot create new payout commands');
+ console.log(JSON.stringify({ok:true,checks,database:fixture.database,stripeRequests:0,remoteDatabases:0,moneyMoved:0}));
+}finally{await dispose();}

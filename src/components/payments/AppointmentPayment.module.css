@@ -2,16 +2,16 @@
 .payment::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: -1px; padding: 1px; border-radius: inherit; background: var(--app-glass-rim); mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite: exclude; -webkit-mask-composite: xor; }
 .heading { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .heading > svg { flex: 0 0 17px; color: var(--app-accent-ink); stroke-width: 1.5; }
-.heading h4 { flex: 1; min-width: 0; margin: 0; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: -.015em; }
+.heading h4 { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 500; line-height: 1.5; letter-spacing: -.015em; }
 .heading h4:focus { outline: none; }
 .refresh { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; margin: -8px -8px -8px 0; padding: 0; border: 0; border-radius: 50%; color: var(--app-muted); background: transparent; cursor: pointer; }
 .refresh:disabled { opacity: .4; cursor: default; }
 .summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 5px 12px; margin-top: 14px; }
 .summary strong { font-size: 25px; font-weight: 500; line-height: 1.3; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
-.summary > span { color: var(--app-muted); font-size: 11px; line-height: 1.6; }
-.hint { margin: 10px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; text-wrap: pretty; }
+.summary > span { color: var(--app-muted); font-size: 12px; line-height: 1.6; }
+.hint { margin: 10px 0 0; color: var(--app-muted); font-size: 13px; line-height: 1.65; text-wrap: pretty; }
 .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 14px; }
-.primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 14px; padding: 11px 14px; border: 1px solid transparent; border-radius: 15px; color: var(--app-accent-ink); font-family: inherit; font-size: 12px; font-weight: 500; line-height: 1.5; text-align: center; cursor: pointer; }
+.primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 14px; padding: 11px 14px; border: 1px solid transparent; border-radius: 999px; color: var(--app-accent-ink); font-family: inherit; font-size: 14px; font-weight: 500; line-height: 1.5; text-align: center; cursor: pointer; }
 :global(.app-shell) .payment .primary { color: var(--app-accent-ink); }
 .controls .primary { margin-top: 0; }
 .primary:disabled { opacity: .45; cursor: default; }
@@ -21,18 +21,18 @@
 .hint .textButton { display: flex; }
 .editor { margin-top: 16px; animation: reveal 160ms ease both; }
 .editorHeading { display: flex; align-items: flex-start; gap: 8px; }
-.editorHeading h5 { flex: 1; margin: 0; font-size: 13px; font-weight: 500; line-height: 1.6; text-wrap: balance; }
+.editorHeading h5 { flex: 1; margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; text-wrap: balance; }
 .editorHeading .refresh { margin-block: -8px; }
-.amounts { display: grid; gap: 8px; margin: 15px 0 0; padding: 0; font-size: 12px; line-height: 1.5; }
+.amounts { display: grid; gap: 11px; margin: 15px 0 0; padding: 16px; border-radius: 19px; background: var(--app-glass-fill); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); font-size: 14px; line-height: 1.5; }
 .amounts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .amounts dt { margin: 0; color: var(--app-muted); }
-.amounts dt > span { font-size: 10px; }
+.amounts dt > span { font-size: 12px; white-space: nowrap; }
 .amounts dd { margin: 0; color: var(--app-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.amounts .total { margin-top: 3px; padding-top: 9px; box-shadow: 0 -1px 0 var(--app-panel-rule); }
-.total dt,.total dd { color: var(--app-ink); font-size: 14px; font-weight: 500; }
-.minutes { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; color: var(--app-muted); font-size: 12px; }
+.amounts .total { margin-top: 3px; padding-top: 12px; box-shadow: 0 -1px 0 var(--app-panel-rule); }
+.total dt,.total dd { color: var(--app-ink); font-size: 19px; font-weight: 500; }
+.minutes { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; color: var(--app-muted); font-size: 14px; }
 .minutes > span { display: flex; align-items: center; gap: 10px; }
-.minutes input { width: 90px; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--app-panel-rule); border-radius: 13px; color: var(--app-ink); background: var(--app-glass-fill); font-family: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
+.minutes input { width: 90px; min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid var(--app-panel-rule); border-radius: 13px; color: var(--app-ink); background: var(--app-glass-fill); font-family: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
 .consent { display: flex; align-items: flex-start; gap: 9px; min-height: 44px; margin-top: 13px; padding: 5px 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; cursor: pointer; }
 .consent input { width: 18px; height: 18px; flex: 0 0 18px; margin: 2px 0 0; accent-color: var(--app-accent-ink); }
 .test { display: block; margin-top: 13px; color: var(--app-muted); font-size: 10px; line-height: 1.5; }
@@ -51,9 +51,10 @@
 .completionClose:disabled { opacity: .45; cursor: default; }
 :global(.app-shell .application-chat[data-ui="conversation"] .activity-action-dialog).completionDialog .completionTitle { margin: 13px 0 0; color: var(--app-ink); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .completionTerms { display: grid; gap: 12px; margin-top: 19px; }
-.completionTerms .payment { margin: 0; }
+.completionTerms .payment { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.completionTerms .payment::before { display: none; }
 .completionTerms .amounts { font-size: 14px; }
-.completionTerms .amounts .total dt, .completionTerms .amounts .total dd { font-size: 18px; }
+.completionTerms .amounts .total dt, .completionTerms .amounts .total dd { font-size: 21px; }
 .completionTerms .primary { border-radius: 999px; font-size: 14px; }
 :global(.app-shell .application-chat[data-ui="conversation"] .activity-action-dialog).completionDialog .completionTerms .consent { flex-direction: row; align-items: flex-start; gap: 9px; margin-top: 13px; color: var(--app-muted); font-size: 13px; font-weight: 400; }
 :global(.app-shell .application-chat[data-ui="conversation"] .activity-action-dialog).completionDialog .consent input { width: 18px; height: 18px; min-height: 18px; margin: 2px 0 0; padding: 0; border-radius: 4px; background: transparent !important; box-shadow: none !important; }
@@ -66,3 +67,20 @@
 @media (prefers-reduced-motion:reduce) { .payment * { animation: none !important; transition: none !important; } }
 @media (prefers-reduced-transparency:reduce) { .payment { background: var(--app-ground); backdrop-filter: none; -webkit-backdrop-filter: none; } .payment::before { display: none; } }
 @media (forced-colors:active) { .payment,.primary,.minutes input,.error { border-color: ButtonText; color: ButtonText; background: ButtonFace; box-shadow: none; } .payment::before { display: none; } }
+
+.secondaryActions { margin-top: 14px; color: var(--app-muted); font-size: 12px; }
+.secondaryActions summary { display: flex; align-items: center; min-height: 40px; width: fit-content; cursor: pointer; }
+.secondaryActions summary::after { content: "+"; margin-left: 10px; font-size: 16px; }
+.secondaryActions[open] summary::after { content: "−"; }
+.secondaryActions .textButton { display: flex; width: fit-content; font-size: 13px; }
+.secondaryActions summary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; border-radius: 8px; }
+.completionTerms .hint { font-size: 14px; }
+.completionTerms .editor { margin-top: 16px; }
+.completionTerms .heading { min-height: 30px; }
+.completionTerms .heading h4 { font-size: 13px; color: var(--app-muted); }
+.completionTerms .heading > svg { color: var(--app-muted); }
+@media (max-width: 480px) {
+    :global(.app-shell .application-chat[data-ui="conversation"] .activity-action-dialog).completionDialog { padding: 22px 20px; max-height: calc(100dvh - 32px); }
+    .completionTerms { margin-top: 18px; }
+    .amounts { padding: 15px; }
+}

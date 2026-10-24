@@ -211,6 +211,10 @@ export function createPaymentOrderStripeAdapter(environment: PaymentsEnvironment
             if (intent.status === "succeeded") return inspect(order);
             const verified = await inspect(order);
             if (verified.state !== "authorized" || !verified.captureBefore || Date.parse(verified.captureBefore) <= Date.now()) throw new PaymentFlowError("payment_order_authorization_expired", 409);
+            const recipient = await createRecipientStripeAdapter(environment).inspect(order.recipientId, order.accountRef!);
+            if (recipient.status !== "ready" || !recipient.transfersActive || !recipient.payoutsEnabled || !recipient.hasPayoutMethod) {
+                throw new PaymentFlowError("payment_order_recipient_not_ready", 409);
+            }
             const captured = await (await sdk()).paymentIntents.capture(intent.id, { amount_to_capture: order.totalCents }, { idempotencyKey: `workfare-pay:order:${order.id}:capture:${operationId}` });
             ownedIntent(captured, order);
             return inspect(order);

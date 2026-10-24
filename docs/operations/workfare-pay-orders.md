@@ -1,5 +1,7 @@
 # Workfare Pay: Terminzahlungen im Testbetrieb
 
+Historische Grundlage des Testbetriebs. Der aktuelle Abschluss mit direktem Bezahlen nach der Arbeit ist unter [Abschluss und Bankauszahlung](workfare-pay-completion-payouts.md) dokumentiert.
+
 Stand: 24.10.2026. Diese Grundlage ist ausschließlich für die isolierte lokale Demo und ausdrücklich freigeschaltete Stripe-Sandbox-Konten vorgesehen. Sie ist kein freigegebenes Echtgeld-, Lohn- oder Minderjährigen-Zahlungsprodukt.
 
 ## Ablauf und Oberfläche

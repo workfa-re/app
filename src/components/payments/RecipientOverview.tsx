@@ -85,8 +85,10 @@ function useRecipientSummary(ownerId: string, view: "full" | "home" = "full", ki
                 setResource({ summary: null, loading: false, error: "Bitte öffne die Übersicht nach deiner Anmeldung erneut." });
             }
         });
+        const financialChange = (event: Event) => { if ((event as CustomEvent<{ownerId:string}>).detail?.ownerId === ownerId) void refresh(); };
+        window.addEventListener("workfare-pay-updated", financialChange);
         void Promise.resolve().then(refresh);
-        return () => { mounted.current = false; invalidate(); subscription.unsubscribe(); };
+        return () => { mounted.current = false; invalidate(); subscription.unsubscribe(); window.removeEventListener("workfare-pay-updated", financialChange); };
     }, [ownerId, refresh, invalidate]);
     return { ...resource, summary: resource.summary?.ownerId === ownerId ? resource.summary : null, refresh };
 }

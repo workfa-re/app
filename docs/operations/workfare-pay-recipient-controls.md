@@ -1,5 +1,7 @@
 # Empfänger: Browser-Fallback und Auszahlungssteuerung
 
+Historische Grundlage des Testbetriebs. Die aktuelle monatliche Auszahlung und der ausdrücklich bestätigte Einzelauftrag stehen unter [Abschluss und Bankauszahlung](workfare-pay-completion-payouts.md).
+
 Stand: 24.10.2026. Implementiert ist ausschließlich der bereits begrenzte lokale Stripe-Sandboxbetrieb. Diese Ergänzung aktiviert weder einen Live-Modus noch eine manuelle Auszahlung und ersetzt keine Freigabe des deutschen Jugendjob-/Zahlungsmodells.
 
 ## Einrichtung im normalen Browser fortsetzen

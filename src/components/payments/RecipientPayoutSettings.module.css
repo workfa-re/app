@@ -1,0 +1,11 @@
+.plan { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 0; }
+.plan > div { display:flex; flex-direction:column; gap:4px; }
+.plan strong { font-size:15px; font-weight:500; }
+.plan span, .hint { color:var(--app-muted); font-size:13px; line-height:1.6; }
+.editor { display:flex; flex-direction:column; gap:15px; margin-top:14px; }
+.editor label { color:var(--app-muted); font-size:13px; }
+.editor select { width:100%; padding:13px 15px; border-radius:16px; border:1px solid var(--app-panel-rule); background:var(--app-glass-fill); color:var(--app-ink); font:inherit; font-size:16px; margin-top:8px; }
+.editor select:focus-visible { outline:2px solid var(--app-accent-ink); outline-offset:3px; }
+.actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:15px; }
+.notice { padding:15px 17px; margin-top:17px; border-radius:18px; background:var(--app-glass-fill); box-shadow:var(--app-glass-shadow); color:var(--app-muted); font-size:13px; line-height:1.65; }
+@media(max-width:480px) { .actions > button { width:100%; justify-content:center; } }

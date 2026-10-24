@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
-import { AppointmentPayment, AppointmentPaymentAmounts, AppointmentPaymentsProvider, canCancelAppointmentPayment, canRenewAppointmentPayment, estimateAppointmentPrice, nextAppointmentPaymentAction, refreshAppointmentPaymentStatus, paymentConversationShortcut, latestAppointmentPaymentOrder, appointmentsArePaid, captureCompletionPayment, AppointmentCompletionReview } from "@/components/payments/AppointmentPayment";
+import { AppointmentPayment, AppointmentPaymentAmounts, AppointmentPaymentsProvider, canCancelAppointmentPayment, canRenewAppointmentPayment, estimateAppointmentPrice, nextAppointmentPaymentAction, refreshAppointmentPaymentStatus, paymentConversationShortcut, latestAppointmentPaymentOrder, appointmentsArePaid, captureCompletionPayment, payCompletedAppointment, AppointmentCompletionReview } from "@/components/payments/AppointmentPayment";
 import { paymentOrder } from "./fixtures/paymentOrders";
 import { paymentOrderPreviewVisible } from "@/lib/payments/order-feature";
 import { LIVE_SERVICE_FEE_POLICY, quoteLiveServiceFee } from "@/lib/payments/tariff";
@@ -25,6 +25,49 @@ describe("appointment payment UI consent and stage contract", () => {
         expect(appointmentsArePaid(appointments, [oldPaid, latestPaid])).toBe(false);
         expect(appointmentsArePaid(appointments, [{ ...oldPaid, state: "refund_pending" }, latestPaid])).toBe(false);
         expect(appointmentsArePaid(appointments, [{ ...oldPaid, state: "refunded", refundedCents: oldPaid.totalCents }, latestPaid])).toBe(true);
+    });
+    it("pays the exact confirmed quote through one explicit action without sending a browser amount", async () => {
+        const order = paymentOrder({ state: "ready", startsAt: "2035-01-01T23:00:00Z" });
+        const paid = { ...order, state: "paid" };
+        const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: paid }) }); vi.stubGlobal("fetch", fetch);
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444";
+        expect((await payCompletedAppointment(order, scope, operation)).order).toEqual(paid);
+        expect(fetch).toHaveBeenCalledExactlyOnceWith(`/api/payments/orders/${order.id}/action`, expect.objectContaining({
+            method: "POST", headers: expect.objectContaining({ "Idempotency-Key": operation }), body: JSON.stringify({ action: "pay", consent: true }),
+        }));
+        expect(fetch.mock.calls[0][1].body).not.toMatch(/amount|totalCents|startsAt|capture/);
+    });
+    it.each(["authorization_pending", "authorized", "capture_pending"] as const)("resumes %s through the same explicit payment action", async state => {
+        const order = paymentOrder({ state });
+        const response = { order: { ...order, state: "authorization_pending" }, kind: "confirmation", clientSecret: "pi_fixture_secret_scope", publishableKey: "pk_test_scope" };
+        const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => response }); vi.stubGlobal("fetch", fetch);
+        const result = await payCompletedAppointment(order, { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true }, "44444444-4444-4444-8444-444444444444");
+        expect(result).toEqual(response);
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify({ action: "pay", consent: true }));
+    });
+    it("does not request money for an unconfirmed, stale, foreign, settled or refunded quote", async () => {
+        const order = paymentOrder({ state: "ready" });
+        const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444";
+        for (const patch of [{ state: "awaiting_confirmation" as const }, { state: "paid" as const }, { state: "failed" as const }, { state: "canceled" as const },
+            { state: "refunded" as const }, { termsCurrent: false }, { recipientConfirmedAt: null }, { providerId: order.recipientId }]) {
+            await expect(payCompletedAppointment({ ...order, ...patch }, scope, operation)).rejects.toThrow();
+        }
+        await expect(payCompletedAppointment(order, { ...scope, isProvider: false }, operation)).rejects.toThrow();
+        await expect(payCompletedAppointment(order, scope, "invalid")).rejects.toThrow();
+        expect(fetch).not.toHaveBeenCalled();
+    });
+    it("rejects a returned foreign quote and never turns a pending bank response into paid", async () => {
+        const order = paymentOrder({ state: "ready" });
+        const scope = { applicationId: order.applicationId, currentUserId: order.providerId, isProvider: true };
+        const operation = "44444444-4444-4444-8444-444444444444";
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { ...order, state: "capture_pending" } }) }));
+        expect((await payCompletedAppointment(order, scope, operation)).order.state).toBe("capture_pending");
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { ...order, id: "99999999-9999-4999-8999-999999999999", state: "paid" } }) }));
+        await expect(payCompletedAppointment(order, scope, operation)).rejects.toThrow();
     });
     it("captures a verified own authorization with the same operation and exact stored total", async () => {
         const order = paymentOrder({ state: "authorized", captureBefore: "2035-01-02T00:00:00Z", startsAt: "2035-01-01T00:00:00Z" });
@@ -89,6 +132,12 @@ describe("appointment payment UI consent and stage contract", () => {
         expect(html).toContain("10,00"); expect(html).toContain("0,50"); expect(html).toContain("10,50");
         expect(html).not.toMatch(/Testtarif|Testbetrieb/);
     });
+    it("explains the five-percent fee on a 17-euro job without reducing the recipient's pay", () => {
+        const payer = renderToStaticMarkup(<AppointmentPaymentAmounts earnings={1700} fee={85} feePolicy={LIVE_SERVICE_FEE_POLICY} provider />);
+        for (const value of ["17,00", "0,85", "17,85", "5 %"]) expect(payer).toContain(value);
+        const recipient = renderToStaticMarkup(<AppointmentPaymentAmounts earnings={1700} fee={85} feePolicy={LIVE_SERVICE_FEE_POLICY} provider={false} />);
+        expect(recipient).toContain("17,00"); expect(recipient).not.toContain("17,85"); expect(recipient).not.toContain("0,85");
+    });
     it("accepts only mode-consistent live payment synchronization and retains exact quote checks", async () => {
         const feeTariff = quoteLiveServiceFee(1000);
         const live = paymentOrder({ mode: "live", livePaymentsEnabled: true, earningsCents: 1000, serviceFeeCents: 50, totalCents: 1050,
@@ -121,11 +170,11 @@ describe("appointment payment UI consent and stage contract", () => {
             expect(nextAppointmentPaymentAction(paymentOrder({ state }), false, Date.now())).toBeNull();
         }
     });
-    it("keeps authorization separate from capture and never charges from an appointment status alone", () => {
-        expect(nextAppointmentPaymentAction(paymentOrder({ state: "ready" }), true, Date.now())).toBe("authorize");
-        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorization_pending" }), true, Date.now())).toBe("authorize");
-        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorized", startsAt: "2035-01-01T00:00:00Z", captureBefore: "2035-01-02T00:00:00Z" }), true, Date.parse("2034-12-31T00:00:00Z"))).toBeNull();
-        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorized", startsAt: "2035-01-01T00:00:00Z", captureBefore: "2035-01-02T00:00:00Z" }), true, Date.parse("2035-01-01T01:00:00Z"))).toBe("capture");
+    it("offers one explicit payment action after price confirmation, including an early completed job", () => {
+        expect(nextAppointmentPaymentAction(paymentOrder({ state: "ready" }), true, Date.now())).toBe("pay");
+        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorization_pending" }), true, Date.now())).toBe("pay");
+        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorized", startsAt: "2035-01-01T00:00:00Z", captureBefore: "2035-01-02T00:00:00Z" }), true, Date.parse("2034-12-31T00:00:00Z"))).toBe("pay");
+        expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorized", startsAt: "2035-01-01T00:00:00Z", captureBefore: "2035-01-02T00:00:00Z" }), true, Date.parse("2035-01-01T01:00:00Z"))).toBe("pay");
         expect(nextAppointmentPaymentAction(paymentOrder({ state: "authorized", captureBefore: "2000-01-01T00:00:00Z" }), true, Date.now())).toBeNull();
     });
     it("does not offer financial next actions for stale or terminal orders", () => {
@@ -134,7 +183,7 @@ describe("appointment payment UI consent and stage contract", () => {
             expect(nextAppointmentPaymentAction(paymentOrder({ state }), true, Date.now())).toBeNull();
         }
     });
-    it.each([["capture_pending", "capture"], ["cancel_pending", "cancel"], ["refund_pending", "refund"]] as const)("lets only the buyer resume an interrupted %s operation", (state, action) => {
+    it.each([["capture_pending", "pay"], ["cancel_pending", "cancel"], ["refund_pending", "refund"]] as const)("lets only the buyer resume an interrupted %s operation", (state, action) => {
         const order = paymentOrder({ state });
         expect(nextAppointmentPaymentAction(order, true, Date.now())).toBe(action);
         expect(nextAppointmentPaymentAction(order, false, Date.now())).toBeNull();
@@ -170,11 +219,11 @@ describe("appointment payment UI consent and stage contract", () => {
         const proposed = paymentOrder({ state: "awaiting_confirmation" });
         expect(paymentConversationShortcut([proposed], false, now)?.label).toBe("Preis bestätigen");
         expect(paymentConversationShortcut([proposed], true, now)).toBeNull();
-        expect(paymentConversationShortcut([paymentOrder({ state: "ready" })], true, now)?.label).toBe("Zahlung freigeben");
+        expect(paymentConversationShortcut([paymentOrder({ state: "ready" })], true, now)?.label).toBe("Jetzt bezahlen");
         expect(paymentConversationShortcut([paymentOrder({ state: "ready" })], false, now)).toBeNull();
-        expect(paymentConversationShortcut([paymentOrder({ state: "authorized", captureBefore: "2026-10-25T00:00:00Z" })], true, now)?.label).toBe("Vergütung bezahlen");
+        expect(paymentConversationShortcut([paymentOrder({ state: "authorized", captureBefore: "2026-10-25T00:00:00Z" })], true, now)?.label).toBe("Jetzt bezahlen");
         expect(paymentConversationShortcut([paymentOrder({ state: "paid" })], true, now)).toBeNull();
-        expect(paymentConversationShortcut([paymentOrder({ state: "ready", startsAt: "2026-10-30T00:00:00Z" })], true, now)).toBeNull();
+        expect(paymentConversationShortcut([paymentOrder({ state: "ready", startsAt: "2026-10-30T00:00:00Z" })], true, now)?.label).toBe("Jetzt bezahlen");
     });
     it("does not let a late response for an old quote conceal its replacement", () => {
         const old = paymentOrder({ state: "canceled", quoteVersion: 1 });

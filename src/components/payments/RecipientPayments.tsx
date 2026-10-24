@@ -16,6 +16,7 @@ import { RecipientHostedFallback } from "./RecipientHostedFallback";
 import { isStripeSurfaceKind, validStripeSurfaceSession } from "./PaymentEnvironment";
 import { RecipientOverview } from "./RecipientOverview";
 import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
+import { RecipientPayoutSettings } from "./RecipientPayoutSettings";
 import { MinorPayoutSetup } from "./MinorPayoutSetup";
 import overviewStyles from "./RecipientOverview.module.css";
 import styles from "./Payments.module.css";
@@ -204,6 +205,7 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         ? <div key="setup" className={overviewStyles.setupSlot}><MinorPayoutSetup key={ownerId} ownerId={ownerId ?? ""} onUpdated={() => router.refresh()} /></div> : setupSlot;
     return <div className={`${styles.stack} ${overviewStyles.recipientLayout}`} data-overview-first={ready}>
         {ready ? [overviewSlot, visibleSetupSlot] : [visibleSetupSlot, overviewSlot]}
+        <div key="payout-settings" className={overviewStyles.notificationsSlot}>{!session && !editing && canReadFinancials && ownerId && <RecipientPayoutSettings key={ownerId} ownerId={ownerId} onUpdated={() => router.refresh()} />}</div>
         <div key="notifications" className={overviewStyles.notificationsSlot}>{!session && !editing && !statusUnknown && !busy && <RecipientNotifications snapshot={snapshot} ownerId={ownerId} onChanged={onNotificationChanged} />}</div>
     </div>;
 }

@@ -3,6 +3,18 @@ export class PaymentRequestError extends Error {
 }
 
 const messages: Record<string, string> = {
+    recipient_payout_balance_changed: "Dein verfügbarer Betrag hat sich geändert. Bitte lade den aktuellen Stand.",
+    recipient_payout_in_progress: "Dein Auftrag wird bereits geprüft. Bitte lade den aktuellen Stand.",
+    recipient_payout_review_required: "Die Auszahlung wird noch abgeglichen. Es wird kein zweiter Auftrag erstellt.",
+    recipient_payout_restore_pending: "Der automatische Auszahlungsplan wird wiederhergestellt. Bitte prüfe den aktuellen Stand in einem Moment.",
+    recipient_payout_failed: "Die Auszahlung konnte nicht beauftragt werden. Bitte lade den aktuellen Stand.",
+    recipient_payout_unconfirmed: "Der Auszahlungsstand konnte nicht bestätigt werden. Bitte lade ihn erneut.",
+    recipient_payout_unavailable: "Die Auszahlungen sind gerade nicht erreichbar. Bitte versuche es später erneut.",
+    recipient_payout_automatic_plan_required: "Wähle zuerst deinen automatischen Auszahlungstag.",
+    recipient_setup_required: "Vervollständige zuerst deine Auszahlungseinrichtung.",
+    RECIPIENT_PAYOUT_IN_PROGRESS: "Dein Auftrag wird bereits geprüft. Bitte lade den aktuellen Stand.",
+    RECIPIENT_PAYOUT_CONFLICT: "Der Auszahlungsstand hat sich geändert. Bitte lade ihn erneut.",
+    RECIPIENT_PAYOUT_NOT_READY: "Vervollständige zuerst deine Auszahlungseinrichtung.",
     recipient_bank_token_invalid: "Bitte prüfe deine Bankverbindung und gib sie erneut ein.",
     recipient_bank_already_saved: "Eine Bankverbindung ist bereits hinterlegt. Lade den aktuellen Stand.",
     recipient_bank_unconfirmed: "Die Bankverbindung wurde noch nicht bestätigt. Prüfe bitte den aktuellen Stand.",

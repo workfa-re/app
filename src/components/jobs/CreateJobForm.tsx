@@ -518,9 +518,6 @@ export function CreateJobForm({ defaultLocation, marketName, paymentRequired = f
             {draftSaveError && <p className={styles.saveError} role="alert">{draftSaveError}</p>}
 
             <div className={styles.actions}>
-                <p className="max-w-xs text-xs leading-5 text-[var(--text-muted)]">
-                    {`Nach dem Veröffentlichen ist der Job für passende Jobsuchende in ${marketName} sichtbar.`}
-                </p>
                 <SubmitButtons paymentRequired={needsPayment} onPreparePayment={preparePayment} />
             </div>
         </form >

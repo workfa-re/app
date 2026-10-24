@@ -283,3 +283,24 @@ export async function reportActivityItem(input: Omit<ActivityReportInput, "scope
     revalidatePath("/app-home/activities");
     return result;
 }
+
+const paymentMessageUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Resolve a persisted price notice to the exact appointment; no PSP IDs escape. */
+export async function getPaymentOrderForMessage(applicationId: string, messageId: string) {
+    const unavailable = { available: false, appointmentId: null, orderId: null } as const;
+    if (!paymentMessageUuid.test(applicationId) || !paymentMessageUuid.test(messageId)) return unavailable;
+    try {
+        const client = await supabaseServer();
+        const { data: { user }, error: authError } = await client.auth.getUser();
+        if (authError || !user?.id) return unavailable;
+        const rpc = client as unknown as { rpc(name: string, args: Record<string, string>): PromiseLike<{ data: unknown; error: unknown }> };
+        const { data, error } = await rpc.rpc("get_application_payment_for_message", { p_application_id: applicationId, p_message_id: messageId });
+        if (error || !data || typeof data !== "object" || Array.isArray(data)) return unavailable;
+        const result = data as Record<string, unknown>;
+        if (result.applicationId !== applicationId || typeof result.appointmentId !== "string" || !paymentMessageUuid.test(result.appointmentId)
+            || typeof result.orderId !== "string" || !paymentMessageUuid.test(result.orderId)
+            || !["payment_price_proposed", "payment_price_confirmed"].includes(String(result.event))) return unavailable;
+        return { available: true, appointmentId: result.appointmentId, orderId: result.orderId } as const;
+    } catch { return unavailable; }
+}

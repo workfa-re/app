@@ -5,7 +5,7 @@ import { PaymentFlowError } from "./runtime.server";
 import { requirePaymentOrders, requirePaymentOrderMaintenance } from "./order-config.server";
 import { createPaymentOrderStripeAdapter } from "./order-stripe.server";
 import * as repository from "./order-repository.server";
-import type { PaymentOrderAction, PrivatePaymentOrder, VerifiedOrderState } from "./order-types";
+import type { PaymentOrder, PaymentOrderAction, PrivatePaymentOrder, VerifiedOrderState } from "./order-types";
 import type Stripe from "stripe";
 import type { PaymentFeePolicy } from "./tariff";
 import { stripePublishableKey } from "./stripe-mode.server";
@@ -56,10 +56,83 @@ export async function listAppointmentPayments(applicationId: string) {
     return repository.readPaymentOrderOverview(userId, applicationId);
 }
 
-function localState(order: PrivatePaymentOrder, action: PaymentOrderAction): VerifiedOrderState {
+function localState(order: PrivatePaymentOrder, action: Exclude<PaymentOrderAction, "pay">): VerifiedOrderState {
     return { state: action === "authorize" ? "authorized" : action === "capture" ? "paid" : action === "cancel" ? "canceled" : "refunded",
         intentRef: order.intentRef ?? `local_pi_${order.id}`, captureBefore: action === "authorize" ? new Date(Date.now() + 48 * 60 * 60_000).toISOString() : null,
         refundRef: action === "refund" ? `local_refund_${order.id}` : null };
+}
+
+/** Continue only a durable payer-initiated after-work request. A generic card
+ * authorization, price confirmation or webhook can never create this consent. */
+async function finishRequestedCompletion(userId: string, orderId: string, knownOrder?: PaymentOrder, background = false) {
+    const request = await repository.getCompletionPaymentContext(userId, orderId);
+    if (!request.requested || !request.operationId) return knownOrder ?? repository.getPaymentOrder(userId, orderId);
+    const current = await repository.getPrivatePaymentOrder(userId, orderId);
+    if (request.providerId !== current.providerId) throw new PaymentFlowError("payment_order_object_mismatch", 409);
+    if (!["authorized", "capture_pending"].includes(current.state)) return knownOrder ?? repository.getPaymentOrder(userId, orderId);
+    let operation;
+    try { operation = await repository.beginCompletionPayment(current.providerId, orderId, request.operationId); }
+    catch (error) {
+        // The signed event has already been reconciled. A changed appointment or
+        // revoked setup needs user action, rather than endless webhook retries.
+        if (background && error instanceof PaymentFlowError && ["PAYMENT_ORDER_TERMS_CHANGED", "PAYMENT_ORDER_RECIPIENT_REQUIRED",
+            "PAYMENT_ORDER_CAPTURE_NOT_ALLOWED", "PAYMENT_ORDER_CONFIRMATION_REQUIRED"].includes(error.code)) {
+            return knownOrder ?? repository.getPaymentOrder(userId, orderId);
+        }
+        throw error;
+    }
+    if (operation.paymentAction !== "capture" || !["authorized", "capture_pending"].includes(operation.state)) return repository.getPaymentOrder(userId, orderId);
+    let state: VerifiedOrderState;
+    try { state = current.mode === "local_simulation" ? localState(operation, "capture")
+        : await createPaymentOrderStripeAdapter().capture(operation, operation.operationId); }
+    catch (error) {
+        // Stripe may confirm the charge before fee/transfer evidence is visible.
+        // Keep the explicit request pending without announcing success/failure.
+        // Webhook retries continue until the full evidence can be reconciled.
+        if (!background && error instanceof PaymentFlowError && error.code === "payment_order_fee_evidence_pending") {
+            return repository.getPaymentOrder(userId, orderId);
+        }
+        throw error;
+    }
+    return repository.applyPaymentOrderState(orderId, `order-completion:${operation.operationId}:${state.state}`, state);
+}
+
+async function payCompletedAppointment(userId: string, orderId: string, operationId: string) {
+    const runtime = requirePaymentOrderMaintenance();
+    // Validate the public key before allocating an authorization. No user-visible
+    // step asks for a pre-work card hold: authorize/capture are internal stages.
+    const publishableKey = runtime.mode === "local_simulation" ? null : stripePublishableKey();
+    const operation = await repository.beginCompletionPayment(userId, orderId, operationId);
+    if (["paid", "refund_pending", "refunded", "review_required", "canceled", "cancel_pending", "failed"].includes(operation.state)) {
+        return { kind: "state" as const, order: await repository.getPaymentOrder(userId, orderId) };
+    }
+    if (operation.paymentAction === "capture") return { kind: "state" as const, order: await finishRequestedCompletion(userId, orderId) };
+    requirePaymentOrders();
+    if (runtime.mode === "local_simulation") {
+        await repository.applyPaymentOrderState(orderId, `order-completion-authorize:${operation.operationId}`, localState(operation, "authorize"));
+        return { kind: "local" as const, order: await finishRequestedCompletion(userId, orderId) };
+    }
+    const adapter = createPaymentOrderStripeAdapter();
+    if (operation.intentRef) {
+        let actual: VerifiedOrderState;
+        try { actual = await adapter.inspect(operation); }
+        catch (error) {
+            if (error instanceof PaymentFlowError && error.code === "payment_order_fee_evidence_pending") {
+                return { kind: "state" as const, order: await repository.getPaymentOrder(userId, orderId) };
+            }
+            throw error;
+        }
+        if (actual.state !== "authorization_pending") {
+            await repository.applyPaymentOrderState(orderId, `order-completion-resume:${randomUUID()}`, actual);
+            return { kind: "state" as const, order: await finishRequestedCompletion(userId, orderId) };
+        }
+    }
+    const authorization = await adapter.authorize(operation, operation.operationId);
+    await repository.applyPaymentOrderState(orderId, `order-completion-authorize:${operation.operationId}`, {
+        state: "authorization_pending", intentRef: authorization.intentRef, captureBefore: null, refundRef: null,
+    });
+    return { kind: "confirmation" as const, order: await repository.getPaymentOrder(userId, orderId),
+        clientSecret: authorization.clientSecret, publishableKey: publishableKey! };
 }
 
 export async function actOnAppointmentPayment(orderId: string, input: { action: unknown; consent: unknown; operationId?: string }) {
@@ -67,9 +140,10 @@ export async function actOnAppointmentPayment(orderId: string, input: { action: 
     const userId = await actor(true);
     uuid(orderId);
     if (input.consent !== true) throw new PaymentFlowError("explicit_consent_required");
-    if (typeof input.action !== "string" || !["authorize", "capture", "cancel", "refund"].includes(input.action)) throw new PaymentFlowError("invalid_payment_action");
+    if (typeof input.action !== "string" || !["pay", "authorize", "capture", "cancel", "refund"].includes(input.action)) throw new PaymentFlowError("invalid_payment_action");
     if (input.operationId) uuid(input.operationId, "invalid_operation_id");
     const action = input.action as PaymentOrderAction;
+    if (action === "pay") return payCompletedAppointment(userId, orderId, input.operationId ?? randomUUID());
     if (action === "authorize") requirePaymentOrders();
     const publishableKey = runtime.mode !== "local_simulation" && action === "authorize" ? stripePublishableKey() : null;
     const order = await repository.beginPaymentOrderOperation(userId, orderId, action, input.operationId ?? randomUUID());
@@ -101,10 +175,19 @@ export async function syncAppointmentPayment(orderId: string) {
     const runtime = requirePaymentOrderMaintenance();
     const userId = await actor();
     uuid(orderId);
-    if (runtime.mode === "local_simulation") return { order: await repository.getPaymentOrder(userId, orderId) };
+    if (runtime.mode === "local_simulation") return { order: await finishRequestedCompletion(userId, orderId, await repository.getPaymentOrder(userId, orderId)) };
     const order = await repository.getPrivatePaymentOrder(userId, orderId);
     if (!order.intentRef) return { order: await repository.getPaymentOrder(userId, orderId) };
-    return { order: await repository.applyPaymentOrderState(order.id, `order-sync:${randomUUID()}`, await createPaymentOrderStripeAdapter().inspect(order)) };
+    let verified: VerifiedOrderState;
+    try { verified = await createPaymentOrderStripeAdapter().inspect(order); }
+    catch (error) {
+        if (error instanceof PaymentFlowError && error.code === "payment_order_fee_evidence_pending") {
+            return { order: await repository.getPaymentOrder(userId, orderId) };
+        }
+        throw error;
+    }
+    const reconciled = await repository.applyPaymentOrderState(order.id, `order-sync:${randomUUID()}`, verified);
+    return { order: await finishRequestedCompletion(userId, orderId, reconciled) };
 }
 
 export async function handlePaymentOrderWebhook(payload: string, signature: string) {
@@ -135,6 +218,7 @@ export async function handlePaymentOrderWebhook(payload: string, signature: stri
         await repository.applyPaymentOrderState(order.id, event.id, verified);
         return { received: true };
     }
-    await repository.applyPaymentOrderState(order.id, event.id, await adapter.inspect(order));
+    const reconciled = await repository.applyPaymentOrderState(order.id, event.id, await adapter.inspect(order));
+    await finishRequestedCompletion(order.providerId, order.id, reconciled, true);
     return { received: true };
 }
