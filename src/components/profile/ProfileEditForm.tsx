@@ -49,7 +49,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
     const isProvider = profile.account_type === "job_provider";
     const isCompany = isProvider && profile.provider_kind === "company";
     const isVerified = profile.provider_verification_status === "verified";
-    const verificationPending = profile.provider_verification_status === "pending";
+    const hasProviderAddress = Boolean(profile.street?.trim() && profile.house_number?.trim() && profile.city?.trim() && profile.zip?.trim() && profile.lat != null && profile.lng != null);
     const name = (isCompany ? profile.company_name : profile.full_name)?.trim() || "Dein Konto";
     const role = isCompany ? "Unternehmen" : isProvider ? "Privater Jobanbieter" : "Jobsuchend";
     const focusTarget = searchParams.get("focus");
@@ -192,10 +192,10 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                     </section>
                     <section className={styles.panel} aria-labelledby="private-profile-heading">
                         <div className={styles.sectionHeading}><h2 id="private-profile-heading">Private Angaben</h2><span className={styles.visibility}><LockKeyhole aria-hidden="true" />Nur für dich sichtbar</span></div>
-                        {isProvider && !isVerified && <div id="provider-verification-section" tabIndex={-1} className={styles.notice}>
-                            {verificationPending ? <Clock aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}
-                            <div className={styles.noticeCopy}><strong>{verificationPending ? "Deine Adresse wird geprüft" : profile.provider_verification_status === "rejected" ? "Adresse erneut prüfen lassen" : "Adresse prüfen lassen"}</strong><p>{verificationPending ? "Nach der Freigabe kannst du Jobs veröffentlichen." : "Bestätige deine Adresse, um Jobs zu veröffentlichen."}</p></div>
-                            {!verificationPending && <button type="button" className={styles.button} onClick={() => setShowVerification(true)}>{profile.provider_verification_status === "rejected" ? "Erneut prüfen" : "Adresse angeben"}</button>}
+                        {isProvider && <div id="provider-verification-section" tabIndex={-1} className={styles.notice}>
+                            <MapPin aria-hidden="true" />
+                            <div className={styles.noticeCopy}><strong>{hasProviderAddress ? "Deine Adresse ist hinterlegt" : "Deine Wohnadresse"}</strong><p>{hasProviderAddress ? "Sie bleibt privat. Du kannst deinen Job jetzt erstellen." : "Hinterlege deine Adresse, bevor du deinen ersten Job veröffentlichst."}</p></div>
+                            <button type="button" className={styles.button} onClick={() => setShowVerification(true)}>{hasProviderAddress ? "Adresse ändern" : "Adresse angeben"}</button>
                         </div>}
                         {guardianRequired && <div className={styles.notice}>
                             <Users aria-hidden="true" /><div className={styles.noticeCopy}><strong>{profile.guardian_status === "pending" ? "Elternfreigabe ausstehend" : "Elternfreigabe ergänzen"}</strong><p>{profile.guardian_status === "pending" ? "Dein Einladungslink wartet auf die Bestätigung." : "Für Bewerbungen benötigst du eine Elternfreigabe."}</p></div>
@@ -212,7 +212,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                                     </div>
                                     <p className={styles.fieldHint}>{location || "Noch kein Ort hinterlegt"}{draft.street && draft.lat === null && ". Wähle einen Suchvorschlag, um Entfernungen zu berechnen."}</p>
                                 </div> : <><p className={styles.address}>{[street, houseNumber].filter(Boolean).join(" ") || "Keine Straße hinterlegt"}<br />{location || "Kein Ort hinterlegt"}</p>
-                                    {isProvider && <p className={styles.detailNote}>{isVerified ? <><ShieldCheck aria-hidden="true" />Adresse bestätigt</> : verificationPending ? "Prüfung läuft" : "Noch nicht bestätigt"}</p>}</>}
+                                    {isProvider && <p className={styles.detailNote}>{hasProviderAddress ? "Adresse hinterlegt" : "Noch keine vollständige Adresse hinterlegt"}</p>}</>}
                                 <div className={styles.availability}>
                                     {editing ? <div className={styles.field}><label htmlFor="availabilityNote">Verfügbarkeit</label><input id="availabilityNote" className={styles.input} value={draft.availabilityNote} onChange={event => change("availabilityNote", event.target.value)} placeholder="Zum Beispiel nachmittags und am Wochenende" /></div> : <><h3><Clock aria-hidden="true" />Verfügbarkeit</h3><p className={draft.availabilityNote.trim() ? styles.value : styles.empty}>{draft.availabilityNote.trim() || "Noch nicht hinterlegt"}</p></>}
                                 </div>

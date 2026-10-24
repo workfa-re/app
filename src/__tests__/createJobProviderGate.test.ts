@@ -28,16 +28,23 @@ describe("provider job creation matches the database verification gate", () => {
         state.payment.mockResolvedValue({ kind: "disabled", featureEnabled: false, buyerReady: false });
     });
 
-    it.each(["none", "pending", "rejected"])("does not let a stale timestamp override %s", async status => {
+    it.each(["rejected"])("does not let a stale timestamp override %s", async status => {
         state.profile.provider_verification_status = status;
-        expect(await createJob(null, validJob())).toMatchObject({ status: "error", error: { message: "Dein Anbieterprofil muss vor der Veröffentlichung geprüft sein." } });
+        expect(await createJob(null, validJob())).toMatchObject({ status: "error", error: { message: "Bitte hinterlege zuerst deine vollständige Adresse im Profil." } });
         expect(state.create).not.toHaveBeenCalled();
     });
 
-    it("requires the recorded verification time as well as the verified status", async () => {
-        state.profile.provider_verified_at = null;
+    it("still requires a complete address independently of any verification badge", async () => {
+        state.profile.street = null;
         expect(await createJob(null, validJob())).toMatchObject({ status: "error" });
         expect(state.create).not.toHaveBeenCalled();
+    });
+
+    it.each(["none", "pending"])("accepts a complete address without a manual approval (%s)", async status => {
+        state.profile.provider_verification_status = status;
+        state.profile.provider_verified_at = null;
+        expect(await createJob(null, validJob())).toEqual({ status: "success" });
+        expect(state.create).toHaveBeenCalledOnce();
     });
 
     it("still creates a valid offer after a complete provider verification", async () => {
@@ -74,10 +81,11 @@ describe("provider job creation matches the database verification gate", () => {
         expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ job: expect.objectContaining({ status: "draft" }) }));
     });
 
-    it("never substitutes buyer payment readiness for provider address verification", async () => {
+    it("never substitutes buyer payment readiness for a complete provider address", async () => {
         state.profile.provider_verification_status = "pending";
+        state.profile.street = null;
         state.payment.mockResolvedValue({ kind: "local", featureEnabled: true, buyerReady: true });
-        expect(await createJob(null, validJob())).toMatchObject({ status: "error", error: { message: "Dein Anbieterprofil muss vor der Veröffentlichung geprüft sein." } });
+        expect(await createJob(null, validJob())).toMatchObject({ status: "error", error: { message: "Bitte hinterlege zuerst deine vollständige Adresse im Profil." } });
         expect(state.payment).not.toHaveBeenCalled();
         expect(state.create).not.toHaveBeenCalled();
     });

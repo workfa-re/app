@@ -1,0 +1,16 @@
+.backdrop { background: color-mix(in srgb, var(--app-canvas, #f4f4f4) 65%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.panel { isolation: isolate; border: 1px solid transparent; border-radius: 30px; color: var(--app-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); -webkit-backdrop-filter: var(--app-glass-filter); backdrop-filter: var(--app-glass-filter); }
+.panel::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; padding: 1px; pointer-events: none; background: var(--app-glass-rim); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.panel :global(.text-white) { color: var(--app-ink); }
+.panel :global(.text-slate-500), .panel :global(.text-slate-400) { color: var(--app-muted); }
+.icon { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; color: var(--app-accent-ink); background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
+.close { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; color: var(--app-muted); }
+.description { margin: 0; color: var(--app-muted); font-size: 14px; line-height: 1.65; text-wrap: pretty; }
+.addressCard { border: 1px solid var(--app-panel-rule); border-radius: 20px; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow); }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 11px 20px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--app-accent-ink); }
+.button:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+
+.houseNumber { width: 96px; min-height: 44px; border: 1px solid var(--app-panel-rule); border-radius: 12px; background: var(--app-glass-fill); color: var(--app-ink); text-align: center; }
+.houseNumber:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.houseNumberValue { color: var(--app-ink); }

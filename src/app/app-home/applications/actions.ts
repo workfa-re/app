@@ -37,7 +37,7 @@ function resultError(payload: RpcPayload, rpcError: { message?: string; code?: s
     const failure = rpcError?.message ?? (payload.ok === false ? payload.error : null);
     if (failure?.includes("RECIPIENT_SETUP_REQUIRED")) return "Hinterlege zuerst unter Einstellungen → Workfare Pay dein Auszahlkonto. Danach kannst du das Gespräch wieder öffnen.";
     if (failure?.includes("buyer_payment_required")) return "Hinterlege zuerst unter Einstellungen → Workfare Pay ein Zahlungsmittel. Danach kannst du das Gespräch wieder öffnen.";
-    if (failure?.includes("provider_verification_required")) return "Lass zuerst deine Adresse im Profil prüfen. Danach kannst du das Gespräch wieder öffnen.";
+    if ((failure?.includes("provider_verification_required") || failure?.includes("provider_address_required"))) return "Ergänze zuerst deine Adresse im Profil. Danach kannst du das Gespräch wieder öffnen.";
     if (rpcError) return fallback;
     if (payload.ok === false) return payload.error || fallback;
     return null;

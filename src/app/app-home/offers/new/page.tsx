@@ -23,9 +23,9 @@ export default async function NewOfferPage() {
         redirect("/app-home/jobs");
     }
 
-    // Provider Verification Guard
+    // A complete address enables job preparation; identity stays separate.
     const access = await getAppHomeAccess(context);
-    if (!access.isVerified) {
+    if (!access.canCreateJobs) {
         redirect("/app-home/profile?focus=provider-verification&from=create-job");
     }
 

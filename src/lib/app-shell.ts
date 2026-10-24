@@ -9,6 +9,7 @@ import type { AppHeaderProfile, AppHomeSnapshot, EffectiveViewSnapshot } from "@
 import { normalizeNotificationItem, parseNotificationPage } from "@/components/notifications/notificationPayload";
 import type { NotificationItem } from "@/components/notifications/notificationTypes";
 import { getGuardianApplicationAccess } from "@/lib/guardian/access-state.server";
+import { hasCompleteProviderAddress } from "@/lib/provider-address";
 
 export function getDefaultAppHomePath(viewRole: AccountType | null | undefined) {
   return viewRole === "job_provider" ? "/app-home/offers" : "/app-home/jobs";
@@ -98,14 +99,15 @@ export const getAppHomeContext = cache(async (): Promise<AppHomeContext> => {
   };
 });
 
-export function getAppHomeAccess(context: AppHomeContext) {
+export async function getAppHomeAccess(context: AppHomeContext) {
   const { profile, effectiveView } = context;
-  return getVerificationState(
+  const access = await getVerificationState(
     effectiveView.viewRole,
     profile.guardian_status,
     profile.provider_verification_status,
     profile.provider_verified_at,
   );
+  return { ...access, ...(effectiveView.viewRole === "job_provider" ? { canCreateJobs: hasCompleteProviderAddress(profile) } : {}) };
 }
 
 export const getAppHomeSnapshot = cache(async (): Promise<AppHomeSnapshot> => {

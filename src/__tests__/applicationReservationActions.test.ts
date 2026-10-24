@@ -103,7 +103,7 @@ describe("exclusive reservation actions", () => {
 
     it.each([
         ["buyer_payment_required", "Hinterlege zuerst unter Einstellungen → Workfare Pay ein Zahlungsmittel. Danach kannst du das Gespräch wieder öffnen."],
-        ["provider_verification_required", "Lass zuerst deine Adresse im Profil prüfen. Danach kannst du das Gespräch wieder öffnen."],
+        ["provider_verification_required", "Ergänze zuerst deine Adresse im Profil. Danach kannst du das Gespräch wieder öffnen."],
         ["RECIPIENT_SETUP_REQUIRED", "Hinterlege zuerst unter Einstellungen → Workfare Pay dein Auszahlkonto. Danach kannst du das Gespräch wieder öffnen."],
     ])("explains the %s reopen prerequisite without exposing database diagnostics", async (code, message) => {
         for (const response of [

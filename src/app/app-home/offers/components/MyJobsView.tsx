@@ -99,7 +99,7 @@ function VerificationGate() {
                 <ShieldCheck size={24} />
             </div>
             <div className={styles.stateCopy}>
-                <h2>Verifizierung erforderlich</h2>
+                <h2>Deine Adresse fehlt noch</h2>
                 <p>
                     Bestätige einmalig deine Anbieterangaben. Danach kannst du Jobs veröffentlichen und Bewerbungen erhalten.
                 </p>
@@ -107,7 +107,7 @@ function VerificationGate() {
                     href="/app-home/profile?focus=provider-verification&from=provider-home"
                     className={`app-primary-action app-glass-control ${styles.stateAction}`}
                 >
-                    Zur Verifizierung
+                    Adresse hinterlegen
                     <ArrowRight size={16} aria-hidden="true" />
                 </Link>
             </div>

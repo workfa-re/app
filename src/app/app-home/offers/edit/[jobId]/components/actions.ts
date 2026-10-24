@@ -79,8 +79,8 @@ export async function updateJobAction(jobId: string, formData: FormData): Promis
         if (error.message.includes("buyer_payment_required")) {
             return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
         }
-        if (error.message.includes("provider_verification_required")) {
-            return { success: false, code: "provider_verification_required", error: "Lass deine Adresse im Profil prüfen, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
+        if ((error.message.includes("provider_verification_required") || error.message.includes("provider_address_required"))) {
+            return { success: false, code: "provider_verification_required", error: "Ergänze deine Adresse im Profil, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
         }
         console.error("Job update error:", error);
         return { success: false, error: "Datenbankfehler beim Speichern." };
@@ -93,8 +93,8 @@ export async function updateJobAction(jobId: string, formData: FormData): Promis
         if (response?.error === "buyer_payment_required") {
             return { success: false, code: "buyer_payment_required", error: "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Deine Änderungen bleiben hier erhalten." };
         }
-        if (response?.error === "provider_verification_required") {
-            return { success: false, code: "provider_verification_required", error: "Lass deine Adresse im Profil prüfen, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
+        if ((response?.error === "provider_verification_required" || response?.error === "provider_address_required")) {
+            return { success: false, code: "provider_verification_required", error: "Ergänze deine Adresse im Profil, bevor du den Job veröffentlichst. Deine Änderungen bleiben hier erhalten." };
         }
         const messages: Record<string, string> = {
             status_changed: "Der Jobstatus hat sich inzwischen geändert. Bitte lade die Seite neu.",

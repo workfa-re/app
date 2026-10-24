@@ -92,7 +92,7 @@ describe("own profile overview and editing contract", () => {
         state.search = "focus=location";
         const html = renderProfile({ profile: provider, guardians: [] });
         expect(html).toContain("Privatstraße");
-        expect(html).toContain("Adresse bestätigt");
+        expect(html).toContain("Adresse hinterlegt");
         expect(html).not.toContain('id="street"');
         expect(html).not.toContain('id="houseNumber"');
         expect(html).not.toContain('id="profile-location-search"');
@@ -117,10 +117,10 @@ describe("profile trust and linked accounts", () => {
         const html = text(renderProfile({ profile: { ...provider, provider_verification_status: status }, guardians: [] }));
         expect(html).not.toContain("Adresse geprüft");
         expect(html).not.toContain("Adresse bestätigt");
-        if (status === "pending") {
-            expect(html).toContain("Deine Adresse wird geprüft");
-            expect(html).not.toContain("Adresse angeben");
-        } else expect(html).toContain(status === "rejected" ? "Adresse erneut prüfen lassen" : "Adresse prüfen lassen");
+        expect(html).toContain("Deine Adresse ist hinterlegt");
+        expect(html).toContain("Adresse ändern");
+        expect(html).not.toContain("wird geprüft");
+        expect(html).not.toContain("Nach der Freigabe");
     });
 
     it("uses the auth email confirmation independently of a legacy profile field", () => {

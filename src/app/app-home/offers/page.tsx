@@ -157,10 +157,10 @@ export default async function OffersPage({
                         <MyJobsView
                             jobs={jobs}
                             marketName={marketLabel}
-                            isVerified={access.isVerified}
+                            isVerified={access.canCreateJobs === true}
                             applicationSummaries={applicationSummaries}
                         />
-                        {access.isVerified && canLoadMoreOffers ? (
+                        {access.canCreateJobs && canLoadMoreOffers ? (
                             <CumulativeLoadMoreLink
                                 pathname="/app-home/offers"
                                 searchParams={params}

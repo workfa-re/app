@@ -197,9 +197,7 @@ export function ProfileChip({ profile, className, isStaff, accountEmail }: Profi
                             onClick={() => setIsOpen(false)} className={styles.item}>
                             {isCompany ? <Building2 size={18} aria-hidden="true" /> : <User size={18} aria-hidden="true" />}
                             <span>{isCompany ? "Firmenprofil bearbeiten" : "Profil bearbeiten"}</span>
-                            {isProvider && profile.provider_verification_status !== "verified" && (
-                                <span className={styles.verification} aria-label="Verifizierung ausstehend" title="Verifizierung ausstehend" />
-                            )}
+
                         </Link>
 
                         {isStaff && (

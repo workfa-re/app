@@ -1,5 +1,7 @@
 "use server";
 
+import { hasCompleteProviderAddress } from "@/lib/provider-address";
+
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -90,12 +92,10 @@ export async function createJob(_prevState: CreateJobActionState, formData: Form
         return state;
     }
 
-    const providerIsVerified = profile.provider_verification_status === "verified"
-        && Boolean(profile.provider_verified_at);
-    if (!providerIsVerified) {
+    if (!hasCompleteProviderAddress(profile)) {
         return {
             status: "error",
-            error: { message: "Dein Anbieterprofil muss vor der Veröffentlichung geprüft sein." },
+            error: { message: "Bitte hinterlege zuerst deine vollständige Adresse im Profil." },
         };
     }
 
