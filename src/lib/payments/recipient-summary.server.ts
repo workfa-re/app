@@ -32,7 +32,6 @@ export async function getRecipientPaymentSummary(view: "full" | "home" = "full")
         const account = await getRecipientAccount(auth.session.user.id, runtime.mode);
         if (!account?.accountRef) return result;
         const funds = await createRecipientStripeAdapter().readPayoutOverview(auth.session.user.id, account.accountRef);
-        if (view === "home") return { ...result, funds, fundsUnavailableReason: null };
         // The owner/model check above always precedes the contextual Payouts read.
         try {
             const payouts = await readRecipientPayoutHistory(account.accountRef);

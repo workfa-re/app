@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, Users, X } from "lucid
 import type { PaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 import type { RecipientSettingsSnapshot } from "@/lib/payments/recipient-types";
 import { sanitizePaymentReturnPath } from "@/lib/payments/return-path";
+import { followGlassPointer } from "@/lib/glass-pointer";
 import { BuyerPaymentMethod } from "./BuyerPaymentMethod";
 import { RecipientPayments } from "./RecipientPayments";
 import { PayWordmark } from "./PayWordmark";
@@ -44,7 +45,7 @@ export function PaymentQuestions({ recipient, kind }: { recipient: boolean; kind
 }
 
 export function PaymentSettingsUnavailable() {
-    return <div className={styles.page}><Link className={styles.back} href="/app-home/settings"><ArrowLeft size={18} />Einstellungen</Link><header className={styles.header}><h1><PayWordmark /></h1></header><section className={styles.surface}><h2>Der aktuelle Stand ist gerade nicht verfügbar.</h2><p className={styles.smallCopy}>Bitte lade ihn erneut, bevor du fortfährst.</p><a href="/app-home/settings/payments" className={`app-glass-control ${styles.action}`}>Erneut laden<ArrowRight size={17} /></a></section></div>;
+    return <div className={styles.page} onPointerMove={followGlassPointer}><Link className={`app-glass-control ${styles.back}`} href="/app-home/settings"><ArrowLeft size={18} aria-hidden="true" />Einstellungen</Link><header className={styles.header}><h1><PayWordmark /></h1></header><section className={styles.surface}><h2>Der aktuelle Stand ist gerade nicht verfügbar.</h2><p className={styles.smallCopy}>Bitte lade ihn erneut, bevor du fortfährst.</p><a href="/app-home/settings/payments" className={`app-glass-control ${styles.action}`}>Erneut laden<ArrowRight size={17} /></a></section></div>;
 }
 
 export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, result, resumeSetupId, ownerId, recipientHostedReturned }: Props) {
@@ -67,9 +68,9 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
         }
     }, [provider, result, returnTo, router, snapshot.buyerReady, snapshot.method]);
 
-    return <div className={`${styles.page} ${styles.workspace}`}>
-        <Link href={returnTo || "/app-home/settings"} prefetch={false} className={styles.back}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
-        <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
+    return <div className={`${styles.page} ${styles.workspace}`} onPointerMove={followGlassPointer}>
+        <Link href={returnTo || "/app-home/settings"} prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
+        <header className={`${styles.header} ${styles.surface} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
         <div className={styles.stack} key={kind}>
             {result === "canceled" && <p role="status" className={styles.feedback}>Einrichtung abgebrochen. Dein bisheriger Stand bleibt erhalten.</p>}
             {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}

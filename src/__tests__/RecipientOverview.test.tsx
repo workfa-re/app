@@ -34,19 +34,24 @@ describe("recipient financial overview", () => {
     });
     it("separates available, pending, confirmed earnings and payouts without inventing a total balance", () => {
         const html = text(render(summary));
-        for (const value of ["Verfügbar", "In Bearbeitung", "Bestätigt verdient", "Bereits ausgezahlt", "12,50", "33,00", "65,00", "15,00"]) expect(html).toContain(value);
+        for (const value of ["Für die Auszahlung verfügbar", "In Bearbeitung", "Insgesamt verdient", "Bereits ausgezahlt", "12,50", "33,00", "65,00", "15,00"]) expect(html).toContain(value);
         expect(html).not.toContain("45,50");
         expect(html).not.toContain("Bankkonto eröffnen");
-        expect(html).toContain("Eine Bankauszahlung ist ein eigener Schritt");
+        expect(html).not.toContain("So setzt sich deine Übersicht zusammen");
+        expect(html).not.toContain("Stand ");
     });
 
-    it("makes confirmed earnings prominent on the home page and links to the single Pay surface", () => {
+    it("makes available funds prominent and keeps all four metrics consistent on Home", () => {
         const html = render(summary, { compact: true });
         expect(html).toContain('href="/app-home/settings/payments"');
         expect(html).toContain("Workfare Pay öffnen");
         expect(html).toContain("4 bezahlte Termine");
         expect(html).toContain("Testbetrieb");
         expect(html).not.toContain("Letzte Vorgänge");
+        const terms = [...html.matchAll(/<dt>(.*?)<\/dt>/g)].map(match => match[1]);
+        expect(terms).toEqual(["Für die Auszahlung verfügbar", "Insgesamt verdient", "Bereits ausgezahlt", "In Bearbeitung"]);
+        expect(html).toContain("Für die Auszahlung verfügbar</dt><dd><span>12,50");
+        expect(html).not.toContain("Stand ");
     });
     it("shows live earnings without relabeling sandbox funds as real money", () => {
         const live = { ...summary, kind: "live" as const, funds: { ...summary.funds!, kind: "live" as const } };
@@ -68,8 +73,8 @@ describe("recipient financial overview", () => {
     it("does not turn missing minor payout readiness into a zero Stripe balance", () => {
         const html = render({ ...summary, funds: null, payouts: null, earnings: { ...summary.earnings, confirmedCents: 0, paidJobs: 0 }, fundsUnavailableReason: "minor_review_required" });
         const amounts = html.match(/<dl[^>]*>[\s\S]*?<\/dl>/)?.[0];
-        expect(amounts).toContain("Bestätigt verdient</dt><dd><span>0,00");
-        expect(amounts).toContain("Verfügbar</dt><dd><span>—</span>");
+        expect(amounts).toContain("Insgesamt verdient</dt><dd><span>0,00");
+        expect(amounts).toContain("Für die Auszahlung verfügbar</dt><dd><span>—</span>");
         expect(amounts).toContain("In Bearbeitung</dt><dd><span>—</span>");
         expect(amounts).toContain("Bereits ausgezahlt</dt><dd><span>—</span>");
         expect(html).toContain("Bankauszahlungen für Minderjährige sind noch nicht freigegeben");
@@ -92,28 +97,28 @@ describe("recipient financial overview", () => {
     it("never labels a partial payout scan as lifetime paid out", () => {
         const value = { ...summary, payouts: { ...summary.payouts!, coverage: "recent_only" as const, paidOutCents: null, inTransitCents: null } };
         const html = render(value);
-        expect(html).toContain("Die Auszahlungen zeigen die letzten Vorgänge");
+        expect(html).toContain("Die Gesamtsumme deiner Auszahlungen ist gerade nicht verfügbar.");
         expect(html).toMatch(/Bereits ausgezahlt<\/dt><dd><span>—/);
     });
     it("keeps proven balances visible and explains an unavailable payout history", () => {
         const value = { ...summary, payouts: null, fundsUnavailableReason: "provider_unavailable" as const };
         const html = render(value);
         expect(html).toContain("Der Auszahlungsverlauf ist gerade nicht verfügbar.");
-        expect(html).toContain("Verfügbar</dt><dd><span>12,50");
+        expect(html).toContain("Für die Auszahlung verfügbar</dt><dd><span>12,50");
         expect(html).not.toContain("Der aktuelle Stripe-Guthabenstand konnte nicht bestätigt werden");
-        expect(render(value, { compact: true })).not.toContain("Der Auszahlungsverlauf ist gerade nicht verfügbar.");
+        expect(render(value, { compact: true })).toContain("Der Auszahlungsverlauf ist gerade nicht verfügbar.");
     });
 
     it("offers payout controls only when the caller has a working Stripe action", () => {
         expect(render(summary)).not.toContain("Auszahlungen ansehen");
         const html = render(summary, { onPayouts: vi.fn(), onFunds: vi.fn() });
-        expect(html).toContain("Auszahlungen ansehen"); expect(html).toContain("Guthaben bei Stripe");
+        expect(html).toContain("Auszahlungen ansehen"); expect(html).toContain("Guthaben ansehen");
         expect(html).not.toContain("Jetzt auszahlen"); expect(html).not.toContain("Geld behalten");
     });
     it("keeps Stripe controls in place but disabled while a financial action is running", () => {
         const html = render(summary, { busy: true, onPayouts: vi.fn(), onFunds: vi.fn() });
         const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen", "Guthaben bei Stripe"]) {
+        for (const label of ["Auszahlungen ansehen", "Guthaben ansehen"]) {
             const button = buttons.find(value => value.includes(label));
             expect(button).toBeDefined(); expect(button).toContain('disabled=""');
         }
@@ -122,12 +127,33 @@ describe("recipient financial overview", () => {
     it.each([{ stripePayoutsEnabled: false }, { hasPayoutMethod: false }])("disables Stripe controls when the latest required payout readiness is absent (%j)", flags => {
         const html = render({ ...summary, funds: { ...summary.funds!, ...flags } }, { onPayouts: vi.fn(), onFunds: vi.fn() });
         const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen", "Guthaben bei Stripe"]) expect(buttons.find(value => value.includes(label))).toContain('disabled=""');
+        for (const label of ["Auszahlungen ansehen", "Guthaben ansehen"]) expect(buttons.find(value => value.includes(label))).toContain('disabled=""');
     });
     it("does not depict a proposed price as an incoming payment", () => {
         const html = render({ ...summary, payouts: null, recentPayments: [{ ...summary.recentPayments[0], state: "awaiting_confirmation" }] });
         expect(html).toContain("Letzte Vorgänge"); expect(html).toContain("Preis vorgeschlagen");
         expect(html).toContain("lucide-file-text"); expect(html).not.toContain("lucide-arrow-down-left");
+    });
+    it("uses Workfare Pay wording when the available balance cannot be confirmed", () => {
+        const html = render({ ...summary, funds: null, payouts: null, fundsUnavailableReason: "provider_unavailable" });
+        expect(html).toContain("Dein Guthaben bei Workfare Pay konnte gerade nicht geladen werden.");
+        expect(html).not.toMatch(/Stripe-(?:Guthaben|Kunden)stand/);
+    });
+    it("keeps bank payouts in transit separate from unsettled payments and paid-out totals", () => {
+        const html = render({ ...summary, payouts: { ...summary.payouts!, inTransitCents: 700 } });
+        expect(text(html)).toContain("7,00 € Auszahlung in Bearbeitung");
+        expect(html).toContain("In Bearbeitung</dt><dd><span>33,00");
+        expect(html).not.toContain("40,00");
+    });
+    it("shows the glass discovery action only before the first earnings", () => {
+        const empty = { ...summary, payouts: null, recentPayments: [], earnings: { ...summary.earnings, confirmedCents: 0, refundedCents: 0, paidJobs: 0 } };
+        const html = render(empty);
+        expect(html).toMatch(/<a[^>]*class="app-glass-control [^"]*"[^>]*>Jobs entdecken/);
+        for (const earnings of [{ confirmedCents: 100 }, { refundedCents: 100 }, { paidJobs: 1 }]) {
+            const existing = render({ ...empty, earnings: { ...empty.earnings, ...earnings } });
+            expect(existing).not.toContain("Dein erster Verdienst");
+            expect(existing).not.toContain("Jobs entdecken");
+        }
     });
 });
 

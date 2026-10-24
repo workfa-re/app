@@ -55,6 +55,14 @@ describe("private buyer account routes", () => {
         expect(service.updateBuyerBillingDetails).toHaveBeenCalledWith(input, "22222222-2222-4222-8222-222222222222", "11111111-1111-4111-8111-111111111111");
     });
 
+    it.each([
+        { name: "Robin Muster", email: "billing@example.test" },
+        { name: "Robin Muster", email: "billing@example.test", address: null },
+    ])("preserves the distinction between an omitted and explicitly removed invoice address (%j)", async input => {
+        expect((await POST(post(input))).status).toBe(200);
+        expect(service.updateBuyerBillingDetails).toHaveBeenCalledWith(input, undefined, "11111111-1111-4111-8111-111111111111");
+    });
+
     it.each(['{"customerId":"cus_other"}', "[]", "null", "{broken"])("rejects malformed or injected input %s", async (body) => {
         expect((await POST(post(body))).status).toBe(400);
         expect(service.updateBuyerBillingDetails).not.toHaveBeenCalled();

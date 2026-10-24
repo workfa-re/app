@@ -14,7 +14,6 @@ import { PaymentEmbedBoundary } from "./PaymentEmbedBoundary";
 import { resetBuyerSetupOperation } from "./buyer-setup-retry";
 import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
 import styles from "./Payments.module.css";
-import { BuyerPaymentOptions } from "./BuyerPaymentOptions";
 import { isStripeSurfaceKind, stripeKeyMatchesKind } from "./PaymentEnvironment";
 
 const EmbeddedBuyerSetup = dynamic(() => import("./EmbeddedBuyerSetup"), { ssr: false, loading: () => <p className={styles.loading} role="status">Stripe wird geladen …</p> });
@@ -198,14 +197,14 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
             </div>
         </div> : !editing && <div className={styles.emptyMethod}>
             <span className={`app-glass-control ${styles.cardMark}`} aria-hidden="true"><CreditCard size={25} strokeWidth={1.5} /></span>
-            <div className={styles.emptyCopy}><p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Bereit für deinen ersten Job." : "Die Einrichtung ist noch nicht verfügbar."}</p>
-                <span>{unknown ? "Bitte lade den Status neu, bevor du fortfährst." : snapshot.featureEnabled ? "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Jetzt wird nichts abgebucht." : setupAvailable ? "Hinterlege dein Zahlungsmittel für kommende Aufträge. Jetzt wird nichts abgebucht." : "Du kannst dein Konto und deine Jobentwürfe weiter vorbereiten."}</span></div>
-            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action} ${styles.primaryAction}`} onClick={openEditor} disabled={Boolean(busy)}>Zahlungsmittel einrichten<ArrowRight size={17} /></button>}
+            <div className={styles.emptyCopy}><p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Noch kein Zahlungsmittel." : "Die Einrichtung ist noch nicht verfügbar."}</p>
+                <span>{unknown ? "Bitte lade den Status neu, bevor du fortfährst." : snapshot.featureEnabled ? "Vor deinem ersten veröffentlichten Job. Heute wird nichts abgebucht." : setupAvailable ? "Für kommende Aufträge. Heute wird nichts abgebucht." : "Du kannst dein Konto und deine Jobentwürfe weiter vorbereiten."}</span></div>
+            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action} ${styles.primaryAction}`} onClick={openEditor} disabled={Boolean(busy)} aria-label="Zahlungsmittel hinzufügen">Hinzufügen<ArrowRight size={17} /></button>}
         </div>}
 
         {editing && !setup && <form ref={editorRef} className={styles.editor} onSubmit={start}>
-            <p className={styles.editorIntro}>{ready ? "Das bisherige Zahlungsmittel bleibt bis zum bestätigten Austausch erhalten." : "Heute wird nichts abgebucht. Eine spätere Zahlung bestätigst du gesondert."}</p>
-            <label className={styles.consent} htmlFor={consentId}><input ref={consentRef} type="checkbox" id={consentId} checked={consent} onChange={event => setConsent(event.target.checked)} disabled={Boolean(busy)} /><span>{snapshot.kind === "local" ? "Ich möchte den Ablauf mit einem Test-Zahlungsmittel ausprobieren. Es findet keine Zahlung statt." : "Stripe darf mein Zahlungsmittel für künftige Aufträge speichern."}</span></label>
+            <p className={styles.editorIntro}>{ready ? "Workfare Pay nutzt Stripe. Deine bisherige Karte bleibt bis zum bestätigten Austausch hinterlegt." : "Workfare Pay nutzt Stripe. Heute wird nichts abgebucht."}</p>
+            <label className={styles.consent} htmlFor={consentId}><input ref={consentRef} type="checkbox" id={consentId} checked={consent} onChange={event => setConsent(event.target.checked)} disabled={Boolean(busy)} /><span>{snapshot.kind === "local" ? "Ich möchte den Ablauf mit einem Test-Zahlungsmittel ausprobieren. Es findet keine Zahlung statt." : "Stripe darf mein Zahlungsmittel für künftige Workfare-Aufträge speichern. Jede Zahlung bestätige ich gesondert."}</span></label>
             <div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={!consent || Boolean(busy)}>{busy === "start" ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Sicher einrichten</button><button type="button" className={styles.quietButton} onClick={closeEditor} disabled={Boolean(busy)}>Abbrechen</button></div>
         </form>}
 
@@ -217,6 +216,5 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
         {unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => setup ? void confirmed(setup.sessionId) : void refreshOrCleanup(false)}>{setup ? "Einrichtung prüfen" : "Status neu laden"}</button>}
         {error && <p className={styles.error} role="alert">{error}</p>}
         {feedback && !error && <p className={styles.feedback} role="status"><Check size={15} />{feedback}</p>}
-        {setupAvailable && !editing && !unknown && <BuyerPaymentOptions />}
     </section>;
 }

@@ -56,8 +56,8 @@ export async function saveBuyerAccountBilling(ownerId: string, input: BuyerBilli
     const data: unknown = await response.json().catch(() => null);
     if (!response.ok) {
         if (response.status === 401) throw new Error("Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.");
-        if (object(data) && data.code === "invalid_billing_details") throw new Error("Bitte prüfe Name, E-Mail und die vollständige Rechnungsadresse.");
-        if (object(data) && data.code === "billing_sync_unconfirmed") throw new Error("Stripe hat die Speicherung noch nicht bestätigt. Versuche es erneut; deine Eingaben bleiben erhalten.");
+        if (object(data) && data.code === "invalid_billing_details") throw new Error("Bitte prüfe deine Rechnungsdaten. Eine ergänzte Adresse muss vollständig sein.");
+        if (object(data) && data.code === "billing_sync_unconfirmed") throw new Error("Workfare Pay konnte die Speicherung noch nicht bestätigen. Versuche es erneut; deine Eingaben bleiben erhalten.");
         throw new Error("Die Rechnungsdaten konnten nicht gespeichert werden. Deine Eingaben bleiben erhalten.");
     }
     if (!object(data) || data.ok !== true || data.ownerId !== ownerId || !billingResponse(data.billing)) throw new Error("Die Speicherung konnte nicht bestätigt werden. Bitte lade den aktuellen Stand erneut.");
@@ -126,7 +126,8 @@ function History({ snapshot }: { snapshot: BuyerAccountSnapshot }) {
     </div>;
 }
 
-function initialBilling(details: BuyerBillingDetails | null): BuyerBillingInput {
+type BillingForm = { name: string; email: string; address: NonNullable<BuyerBillingInput["address"]> };
+function initialBilling(details: BuyerBillingDetails | null): BillingForm {
     return { name: details?.name ?? "", email: details?.email ?? "", address: {
         line1: details?.address?.line1 ?? "", line2: details?.address?.line2 ?? "", postalCode: details?.address?.postalCode ?? "",
         city: details?.address?.city ?? "", country: "DE",
@@ -142,6 +143,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
     const saveOperation = useRef<{ input: string; id: string } | null>(null);
     const [editing, setEditing] = useState(false);
     const [input, setInput] = useState(() => initialBilling(snapshot.billing.details));
+    const [addressAction, setAddressAction] = useState<"preserve" | "edit" | "remove">("preserve");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
@@ -163,9 +165,11 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
         onSavingChange(true);
         setSaving(true); setError(null); setSaved(false);
         try {
-            const serialized = JSON.stringify(input);
+            const payload: BuyerBillingInput = { name: input.name, email: input.email,
+                ...(addressAction === "edit" ? { address: input.address } : addressAction === "remove" ? { address: null } : {}) };
+            const serialized = JSON.stringify(payload);
             if (saveOperation.current?.input !== serialized) saveOperation.current = { input: serialized, id: crypto.randomUUID() };
-            const billing = await saveBuyerAccountBilling(snapshot.ownerId, input, saveOperation.current.id);
+            const billing = await saveBuyerAccountBilling(snapshot.ownerId, payload, saveOperation.current.id);
             if (mounted.current && isOwnerCurrent()) { saveOperation.current = null; onSaved(billing); setEditing(false); setSaved(true); }
         } catch (failure) {
             if (mounted.current) setError(failure instanceof TypeError ? "Die Verbindung ist gerade unterbrochen. Deine Eingaben bleiben erhalten."
@@ -178,6 +182,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
 
     const details = snapshot.billing.details;
     const address = details?.address;
+    const hasAddress = Boolean(address && [address.line1, address.line2, address.postalCode, address.city, address.country].some(Boolean));
     const hasDetails = Boolean(details?.name || details?.email || address?.line1);
     return <details className={account.billing}>
         <summary className={account.billingSummary}><span className={account.billingLabel}>
@@ -188,12 +193,18 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
                 ? "Rechnungsdaten werden in der lokalen Vorschau nicht gespeichert."
                 : "Hinterlege zuerst ein Zahlungsmittel. Danach kannst du deine Rechnungsdaten ergänzen."}</p>
                 : editing ? <form onSubmit={save} className={account.form}>
-                    <p className={account.billingNote}>Für Rechnungen und Zahlungsbelege. Deine Anmelde-E-Mail bleibt unverändert.</p>
+                    <p className={account.billingNote}>Für Rechnungen und Zahlungsbelege. Deine Anmeldung bleibt unverändert.</p>
                     <fieldset disabled={saving} aria-busy={saving}>
                         <label htmlFor={`${fieldId}-name`}>Name oder Unternehmen<input ref={firstField} id={`${fieldId}-name`} name="billing-name" autoComplete="billing name" value={input.name}
                             required minLength={2} maxLength={150} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
                         <label htmlFor={`${fieldId}-email`}>E-Mail für Rechnungen<input id={`${fieldId}-email`} name="billing-email" type="email" autoComplete="billing email" value={input.email}
                             required maxLength={254} onChange={(event) => setInput({ ...input, email: event.target.value })} /></label>
+                        <section className={account.optionalAddress} aria-label="Optionale Rechnungsadresse">
+                            <div className={account.addressHeading}><span>Rechnungsadresse <small>optional</small></span><button type="button" className={styles.textAction} aria-expanded={addressAction === "edit"} aria-controls={`${fieldId}-address`} onClick={() => {
+                                if (addressAction === "edit") setAddressAction("preserve");
+                                else { if (address?.country !== "DE") setInput(current => ({ ...current, address: { line1: "", line2: "", postalCode: "", city: "", country: "DE" } })); setAddressAction("edit"); }
+                            }}>{addressAction === "edit" ? hasAddress ? "Beibehalten" : "Nicht ergänzen" : hasAddress ? "Bearbeiten" : "Ergänzen"}</button></div>
+                            {addressAction === "edit" ? <div id={`${fieldId}-address`} className={account.addressFields}>
                         <label htmlFor={`${fieldId}-line1`}>Straße und Hausnummer<input id={`${fieldId}-line1`} name="billing-address-line1" autoComplete="billing address-line1" value={input.address.line1}
                             required minLength={3} maxLength={200} onChange={(event) => setInput({ ...input, address: { ...input.address, line1: event.target.value } })} /></label>
                         <label htmlFor={`${fieldId}-line2`}>Adresszusatz <span>optional</span><input id={`${fieldId}-line2`} name="billing-address-line2" autoComplete="billing address-line2" value={input.address.line2}
@@ -205,6 +216,11 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
                                 required maxLength={100} onChange={(event) => setInput({ ...input, address: { ...input.address, city: event.target.value } })} /></label>
                         </div>
                         <p className={account.country}>Deutschland</p>
+                            </div> : <p className={account.addressPreview}>{addressAction === "remove" ? "Die Adresse wird beim Speichern entfernt." : hasAddress
+                                ? [address?.line1, address?.line2, [address?.postalCode, address?.city].filter(Boolean).join(" "), address?.country === "DE" ? "Deutschland" : address?.country].filter(Boolean).join(", ")
+                                : "Nur ergänzen, wenn du eine Rechnungsadresse benötigst."}</p>}
+                            {hasAddress && addressAction !== "edit" && <button type="button" className={styles.textAction} onClick={() => setAddressAction(addressAction === "remove" ? "preserve" : "remove")}>{addressAction === "remove" ? "Rückgängig" : "Adresse entfernen"}</button>}
+                        </section>
                         <div className={account.formActions}>
                             <button type="button" className={styles.textAction} onClick={() => { setEditing(false); setError(null); }}>Abbrechen</button>
                             <button type="submit" className={`app-glass-control ${styles.action}`}>
@@ -213,7 +229,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
                         </div>
                     </fieldset>
                     {error && <p className={styles.error} role="alert">{error}</p>}
-                </form> : <div className={account.billingRead}>
+                </form> : <><p className={account.billingNote}>Mit Stripe synchronisierte Angaben für Rechnungen und Belege.</p><div className={account.billingRead}>
                     {hasDetails ? <address className={account.address}>
                         {details?.name && <strong>{details.name}</strong>}
                         {address?.line1 && <span>{address.line1}</span>}{address?.line2 && <span>{address.line2}</span>}
@@ -222,9 +238,9 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
                         {details?.email && <span className={account.billingEmail}>{details.email}</span>}
                     </address> : <p className={account.unavailable}>Noch keine Rechnungsdaten hinterlegt.</p>}
                     <button type="button" ref={editRef} className={`app-glass-control ${styles.quietButton}`} onClick={() => {
-                        setInput(initialBilling(details)); setError(null); setSaved(false); setEditing(true);
+                        setInput(initialBilling(details)); setAddressAction("preserve"); setError(null); setSaved(false); setEditing(true);
                     }}>Bearbeiten</button>
-                </div>}
+                </div></>}
             {saved && <p className={`${styles.feedback} ${account.saved}`}><Check size={15} aria-hidden="true" />Rechnungsdaten gespeichert.</p>}
         </div>
     </details>;
@@ -242,13 +258,11 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
         <details className={account.billing}>
             <summary className={account.billingSummary}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
             <div className={account.billingBody} aria-labelledby={titleId} aria-busy={loading}>
-            <header className={account.heading}>
-                <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
-                {!loading && !error && <button type="button" className={`app-glass-control ${styles.quietButton} ${account.refresh}`} disabled={savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren"><RotateCw size={16} aria-hidden="true" /></button>}
-            </header>
+            <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
             {loading ? <p className={`${styles.loading} ${account.notice}`} role="status"><Loader2 size={16} className={account.spinner} aria-hidden="true" />Übersicht wird geladen …</p>
                 : error ? <div className={account.failure}><p className={styles.error} role="alert">{error}</p><button type="button" className={`app-glass-control ${styles.quietButton}`} onClick={onRetry}>Erneut versuchen</button></div>
                     : snapshot && <History snapshot={snapshot} />}
+            {!loading && !error && <div className={account.historyActions}><button type="button" className={`app-glass-control ${styles.quietButton} ${account.refresh}`} disabled={savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={16} aria-hidden="true" /><span>Aktualisieren</span></button></div>}
             </div>
         </details>
         {!loading && !error && snapshot && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}

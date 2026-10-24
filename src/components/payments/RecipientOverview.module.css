@@ -27,11 +27,6 @@
 .textAction { display: inline-flex; align-items: center; justify-content: flex-start; min-height: 44px; padding: 8px 0; gap: 7px; background: none; border: 0; color: var(--app-accent-ink); font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
 .action:disabled, .textAction:disabled { opacity: .45; cursor: default; }
 .schedule { margin-left: auto; color: var(--app-muted); font-size: 12px; line-height: 1.5; }
-.details { margin-top: 10px; color: var(--app-muted); font-size: 12px; line-height: 1.7; }
-.details summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
-.details summary::-webkit-details-marker { display: none; }
-.details[open] summary svg { rotate: 90deg; }
-.details p { max-width: 74ch; margin: 0 0 8px; text-wrap: pretty; }
 .history { margin-top: 12px; }
 .history h3 { margin: 16px 0 6px; font-size: 14px; font-weight: 500; letter-spacing: -.015em; }
 .history ul { padding: 0; margin: 0; list-style: none; }
@@ -49,8 +44,9 @@
 .failure p { margin: 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
 .home { margin-bottom: 28px; }
 .compact .heading { margin-bottom: 14px; }
-.compact .numbers { grid-template-columns: minmax(0,1.5fr) repeat(2,minmax(0,1fr)); gap: 18px 32px; align-items: end; }
+.compact .numbers { grid-template-columns: minmax(0,1.6fr) repeat(3,minmax(0,1fr)); gap: 18px 24px; align-items: end; }
 .compact .numbers .primary { grid-column: auto; }
+.compact .numbers dd { font-size: clamp(22px,2.1vw,28px); }
 .compact .primary dd { font-size: clamp(37px,4vw,52px); }
 .compact .caption { margin-top: 20px; }
 .compact .note { margin-top: 8px; font-size: 11px; }
@@ -58,16 +54,17 @@
     .surface { padding: 20px; border-radius: 26px; }
     .heading { margin-bottom: 16px; }
     .title { font-size: 17px; }
-    .numbers { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
-    .numbers > div:last-child { grid-column: 1 / -1; }
-    .numbers dd { font-size: 25px; }
+    .numbers { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 12px; }
+    .numbers dt { font-size: 11px; }
+    .numbers > div:not(.primary) dt { min-height: 3em; }
+    .numbers dd { font-size: clamp(18px,5vw,25px); }
     .numbers .primary dd { font-size: clamp(38px,11vw,50px); }
     .actions { gap: 8px 15px; margin-top: 16px; }
     .action { font-size: 13px; padding-inline: 16px; }
     .schedule { margin-left: 0; flex-basis: 100%; }
-    .compact .numbers { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 17px; }
+    .compact .numbers { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 17px 12px; }
     .compact .numbers .primary { grid-column: 1 / -1; }
-    .compact .numbers > div:last-child { grid-column: auto; }
+    .compact .numbers dd { font-size: clamp(18px,5vw,25px); }
     .compact .primary dd { font-size: 45px; }
     .entry { gap: 10px; }
     .entryIcon { width: 36px; height: 36px; flex-basis: 36px; }

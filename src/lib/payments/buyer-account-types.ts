@@ -13,7 +13,8 @@ export type BuyerBillingDetails = Readonly<{
 export type BuyerBillingInput = Readonly<{
     name: string;
     email: string;
-    address: Readonly<{ line1: string; line2?: string; postalCode: string; city: string; country: "DE" }>;
+    /** Omit to preserve the existing Stripe address; null explicitly removes it. */
+    address?: Readonly<{ line1: string; line2?: string; postalCode: string; city: string; country: "DE" }> | null;
 }>;
 
 export type BuyerPaymentEntry = Readonly<{

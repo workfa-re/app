@@ -52,7 +52,8 @@ beforeEach(() => {
     repository.getPaymentCustomer.mockResolvedValue({ id: "internal-customer", userId, mode: "sandbox", stripeCustomerId: customerId, method: null });
     api.customerRetrieve.mockResolvedValue(customer());
     api.customerUpdate.mockImplementation(async (id, input) => {
-        const updated = { ...customer(), id, name: input.name, email: input.email, address: input.address,
+        const updated = { ...customer(), id, name: input.name, email: input.email,
+            address: input.address === "" ? null : input.address ?? customer().address,
             metadata: { ...customer().metadata, ...input.metadata } };
         api.customerRetrieve.mockResolvedValue(updated);
         return updated;
@@ -219,12 +220,79 @@ describe("separate billing contact updates", () => {
     it("updates only billing name, contact email and postal address on the authenticated buyer's Stripe customer", async () => {
         const result = await updateBuyerBillingDetails(billingInput, operationId);
         expect(api.customerUpdate).toHaveBeenCalledWith(customerId, {
-            name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", line2: "", postal_code: "53359", city: "Rheinbach", country: "DE" },
+            name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", line2: "", postal_code: "53359", city: "Rheinbach", country: "DE", state: "" },
         }, { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
         expect(result).toMatchObject({ ok: true, billing: { name: "Robin Muster", address: { postalCode: "53359" } } });
         expect(repository.getPaymentCustomer).toHaveBeenCalledOnce();
         expect(api.customerRetrieve).toHaveBeenCalledTimes(2);
         expect(api.chargesList).not.toHaveBeenCalled();
+    });
+
+    it.each([null, { line1: null, line2: null, postal_code: "10001", city: null, country: "US", state: "NY" }])
+    ("updates the contact without requiring or replacing the existing optional address (%j)", async address => {
+        const current = { ...customer(), address };
+        api.customerRetrieve.mockResolvedValue(current);
+        api.customerUpdate.mockImplementation(async (id, input) => {
+            const updated = { ...current, id, name: input.name, email: input.email };
+            api.customerRetrieve.mockResolvedValue(updated);
+            return updated;
+        });
+        const contact = { name: "Robin Muster", email: "invoices@example.test" };
+        const result = await updateBuyerBillingDetails(contact, operationId);
+        expect(api.customerUpdate).toHaveBeenCalledWith(customerId, contact,
+            { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
+        expect(result.billing.address).toEqual(address === null ? null : {
+            line1: null, line2: null, postalCode: "10001", city: null, country: "US",
+        });
+        expect(api.customerRetrieve).toHaveBeenCalledTimes(2);
+    });
+
+    it("clears a foreign administrative region when explicitly replacing an address with a German invoice address", async () => {
+        const current = { ...customer(), address: { ...customer().address, city: "New York", postal_code: "10001", country: "US", state: "NY" } };
+        api.customerRetrieve.mockResolvedValue(current);
+        api.customerUpdate.mockImplementationOnce(async (id, input) => {
+            const updated = { ...current, id, name: input.name, email: input.email, address: { ...current.address, ...input.address } };
+            api.customerRetrieve.mockResolvedValue(updated);
+            return updated;
+        });
+        await expect(updateBuyerBillingDetails(billingInput, operationId)).resolves.toMatchObject({ ok: true, billing: {
+            address: { city: "Rheinbach", postalCode: "53359", country: "DE" },
+        } });
+        expect(api.customerUpdate.mock.calls[0][1].address).toMatchObject({ country: "DE", state: "" });
+    });
+
+    it("removes an invoice address only when the owner explicitly submits null", async () => {
+        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        const result = await updateBuyerBillingDetails(input, operationId);
+        expect(api.customerUpdate).toHaveBeenCalledWith(customerId, { ...input, address: "" },
+            { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
+        expect(result.billing.address).toBeNull();
+        expect(api.customerRetrieve).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not report address removal when the current Stripe address remains present", async () => {
+        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        api.customerUpdate.mockImplementationOnce(async () => {
+            api.customerRetrieve.mockResolvedValue(customer());
+            return { ...customer(), address: null };
+        });
+        await expect(updateBuyerBillingDetails(input, operationId)).rejects.toMatchObject({ code: "billing_sync_unconfirmed", status: 409 });
+        expect(api.customerRetrieve).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps an explicit address removal idempotent after an uncertain confirmation", async () => {
+        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        api.customerUpdate.mockImplementationOnce(async () => {
+            const updated = { ...customer(), address: null };
+            api.customerRetrieve.mockRejectedValueOnce(new Error("read temporarily unavailable")).mockResolvedValue(updated);
+            return updated;
+        });
+        await expect(updateBuyerBillingDetails(input, operationId)).rejects.toThrow("read temporarily unavailable");
+        await expect(updateBuyerBillingDetails(input, operationId)).resolves.toMatchObject({ ok: true, billing: { address: null } });
+        expect(api.customerUpdate.mock.calls.map(call => call[1].address)).toEqual(["", ""]);
+        expect(api.customerUpdate.mock.calls.map(call => call[2].idempotencyKey)).toEqual([
+            `workfare-pay:billing:${userId}:${operationId}`, `workfare-pay:billing:${userId}:${operationId}`,
+        ]);
     });
 
     it.each([
@@ -236,6 +304,10 @@ describe("separate billing contact updates", () => {
         { ...billingInput, address: { ...billingInput.address, line1: "Hidden\nStreet" } },
         { ...billingInput, name: "Robin\u202e Muster" },
         { ...billingInput, address: { ...billingInput.address, verified: true } },
+        { ...billingInput, address: {} },
+        { ...billingInput, address: { country: "DE" } },
+        { ...billingInput, address: { ...billingInput.address, line1: "" } },
+        { ...billingInput, address: { ...billingInput.address, city: "" } },
     ])("rejects invalid or unowned fields before contacting Stripe (%j)", async (input) => {
         await expect(updateBuyerBillingDetails(input, operationId)).rejects.toMatchObject({ code: "invalid_billing_details", status: 400 });
         expect(api.customerRetrieve).not.toHaveBeenCalled();

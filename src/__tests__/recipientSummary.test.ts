@@ -9,7 +9,7 @@ vi.mock("@/lib/payments/recipient-stripe.server", () => ({ createRecipientStripe
 vi.mock("stripe", () => ({ default: class { payouts = { list: mocks.payouts }; } }));
 import { getRecipientPaymentSummary } from "@/lib/payments/recipient-summary.server";
 import { parseRecipientEarningsSnapshot } from "@/lib/payments/recipient-summary-parser";
-import { parseRecipientPayoutPage } from "@/lib/payments/recipient-summary-stripe.server";
+import { parseRecipientPayoutPage, parseRecipientPayoutPages, readRecipientPayoutHistory } from "@/lib/payments/recipient-summary-stripe.server";
 import { GET } from "@/app/api/payments/recipient/summary/route";
 
 const user = "11111111-1111-4111-8111-111111111111", other = "22222222-2222-4222-8222-222222222222", origin = "http://localhost:3001";
@@ -41,11 +41,11 @@ describe("own recipient earnings and payout overview", () => {
         expect(mocks.funds.mock.invocationCallOrder[0]).toBeLessThan(mocks.payouts.mock.invocationCallOrder[0]);
         expect(JSON.stringify(result)).not.toMatch(/acct_|bank_account|destination|last4|methodRef|intentRef/);
     });
-    it("loads real own balances and earnings for Home without scanning any payouts", async () => {
-        expect(await getRecipientPaymentSummary("home")).toMatchObject({ ownerId: user, earnings: { confirmedCents: 3000 }, funds: { availableCents: 1200, pendingCents: 1800 }, payouts: null, fundsUnavailableReason: null });
+    it("loads all four genuine own-account metrics for Home", async () => {
+        expect(await getRecipientPaymentSummary("home")).toMatchObject({ ownerId: user, earnings: { confirmedCents: 3000 }, funds: { availableCents: 1200, pendingCents: 1800 }, payouts: { paidOutCents: 1000, coverage: "complete" }, fundsUnavailableReason: null });
         expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("get_my_recipient_payment_summary");
         expect(mocks.funds).toHaveBeenCalledExactlyOnceWith(user, "acct_fixture");
-        expect(mocks.payouts).not.toHaveBeenCalled();
+        expect(mocks.payouts).toHaveBeenCalledExactlyOnceWith({ limit: 100 }, { stripeAccount: "acct_fixture" });
     });
     it("does not let a cookie/session owner mismatch cross account headers", async () => {
         mocks.rpc.mockResolvedValue({ data: { ...db(), ownerId: other }, error: null });
@@ -96,11 +96,11 @@ describe("own recipient earnings and payout overview", () => {
         mocks.rpc.mockClear();
         expect((await GET(new Request(`${origin}/api/payments/recipient/summary?userId=${other}`))).status).toBe(400); expect(mocks.rpc).not.toHaveBeenCalled();
     });
-    it("allows exactly the lightweight own Home context and never a payout-history request there", async () => {
+    it("allows exactly the own Home context with the same confirmed financial totals", async () => {
         const response = await GET(new Request(`${origin}/api/payments/recipient/summary?view=home`));
         expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("no-store");
-        expect(await response.json()).toMatchObject({ ownerId: user, funds: { availableCents: 1200 }, payouts: null, fundsUnavailableReason: null });
-        expect(mocks.payouts).not.toHaveBeenCalled();
+        expect(await response.json()).toMatchObject({ ownerId: user, funds: { availableCents: 1200 }, payouts: { paidOutCents: 1000 }, fundsUnavailableReason: null });
+        expect(mocks.payouts).toHaveBeenCalledExactlyOnceWith({ limit: 100 }, { stripeAccount: "acct_fixture" });
     });
     it.each(["view=full", "view=unknown", "view=", "view=home&view=home", `view=home&userId=${other}`, "view=home&account=acct_other", "other=home"])("rejects unsupported or extended view input %s before financial reads", async query => {
         expect((await GET(new Request(`${origin}/api/payments/recipient/summary?${query}`))).status).toBe(400);
@@ -118,6 +118,43 @@ describe("own recipient earnings and payout overview", () => {
 });
 
 describe("bounded payout history", () => {
+    it("follows verified cursors in the same account and totals successful payouts across pages", async () => {
+        mocks.payouts.mockResolvedValueOnce(page([payout(), payout({ id: "po_usd", currency: "usd" })], true))
+            .mockResolvedValueOnce(page([payout({ id: "po_second", amount: 2500 }), payout({ id: "po_pending", status: "in_transit", amount: 900 })]));
+        expect(await readRecipientPayoutHistory("acct_fixture")).toMatchObject({ coverage: "complete", paidOutCents: 3500, inTransitCents: 900 });
+        expect(mocks.payouts).toHaveBeenNthCalledWith(1, { limit: 100 }, { stripeAccount: "acct_fixture" });
+        expect(mocks.payouts).toHaveBeenNthCalledWith(2, { limit: 100, starting_after: "po_usd" }, { stripeAccount: "acct_fixture" });
+    });
+    it("limits reads to ten pages and never presents an unfinished total", async () => {
+        for (let index = 0; index < 10; index++) mocks.payouts.mockResolvedValueOnce(page([payout({ id: `po_page${index}` })], true));
+        const result = await readRecipientPayoutHistory("acct_fixture");
+        expect(result).toMatchObject({ coverage: "recent_only", paidOutCents: null, inTransitCents: null });
+        expect(mocks.payouts).toHaveBeenCalledTimes(10);
+        expect(result.recent).toHaveLength(10);
+    });
+    it("keeps the public recent list to ten while counting the whole verified history", async () => {
+        mocks.payouts.mockResolvedValueOnce(page(Array.from({ length: 100 }, (_, index) => payout({ id: `po_first${index}` })), true))
+            .mockResolvedValueOnce(page([payout({ id: "po_last", amount: 700 })]));
+        const result = await readRecipientPayoutHistory("acct_fixture");
+        expect(result).toMatchObject({ coverage: "complete", paidOutCents: 100_700 });
+        expect(result.recent).toHaveLength(10);
+        expect(result.recent.some(row => row.id === "po_last")).toBe(false);
+    });
+    it("rejects duplicate rows and mode mismatches from a later page", async () => {
+        mocks.payouts.mockResolvedValueOnce(page([payout()], true)).mockResolvedValueOnce(page([payout()]));
+        await expect(readRecipientPayoutHistory("acct_fixture")).rejects.toThrow();
+        mocks.payouts.mockResolvedValueOnce(page([payout()], true)).mockResolvedValueOnce(page([payout({ id: "po_later", livemode: true })]));
+        await expect(readRecipientPayoutHistory("acct_fixture")).rejects.toThrow();
+    });
+    it("does not return a partial financial total after a later network failure", async () => {
+        mocks.payouts.mockResolvedValueOnce(page([payout()], true)).mockRejectedValueOnce(new Error("timeout"));
+        expect(await getRecipientPaymentSummary()).toMatchObject({ funds: { availableCents: 1200 }, payouts: null, fundsUnavailableReason: "provider_unavailable" });
+    });
+    it("rejects non-progressing cursors, pages after completion, and cross-page overflow", () => {
+        expect(() => parseRecipientPayoutPages([page([], true)], now)).toThrow();
+        expect(() => parseRecipientPayoutPages([page([]), page([])], now)).toThrow();
+        expect(() => parseRecipientPayoutPages([page([payout({ amount: Number.MAX_SAFE_INTEGER })], true), page([payout({ id: "po_overflow" })])], now)).toThrow();
+    });
     it("separates successful bank payouts, transfers in progress, canceled and failed amounts", () => {
         const result = parseRecipientPayoutPage(page([payout(), payout({ id: "po_pending", amount: 400, status: "pending" }), payout({ id: "po_transit", amount: 300, status: "in_transit" }), payout({ id: "po_failed", status: "failed" }), payout({ id: "po_canceled", status: "canceled" })]), now);
         expect(result).toMatchObject({ paidOutCents: 1000, inTransitCents: 700, coverage: "complete" });

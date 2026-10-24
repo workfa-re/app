@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownLeft, ArrowDownToLine, ArrowRight, ArrowUpRight, ChevronRight, FileText, RefreshCw } from "lucide-react";
+import { ArrowDownLeft, ArrowDownToLine, ArrowRight, ArrowUpRight, FileText, RefreshCw } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import type { RecipientPaymentSummary } from "@/lib/payments/recipient-summary-types";
 import type { PaymentOrderState } from "@/lib/payments/order-types";
@@ -10,11 +10,11 @@ import { validRecipientFunds } from "./RecipientFunds";
 import { paymentRequest } from "./payment-client";
 import { PayWordmark } from "./PayWordmark";
 import { PaymentEnvironment, type PaymentSurfaceKind } from "./PaymentEnvironment";
+import { followGlassPointer } from "@/lib/glass-pointer";
 import styles from "./RecipientOverview.module.css";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Berlin" });
-const checkedTime = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states: Record<PaymentOrderState, string> = {
     awaiting_confirmation: "Preis vorgeschlagen", ready: "Preis bestätigt", authorization_pending: "Bestätigung ausstehend",
@@ -22,7 +22,7 @@ const states: Record<PaymentOrderState, string> = {
     canceled: "Storniert", refund_pending: "Erstattung in Bearbeitung", refunded: "Erstattet", failed: "Nicht bezahlt", review_required: "Wird geprüft",
 };
 const payoutStates = { paid: "Ausgezahlt", pending: "In Vorbereitung", in_transit: "Unterwegs", canceled: "Storniert", failed: "Fehlgeschlagen" };
-const schedules = { daily: "Täglich", weekly: "Wöchentlich", monthly: "Monatlich", manual: "Manuell", unknown: "Bei Stripe prüfen" };
+const schedules = { daily: "Täglich", weekly: "Wöchentlich", monthly: "Monatlich", manual: "Manuell", unknown: "Noch nicht bestätigt" };
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const integer = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const timestamp = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -98,7 +98,7 @@ function Amount({ value, className }: { value: number | null | undefined; classN
 
 export function RecipientOverviewView({ summary, loading, error, onRetry, compact = false, busy = false, onPayouts, onFunds }: ViewProps) {
     const funds = summary?.funds;
-    return <section className={`${styles.surface}${compact ? ` ${styles.compact}` : ""}`} aria-label={compact ? "Deine Vergütung mit Workfare Pay" : "Deine Zahlungsübersicht"} aria-busy={loading}>
+    return <section className={`${styles.surface}${compact ? ` ${styles.compact}` : ""}`} aria-label={compact ? "Deine Vergütung mit Workfare Pay" : "Deine Zahlungsübersicht"} aria-busy={loading} onPointerMove={followGlassPointer}>
         <div className={styles.heading}>
             {compact ? <div className={styles.brand}><PayWordmark />{summary && <PaymentEnvironment kind={summary.kind} compact className={styles.environment} />}</div>
                 : <h2 className={styles.title}>Deine Zahlungsübersicht</h2>}
@@ -109,27 +109,27 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
             : error ? <div className={styles.failure}><p role="alert">{error}</p><button type="button" className={styles.textAction} onClick={onRetry} disabled={busy}>Erneut versuchen<ArrowRight size={15} aria-hidden="true" /></button></div>
             : summary ? <>
                 <dl className={styles.numbers}>
-                    <div className={styles.primary}><dt>{compact ? "Bestätigt verdient" : "Verfügbar"}</dt><dd><Amount value={compact ? summary.earnings.confirmedCents : funds?.availableCents} /></dd></div>
-                    <div><dt>{compact ? "Verfügbar" : "In Bearbeitung"}</dt><dd><Amount value={compact ? funds?.availableCents : funds?.pendingCents} /></dd></div>
-                    <div><dt>{compact ? "In Bearbeitung" : "Bestätigt verdient"}</dt><dd><Amount value={compact ? funds?.pendingCents : summary.earnings.confirmedCents} /></dd></div>
-                    {!compact && <div><dt>Bereits ausgezahlt</dt><dd><Amount value={summary.payouts?.paidOutCents} /></dd></div>}
+                    <div className={styles.primary}><dt>Für die Auszahlung verfügbar</dt><dd><Amount value={funds?.availableCents} /></dd></div>
+                    <div><dt>Insgesamt verdient</dt><dd><Amount value={summary.earnings.confirmedCents} /></dd></div>
+                    <div><dt>Bereits ausgezahlt</dt><dd><Amount value={summary.payouts?.paidOutCents} /></dd></div>
+                    <div><dt>In Bearbeitung</dt><dd><Amount value={funds?.pendingCents} /></dd></div>
                 </dl>
                 <div className={styles.caption}>
                     <span>{summary.earnings.paidJobs === 1 ? "1 bezahlter Termin" : `${summary.earnings.paidJobs} bezahlte Termine`}</span>
-                    <time dateTime={summary.checkedAt} title={`Stand: ${date.format(new Date(summary.checkedAt))}`}>Stand {checkedTime.format(new Date(summary.checkedAt))}</time>
+                    {summary.payouts?.inTransitCents !== null && summary.payouts?.inTransitCents !== undefined && summary.payouts.inTransitCents > 0 && <span><Amount value={summary.payouts.inTransitCents} /> Auszahlung in Bearbeitung</span>}
                 </div>
                 {summary.earnings.underReviewCount > 0 && <p className={styles.notice}>{summary.earnings.underReviewCount === 1 ? "Ein Zahlungsvorgang wird" : `${summary.earnings.underReviewCount} Zahlungsvorgänge werden`} geprüft und {summary.earnings.underReviewCount === 1 ? "ist" : "sind"} im bestätigten Verdienst noch nicht enthalten.</p>}
                 {!funds && <p className={styles.note}>{summary.fundsUnavailableReason === "minor_review_required" ? "Bankauszahlungen für Minderjährige sind noch nicht freigegeben."
                     : summary.fundsUnavailableReason === "local_simulation" ? "Diese Vorschau enthält kein Bankguthaben."
-                    : summary.fundsUnavailableReason === "provider_unavailable" ? "Der aktuelle Stripe-Guthabenstand konnte nicht bestätigt werden." : "Dein Auszahlungsstand erscheint nach der Einrichtung."}</p>}
-                {!compact && funds && !summary.payouts && summary.fundsUnavailableReason === "provider_unavailable" && <p className={styles.note}>Der Auszahlungsverlauf ist gerade nicht verfügbar.</p>}
+                    : summary.fundsUnavailableReason === "provider_unavailable" ? "Dein Guthaben bei Workfare Pay konnte gerade nicht geladen werden." : "Dein Auszahlungsstand erscheint nach der Einrichtung."}</p>}
+                {funds && !summary.payouts && summary.fundsUnavailableReason === "provider_unavailable" && <p className={styles.note}>Der Auszahlungsverlauf ist gerade nicht verfügbar.</p>}
+                {summary.payouts?.coverage === "recent_only" && <p className={styles.note}>Die Gesamtsumme deiner Auszahlungen ist gerade nicht verfügbar.</p>}
                 {!compact && <>
                     <div className={styles.actions}>
                         {onPayouts && funds && <button type="button" className={`app-glass-control ${styles.action}`} onClick={onPayouts} disabled={busy || !funds.stripePayoutsEnabled || !funds.hasPayoutMethod}><ArrowDownToLine size={17} aria-hidden="true" />Auszahlungen ansehen</button>}
-                        {onFunds && funds && <button type="button" className={styles.textAction} onClick={onFunds} disabled={busy || !funds.stripePayoutsEnabled || !funds.hasPayoutMethod}>Guthaben bei Stripe<ArrowUpRight size={15} aria-hidden="true" /></button>}
+                        {onFunds && funds && <button type="button" className={`app-glass-control ${styles.action}`} onClick={onFunds} disabled={busy || !funds.stripePayoutsEnabled || !funds.hasPayoutMethod}>Guthaben ansehen<ArrowUpRight size={15} aria-hidden="true" /></button>}
                         {funds && <span className={styles.schedule}>Auszahlungsplan: {schedules[funds.schedule]}</span>}
                     </div>
-                    <details className={styles.details}><summary>So setzt sich deine Übersicht zusammen<ChevronRight size={15} aria-hidden="true" /></summary><p>Der bestätigte Verdienst umfasst bezahlte Workfare-Aufträge. Erstattete und noch ungeklärte Vorgänge zählen nicht dazu. Verfügbar und in Bearbeitung sind Guthabenstände bei Stripe. Eine Bankauszahlung ist ein eigener Schritt.</p>{summary.payouts?.coverage === "recent_only" && <p>Die Auszahlungen zeigen die letzten Vorgänge. Den vollständigen Verlauf findest du bei Stripe.</p>}</details>
                     <PaymentHistory summary={summary} />
                 </>}
             </> : null}
@@ -137,7 +137,10 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
 }
 
 function PaymentHistory({ summary }: { summary: RecipientPaymentSummary }) {
-    if (!summary.recentPayments.length && !summary.payouts?.recent.length) return <div className={styles.empty}><span>Dein erster Verdienst beginnt mit einem Job.</span><Link href="/app-home/jobs" className={styles.textAction}>Jobs entdecken<ArrowRight size={15} aria-hidden="true" /></Link></div>;
+    if (!summary.recentPayments.length && !summary.payouts?.recent.length) {
+        const firstEarnings = summary.earnings.confirmedCents === 0 && summary.earnings.refundedCents === 0 && summary.earnings.paidJobs === 0;
+        return firstEarnings ? <div className={styles.empty}><span>Dein erster Verdienst beginnt mit einem Job.</span><Link href="/app-home/jobs" className={`app-glass-control ${styles.action}`}>Jobs entdecken<ArrowRight size={15} aria-hidden="true" /></Link></div> : null;
+    }
     return <div className={styles.history}>
         {summary.recentPayments.length > 0 && <><h3>Letzte Vorgänge</h3><ul>{summary.recentPayments.map(payment => <li key={payment.id}><Link href={`/app-home/activities?conversation=${payment.applicationId}`} className={styles.entry}>
             <span className={`app-glass-control ${styles.entryIcon}`} aria-hidden="true">{payment.state === "refunded" ? <ArrowUpRight size={18} /> : payment.state === "paid" ? <ArrowDownLeft size={18} /> : <FileText size={18} />}</span>

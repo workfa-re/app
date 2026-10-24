@@ -23,7 +23,7 @@ const billingSchema = z.object({
         postalCode: z.string().trim().regex(/^\d{5}$/),
         city: plainText(1, 100),
         country: z.literal("DE"),
-    }).strict(),
+    }).strict().nullable().optional(),
 }).strict();
 
 function mismatch(): never { throw new PaymentFlowError("payment_account_mismatch", 409); }
@@ -82,8 +82,11 @@ function billingDetails(customer: Stripe.Customer): BuyerBillingDetails {
 
 function confirmsBilling(customer: Stripe.Customer, input: z.infer<typeof billingSchema>): boolean {
     const stored = billingDetails(customer);
-    return stored.name === input.name && stored.email === input.email
-        && stored.address?.line1 === input.address.line1 && (stored.address.line2 ?? "") === input.address.line2
+    if (stored.name !== input.name || stored.email !== input.email) return false;
+    // Contact-only edits leave even partial or foreign invoice addresses untouched.
+    if (input.address === undefined) return true;
+    if (input.address === null) return stored.address === null;
+    return stored.address?.line1 === input.address.line1 && (stored.address.line2 ?? "") === input.address.line2
         && stored.address.postalCode === input.address.postalCode && stored.address.city === input.address.city
         && stored.address.country === input.address.country;
 }
@@ -172,8 +175,10 @@ export function createBuyerAccountSandboxAdapter(environment: PaymentsEnvironmen
             await retrieveOwned(customerId, userId);
             const customer = ownedCustomer(await (await sdk()).customers.update(customerId, {
                 name: details.name, email: details.email,
-                address: { line1: details.address.line1, line2: details.address.line2, postal_code: details.address.postalCode,
-                    city: details.address.city, country: details.address.country },
+                ...(details.address === undefined ? {} : { address: details.address === null ? "" : {
+                    line1: details.address.line1, line2: details.address.line2, postal_code: details.address.postalCode,
+                    city: details.address.city, country: details.address.country, state: "",
+                } }),
             }, { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` }), customerId, userId, mode);
             if (!confirmsBilling(customer, details)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
             // A timeout or concurrent edit must never become a false "saved".

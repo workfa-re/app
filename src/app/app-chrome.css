@@ -69,8 +69,11 @@ html.dark:has(.app-shell), .dark body:has(.app-shell) { background: #090909; }
 /* The city is the local signature of the wordmark, not a separate control. */
 .app-brand-location { max-width: min(100%, 16ch); overflow: hidden; margin-top: 4px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1; letter-spacing: normal; text-transform: none; text-overflow: ellipsis; white-space: nowrap; }
 .app-glass-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 2px; width: 450px; height: var(--app-header-control-size, 52px); padding: 3px; }
-.app-nav-link { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; height: calc(var(--app-header-control-size, 52px) - 8px); min-height: 40px; padding: 0 17px; border-radius: 999px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.2; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease; }
+.app-nav-link { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; height: calc(var(--app-header-control-size, 52px) - 8px); min-height: 40px; padding: 0 12px; border-radius: 999px; color: var(--app-muted); font-size: 14px; font-weight: 500; line-height: 1.2; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease; }
 .app-nav-link > :not(.app-glass-selection) { position: relative; z-index: 1; }
+.app-nav-link > svg { flex-shrink: 0; }
+/* The gear's recessed contour needs an optical correction at the same icon box size. */
+.app-nav-link > .lucide-settings, .app-mobile-dock-icon.lucide-settings { scale: 1.12; }
 .app-nav-link[data-active="true"] { color: var(--app-accent-ink); }
 .app-glass-selection { position: absolute; z-index: 0; inset: 0; overflow: hidden; border-radius: inherit; background: var(--app-glass-selected); box-shadow: var(--app-glass-shadow); }
 @media (hover: hover) {

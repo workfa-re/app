@@ -8,29 +8,32 @@
 .page :is(button,a,input,select,textarea,summary):focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 4px; }
 .page :is(button,a,summary) { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .page :is(button,a):active { transform: none; scale: 1; }
-.back { position: relative; z-index: 2; display: inline-flex; gap: 10px; align-items: center; min-height: 44px; margin: 0 0 20px; color: var(--app-accent-ink); font-size: 14px; font-weight: 500; text-decoration: none; }
+.back { position: relative; z-index: 2; display: inline-flex; gap: 9px; align-items: center; justify-content: center; min-height: 44px; padding: 10px 17px; margin: 0 0 20px; border-radius: 999px; color: var(--app-accent-ink); font-size: 13px; line-height: 1.4; font-weight: 500; text-decoration: none; }
+:global(.app-shell) .page .back { color: var(--app-accent-ink); }
+.back > svg { flex-shrink: 0; }
 .header { margin-bottom: 28px; }
 .header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 36px); line-height: 1.2; font-weight: 600; letter-spacing: -.045em; text-wrap: balance; }
 .header > p { margin: 8px 0 0; color: var(--app-muted); font-size: 16px; line-height: 1.6; text-wrap: pretty; }
 .workspace { max-width: 1104px; }
-.workspace > .back { margin-bottom: 0; }
-.hero { position: relative; isolation: isolate; display: flex; align-items: flex-start; min-height: 196px; padding: 16px 0 20px; margin-bottom: 16px; }
-.heroCopy { position: relative; z-index: 1; max-width: 60%; pointer-events: none; }
+.workspace > .back { margin-bottom: 18px; }
+.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.8fr); align-items: center; gap: 20px; min-height: 196px; padding: 22px 30px; margin-bottom: 20px; }
+.hero.hero { background: var(--app-ground); }
+.heroCopy { position: relative; z-index: 1; min-width: 0; pointer-events: none; }
 .hero h1 { font-size: clamp(36px, 3.8vw, 48px); line-height: 1.08; letter-spacing: -.045em; }
 .heroCopy > p { margin: 9px 0 0; font-size: 15px; line-height: 1.6; color: var(--app-muted); text-wrap: pretty; }
 .hero .environment { margin-top: 9px; font-size: 10px; }
-.motion { position: absolute; inset: 0; pointer-events: none; }
-.motionVisual { position: absolute; isolation: isolate; top: 50%; right: 12px; width: min(38%,340px); aspect-ratio: 4 / 3; translate: 0 -50%; pointer-events: none; background: var(--app-ground); mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); mask-composite: intersect; -webkit-mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); -webkit-mask-composite: source-in; }
-.motionVisual > img, .motionVideo { width: 100%; height: 100%; object-fit: contain; object-position: center; mix-blend-mode: darken; }
+.motion { position: relative; min-width: 0; width: 100%; max-width: 320px; height: 156px; justify-self: end; pointer-events: none; }
+.motionVisual { position: absolute; inset: 0; width: min(100%,208px); height: 156px; margin-inline: auto; pointer-events: none; mix-blend-mode: darken; mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); mask-composite: intersect; -webkit-mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); -webkit-mask-composite: source-in; }
+.motionVisual > img, .motionVideo { width: 100%; height: 100%; object-fit: contain; object-position: center; }
 .motionVisual > img { transition: opacity 260ms ease; }
 .motionVisual[data-ready="true"] > img { opacity: 0; }
 .posterDark { display: none; }
 .motionVideo { position: absolute; inset: 0; opacity: 0; transition: opacity 260ms ease; }
 .motionVideo[data-ready="true"] { opacity: 1; }
-.motionToggle { position: absolute; right: 0; bottom: 4px; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 50%; color: var(--app-muted); cursor: pointer; pointer-events: auto; transition: color 200ms ease; }
+.motionToggle { position: absolute; right: -10px; bottom: -10px; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 50%; color: var(--app-muted); cursor: pointer; pointer-events: auto; transition: color 200ms ease; }
 .hero .motion .motionToggle { position: absolute; }
 .motionToggle:hover { color: var(--app-ink); }
-:global(html.dark) .motionVisual > img, :global(html.dark) .motionVideo { mix-blend-mode: lighten; }
+:global(html.dark) .motionVisual { mix-blend-mode: lighten; }
 :global(html.dark) .posterLight { display: none; }
 :global(html.dark) .posterDark { display: block; }
 .environment { display: inline-block; margin-top: 10px; color: var(--app-muted); font-size: 11px; line-height: 1.6; }
@@ -46,9 +49,11 @@
 .methodSurface[data-embedded="true"], .stripeSurface[data-embedded="true"] { padding: 0; }
 .methodSurface[data-embedded="true"] > .sectionHeading, .stripeSurface[data-embedded="true"] > .sectionHeading { padding: 20px 22px 0; }
 .methodSurface[data-embedded="true"] .embedded, .stripeSurface[data-embedded="true"] .embedded { width: 100%; margin: 16px 0 0; }
+.workspace:has([data-embedded="true"]) { max-width: none; }
 .methodSurface[data-embedded="true"] > :is(.error,.feedback,.notice), .stripeSurface[data-embedded="true"] > :is(.error,.feedback,.notice) { margin: 16px 22px 22px; }
 .methodSurface[data-embedded="true"] .embedRecovery, .stripeSurface[data-embedded="true"] .embedRecovery { margin: 16px 20px 20px; }
-.workspace:has([data-embedded="true"]) .hero { min-height: 0; padding: 12px 0 18px; margin-bottom: 12px; }
+.workspace:has([data-embedded="true"]) .hero { display: block; min-height: 0; padding: 0 0 6px; margin-bottom: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.workspace:has([data-embedded="true"]) .hero::before, .workspace:has([data-embedded="true"]) .hero::after { display: none; }
 .workspace:has([data-embedded="true"]) .heroCopy { max-width: 100%; }
 .workspace:has([data-embedded="true"]) .heroCopy > p, .workspace:has([data-embedded="true"]) .motion { display: none; }
 .methodSurface .sectionHeading > h2 { color: var(--app-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; }
@@ -160,14 +165,14 @@
     .back { margin-bottom: 17px; }
     .header { margin-bottom: 23px; }
     .header > p { font-size: 14px; }
-    .hero { display: block; min-height: 0; padding: 10px 0 0; margin-bottom: 16px; }
+    .hero { grid-template-columns: minmax(0,1fr); gap: 0; min-height: 0; padding: 22px 22px 16px; margin-bottom: 16px; }
     .heroCopy { max-width: 100%; }
     .hero h1 { font-size: clamp(32px, 9.2vw, 38px); }
     .heroCopy > p { max-width: 100%; margin-top: 9px; font-size: 14px; }
     .hero .environment { margin-top: 8px; font-size: 10px; }
-    .motion { position: relative; inset: auto; height: 112px; margin-top: -8px; }
-    .motionVisual { inset: 0; width: 100%; height: 100%; max-width: 210px; margin-inline: auto; aspect-ratio: auto; translate: none; }
-    .motionToggle { right: 0; bottom: 2px; }
+    .motion { height: 104px; max-width: none; margin-top: -2px; }
+    .motionVisual { width: 138.667px; height: 104px; }
+    .motionToggle { right: -6px; bottom: -2px; }
     .surface { padding: 22px; border-radius: 28px; }
     .surface h2 { font-size: 18px; }
     .stack { gap: 16px; }
