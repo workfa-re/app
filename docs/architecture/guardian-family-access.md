@@ -78,3 +78,19 @@ and [Mailgun regions](https://help.mailgun.com/hc/en-us/articles/360007512013-Ca
 Local verification uses a fake SMTP transport and disposable PostgreSQL
 fixtures. No real mail, user-password updates, production database or Stripe
 operations are part of those checks.
+
+## Production configuration on 2026-10-24
+
+The operator's new EU domain `m.workfa.re` has verified SPF and active DKIM.
+The parent-permission sender is `Workfare <freigabe@m.workfa.re>`, with a
+dedicated domain SMTP credential in the encrypted Dokploy application
+configuration. The same two private variables are loaded in the running
+application; all other service environment values were compared and preserved.
+The production container authenticated against Mailgun with required TLS and
+certificate validation. No message was sent during that connection check.
+
+Supabase Auth uses a separate domain credential and the sender
+`anmeldung@m.workfa.re`. Its saved configuration was independently reloaded.
+Normal registration and parental-permission mail remain separate transports.
+Inbox delivery requires a separately authorized recipient test; SMTP login
+success alone is not a delivery claim.

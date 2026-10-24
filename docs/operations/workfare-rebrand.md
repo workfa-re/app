@@ -44,11 +44,11 @@ listed below were saved directly in its dashboard.
 
 ## External follow-up
 
-- [ ] Mailgun: verify a Workfare sending domain (recommended
-  `mail.workfare.team`), configure its required DNS records, then switch the
-  Supabase sender address to the verified Workfare address. As inspected on
-  2026-09-16 it remains `noreply@mail.jobbridge.app`. Do not change only the
-  address before the provider authorizes the new domain.
+- [x] Mailgun: the operator configured `m.workfa.re` in the EU on 2026-10-24.
+  SPF is verified, DKIM active, and Supabase Auth's sender is now
+  `anmeldung@m.workfa.re`. Separate SMTP credentials protect Auth and
+  accountless parental permission. Saved settings and TLS authentication were
+  checked; actual inbox delivery remains a separate recipient test.
 - [ ] Move the separate admin service to its chosen Workfare hostname, verify
   its login/callbacks and redirect the old host before updating
   `ADMIN_PORTAL_URL`.

@@ -67,3 +67,20 @@ Der weitere Funktionsplan steht unter
 [Workfare Pay: Ablauf und Oberfläche](../planning/workfare-pay-ux.md#nächste-ausbauschritte),
 die SMTP-/Familienverträge unter
 [Familienzugang](../architecture/guardian-family-access.md).
+
+## Bestätigter Live-Nachlauf
+
+`2599316` wurde auf `main` veröffentlicht und im tatsächlich laufenden Container
+an Checkout, Quellfingerprints und kompilierten Änderungen bestätigt. GitHub
+Code Quality mit JavaScript-/TypeScript- und Python-Analyse sowie Dependency
+Security sind erfolgreich. Alle 15 öffentlichen Pay-Schutzprüfungen bestehen;
+die neue Freigabeseite antwortet mit HTTP 200 und den vorgesehenen Privacy-
+Headern. Die appgebundene HTTPS-Proxykorrektur bleibt erhalten.
+
+Nach dem vom Betreiber abgeschlossenen Domainwechsel ist Mailgun mit
+`m.workfa.re` in der EU angebunden: bestätigtes SPF, aktives DKIM, getrennte
+SMTP-Zugänge für Supabase Auth und Elternfreigaben. Die privaten Appvariablen
+sind in Dokploy dauerhaft gespeichert und in einen neuen Container ausgerollt.
+Der Vergleich bestätigt unveränderte übrige Servicevariablen. Die TLS-/SMTP-
+Authentifizierung ist auch vom Produktionscontainer erfolgreich; kein
+Zustelltest und keine echten Elternzustimmungen wurden dabei ausgelöst.
