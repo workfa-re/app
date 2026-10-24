@@ -87,7 +87,9 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                 defaults: { currency: "eur", locales: ["de-DE"], responsibilities: { fees_collector: "application", losses_collector: "application" } },
                 configuration: { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } },
                 metadata: { workfare_pay_user: userId, workfare_pay_role: "recipient", ...(minor ? {workfare_pay_minor_guardian:minor.guardianId,workfare_pay_minor_consent:minor.consentId,workfare_pay_minor_birthdate:minor.childBirthdate} : {}) }, include,
-            }, { idempotencyKey: `workfare-pay:recipient:${userId}` });
+            }, { idempotencyKey: minor
+                ? `workfare-pay:minor-recipient:${userId}:${createHash("sha256").update(JSON.stringify(minor)).digest("hex").slice(0,32)}`
+                : `workfare-pay:recipient:${userId}` });
             assertOwnedAccount(account, userId, undefined, mode);
             if (prefill.displayName) {
                 // The issued contact email is immutable in this sandbox. Keep
@@ -124,6 +126,92 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             if (session.account !== accountRef || !session.client_secret || session.expires_at <= Date.now() / 1_000) reject();
             // A single-user client secret is returned only to the authenticated owner.
             return session.client_secret;
+        },
+        async inspectUnusedSetup(userId:string,accountRef:string,binding:RecipientMinorBinding):Promise<void> {
+            if(mode!=="live")throw new PaymentFlowError("recipient_restart_unavailable",409);
+            const account=await retrieve(userId,accountRef);
+            if(account.metadata?.workfare_pay_minor_guardian!==binding.guardianId
+                || account.metadata?.workfare_pay_minor_consent!==binding.consentId
+                || account.metadata?.workfare_pay_minor_birthdate!==binding.childBirthdate
+                || stripeBirthdate(account.identity?.individual?.date_of_birth)!==binding.childBirthdate)reject();
+            const stripe=await sdk();
+            const [legacy,banks,guardians,balance,payouts,transfers,charges]=await Promise.all([
+                stripe.accounts.retrieve(accountRef),
+                stripe.accounts.listExternalAccounts(accountRef,{limit:1}),
+                stripe.accounts.listPersons(accountRef,{relationship:{legal_guardian:true},limit:1}),
+                stripe.balance.retrieve({}, {stripeAccount:accountRef}),
+                stripe.payouts.list({limit:1},{stripeAccount:accountRef}),
+                stripe.transfers.list({destination:accountRef,limit:1}),
+                stripe.charges.list({limit:1},{stripeAccount:accountRef}),
+            ]);
+            const empty=(page:{object:string;data:unknown[];has_more:boolean})=>page.object==="list"&&page.data.length===0&&page.has_more===false;
+            const zero=(entries:{amount:number}[]|undefined)=>Array.isArray(entries)&&entries.length<=100&&entries.every(entry=>Number.isSafeInteger(entry.amount)&&entry.amount===0);
+            if(legacy.id!==accountRef||("livemode" in legacy&&legacy.livemode!==true)||legacy.details_submitted!==false||!empty(banks)||!empty(guardians)
+                ||balance.object!=="balance"||balance.livemode!==true||!zero(balance.available)||!zero(balance.pending)
+                ||(balance.connect_reserved!==undefined&&!zero(balance.connect_reserved))
+                ||!empty(payouts)||!empty(transfers)||!empty(charges)
+                ||!Array.isArray(account.requirements?.entries)
+                ||account.requirements.entries.some(entry=>entry.awaiting_action_from!=="user")) {
+                throw new PaymentFlowError("recipient_restart_review_required",409);
+            }
+        },
+        async inspectBankSetup(userId:string,accountRef:string,binding:RecipientMinorBinding):Promise<boolean>{
+            const account=await retrieve(userId,accountRef);
+            if(mode!=="live"||account.metadata?.workfare_pay_minor_guardian!==binding.guardianId
+                ||account.metadata?.workfare_pay_minor_consent!==binding.consentId
+                ||account.metadata?.workfare_pay_minor_birthdate!==binding.childBirthdate
+                ||stripeBirthdate(account.identity?.individual?.date_of_birth)!==binding.childBirthdate)reject();
+            const banks=await (await sdk()).accounts.listExternalAccounts(accountRef,{object:"bank_account",limit:100});
+            if(banks.object!=="list"||banks.has_more!==false||banks.data.length>100)reject();
+            return banks.data.some(bank=>bank.object==="bank_account"&&accountId(bank.account)===accountRef&&bank.currency==="eur"
+                &&bank.default_for_currency===true&&["new","validated","verified"].includes(bank.status??""));
+        },
+        async saveInitialBankMethod(userId:string,accountRef:string,binding:RecipientMinorBinding,bankToken:string,operationId:string):Promise<void>{
+            if(mode!=="live"||!/^btok_[A-Za-z0-9]{1,200}$/.test(bankToken)
+                ||!/^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(operationId)) {
+                throw new PaymentFlowError("recipient_bank_token_invalid");
+            }
+            const account=await retrieve(userId,accountRef);
+            const stored=await getRecipientAccount(userId,mode);
+            const sameBinding=(candidate:RecipientMinorBinding|null|undefined)=>!!candidate
+                &&Object.entries(binding).every(([key,value])=>candidate[key as keyof RecipientMinorBinding]===value);
+            if(!stored||stored.userId!==userId||stored.accountRef!==accountRef||!sameBinding(stored.minorBinding)
+                ||account.metadata?.workfare_pay_minor_guardian!==binding.guardianId
+                ||account.metadata?.workfare_pay_minor_consent!==binding.consentId
+                ||account.metadata?.workfare_pay_minor_birthdate!==binding.childBirthdate
+                ||stripeBirthdate(account.identity?.individual?.date_of_birth)!==binding.childBirthdate)reject();
+            const stripe=await sdk();
+            const tokenHash=createHash("sha256").update(bankToken).digest("hex");
+            const matches=(bank:Stripe.ExternalAccount)=>bank.object==="bank_account"&&accountId(bank.account)===accountRef
+                &&bank.currency==="eur"&&bank.default_for_currency===true&&["new","validated","verified"].includes(bank.status)
+                &&bank.metadata?.workfare_pay_user===userId&&bank.metadata?.workfare_bank_operation===operationId
+                &&bank.metadata?.workfare_bank_token_hash===tokenHash;
+            const list=async()=>{
+                const banks=await stripe.accounts.listExternalAccounts(accountRef,{limit:100});
+                if(banks.object!=="list"||banks.has_more!==false||banks.data.length>100
+                    ||banks.data.some(bank=>!["bank_account","card"].includes(bank.object)||accountId(bank.account)!==accountRef))reject();
+                return banks.data;
+            };
+            // Reconcile a lost success response before inspecting the single-use
+            // token. Never replace an existing bank through this initial setup.
+            const existing=await list();
+            if(existing.length){
+                if(existing.length===1&&matches(existing[0]))return;
+                throw new PaymentFlowError("recipient_bank_already_saved",409);
+            }
+            const token=await stripe.tokens.retrieve(bankToken);
+            assertStripeModeObject(token,mode);
+            if(token.object!=="token"||token.id!==bankToken||token.type!=="bank_account"||token.used!==false
+                ||token.bank_account?.object!=="bank_account"||token.bank_account.currency!=="eur") {
+                throw new PaymentFlowError("recipient_bank_token_invalid");
+            }
+            const saved=await stripe.accounts.createExternalAccount(accountRef,{
+                external_account:bankToken,default_for_currency:true,
+                metadata:{workfare_pay_user:userId,workfare_bank_operation:operationId,workfare_bank_token_hash:tokenHash},
+            },{idempotencyKey:`workfare-pay:initial-bank:${accountRef}`});
+            if(!matches(saved))throw new PaymentFlowError("recipient_bank_unconfirmed",409);
+            const confirmed=await list();
+            if(confirmed.length!==1||confirmed[0].id!==saved.id||!matches(confirmed[0]))throw new PaymentFlowError("recipient_bank_unconfirmed",409);
         },
         async createHostedOnboarding(userId: string, accountRef: string, urls: { refreshUrl: string; returnUrl: string }, operationId: string, guardianChildId?: string) {
             await retrieve(userId, accountRef);

@@ -179,6 +179,20 @@ describe("purpose-bound guardian access and consent UI", () => {
         const html = renderToStaticMarkup(<GuardianConnections relationships={[{ ...connection, actorRole: "child" }, { ...connection, id: "revoked", name: "Revoked Private Name", status: "revoked" }]} busy={false} onApprove={noop} onRevoke={noop} />);
         expect(html).toContain("Zustimmung deines Elternteils ausstehend"); expect(html).not.toContain("Zustimmung prüfen"); expect(html).not.toContain("Revoked Private Name");
     });
+    it("keeps saved parental consent clear and payout troubleshooting behind an explicit disclosure", () => {
+        const html=renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true}]} busy={false} onApprove={noop} onRevoke={noop}/>);
+        expect(text(html)).toContain("Elternfreigabe hinterlegt");
+        expect(text(html)).toContain("Die Bankverbindung ergänzt dein Kind im eigenen Workfare Pay.");
+        expect(text(html)).toContain("Auszahlung begleiten");
+        expect(html).not.toMatch(/Stand prüfen|gesetzliche Vertretung konnte|Auszahlung einrichten|Stripe|<iframe|<input/);
+        expect(html).not.toContain(' open=""');
+    });
+    it("reserves payout accompaniment for an adult with actual approval of a minor", () => {
+        const render=(patch:Partial<GuardianConnection>)=>renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true,...patch}]} busy={false} onApprove={noop} onRevoke={noop}/>);
+        expect(render({actorRole:"child"})).not.toContain("Auszahlung begleiten");
+        expect(render({consentRequired:false})).not.toContain("Auszahlung begleiten");
+        expect(render({consented:false})).not.toContain("Auszahlung begleiten");
+    });
     it("lets the linked adult complete missing consent on an active legacy relationship without offering redundant approval", () => {
         const render = (patch: Partial<GuardianConnection>) => renderToStaticMarkup(<GuardianConnections relationships={[{ ...connection, status: "active", ...patch }]} busy={false} onApprove={noop} onRevoke={noop} />);
         const missing = render({ consented: false });

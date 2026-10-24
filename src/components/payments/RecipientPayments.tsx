@@ -16,6 +16,7 @@ import { RecipientHostedFallback } from "./RecipientHostedFallback";
 import { isStripeSurfaceKind, validStripeSurfaceSession } from "./PaymentEnvironment";
 import { RecipientOverview } from "./RecipientOverview";
 import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
+import { MinorPayoutSetup } from "./MinorPayoutSetup";
 import overviewStyles from "./RecipientOverview.module.css";
 import styles from "./Payments.module.css";
 
@@ -199,8 +200,10 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         </section>;
     // Stable sibling keys preserve the overview when readiness changes while
     // keeping visual, keyboard and screen-reader order aligned.
+    const visibleSetupSlot = snapshot?.kind === "live" && snapshot.eligibility === "minor_review_required" && !session
+        ? <div key="setup" className={overviewStyles.setupSlot}><MinorPayoutSetup key={ownerId} ownerId={ownerId ?? ""} onUpdated={() => router.refresh()} /></div> : setupSlot;
     return <div className={`${styles.stack} ${overviewStyles.recipientLayout}`} data-overview-first={ready}>
-        {ready ? [overviewSlot, setupSlot] : [setupSlot, overviewSlot]}
+        {ready ? [overviewSlot, visibleSetupSlot] : [visibleSetupSlot, overviewSlot]}
         <div key="notifications" className={overviewStyles.notificationsSlot}>{!session && !editing && !statusUnknown && !busy && <RecipientNotifications snapshot={snapshot} ownerId={ownerId} onChanged={onNotificationChanged} />}</div>
     </div>;
 }

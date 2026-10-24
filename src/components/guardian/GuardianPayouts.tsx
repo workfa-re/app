@@ -20,9 +20,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 type Overview = GuardianRecipientContext;
 type ChildPayout = Overview["children"][number];
 const reasons: GuardianRecipientReason[] = ["guardian_kyc_required", "guardian_identity_mismatch", "guardian_terms_required", "recipient_country_model_unsupported", "recipient_setup_required", "recipient_guardian_binding_conflict"];
-type Resource = { overview: Overview | null; pendingChild: string | null; error: string | null };
+type Resource = { overview: Overview | null; pendingChild: string | null; error: string | null; loaded: boolean };
 type EmbeddedSetup={ownerId:string;childId:string;kind:"live";component:"onboarding";clientSecret:string;publishableKey:string};
-type Actions = Resource & { start: (childId: string) => Promise<void>; refresh: (childId: string) => Promise<void>; session:EmbeddedSetup|null; closeSession:()=>Promise<void>; renewSession:(childId:string)=>Promise<string>; failSession:()=>void };
+type Actions = Resource & { start: (childId: string, options?: { restart?: true }) => Promise<void>; refresh: (childId: string) => Promise<void>; reload: () => Promise<void>; session:EmbeddedSetup|null; closeSession:()=>Promise<void>; renewSession:(childId:string)=>Promise<string>; failSession:()=>void };
 const Payouts = createContext<Actions | null>(null);
 
 export function guardianPayoutEmbeddedSession(value:unknown,ownerId:string,childId:string):EmbeddedSetup|null {
@@ -46,7 +46,9 @@ export function validGuardianPayoutOverview(value: unknown, ownerId: string): va
         return typeof item.name === "string" && item.name.trim().length > 0 && item.name.length <= 200
             && typeof item.status === "string" && ["not_started", "onboarding", "pending", "ready", "restricted", "unavailable"].includes(item.status)
             && typeof item.canStartPayout === "boolean" && (item.reasonCode === null || reasons.includes(item.reasonCode as GuardianRecipientReason))
-            && (item.status !== "ready" || item.reasonCode === null);
+            && (item.canRestartPayout === undefined || typeof item.canRestartPayout === "boolean")
+            && !(item.canStartPayout === true && item.canRestartPayout === true)
+            && (item.status !== "ready" || (item.reasonCode === null && item.canRestartPayout !== true));
     });
 }
 
@@ -72,7 +74,7 @@ function errorMessage(error: unknown) {
 }
 
 export function GuardianPayoutsProvider({ ownerId, returnChildId, children }: { ownerId: string | null; returnChildId?: string | null; children: ReactNode }) {
-    const [resource, setResource] = useState<Resource>({ overview: null, pendingChild: null, error: null });
+    const [resource, setResource] = useState<Resource>({ overview: null, pendingChild: null, error: null, loaded: false });
     const [session,setSession]=useState<EmbeddedSetup|null>(null);
     const sessionScope=useRef<string|null>(null);
     const current = useRef(false);
@@ -93,11 +95,11 @@ export function GuardianPayoutsProvider({ ownerId, returnChildId, children }: { 
             const result = await paymentRequest<unknown>("/api/payments/guardian/recipients", undefined, undefined, ownerId);
             if (!current.current || ticket !== generation.current) return;
             if (!validGuardianPayoutOverview(result, ownerId)) throw new Error("unconfirmed_overview");
-            setResource({ overview: result, pendingChild: null, error: null });
+            setResource({ overview: result, pendingChild: null, error: null, loaded: true });
         } catch (error) {
             if (!current.current || ticket !== generation.current) return;
             const disabled = error instanceof PaymentRequestError && ["payments_disabled", "payments_live_not_ready", "guardian_payouts_disabled", "payments_live_disabled"].includes(error.code || "");
-            setResource(value => ({ overview: childId ? value.overview : null, pendingChild: null, error: disabled ? null : errorMessage(error) }));
+            setResource(value => ({ overview: childId ? value.overview : null, pendingChild: null, error: disabled ? null : errorMessage(error), loaded: true }));
         } finally { if (ticket === generation.current) busy.current = false; }
     }, [ownerId]);
     useEffect(() => {
@@ -113,24 +115,27 @@ export function GuardianPayoutsProvider({ ownerId, returnChildId, children }: { 
             void logoutRecipientConnectSessions();
             current.current = false; ++generation.current; operations.current.clear(); busy.current = false;
             sessionScope.current=null;setSession(null);
-            setResource({ overview: null, pendingChild: null, error: null });
+            setResource({ overview: null, pendingChild: null, error: null, loaded: false });
         });
         void Promise.resolve().then(() => load(returnChildId && UUID.test(returnChildId) ? returnChildId : undefined));
         return () => { current.current = false; ++lifecycleGeneration.current; sessionScope.current=null;busy.current = false; subscription.unsubscribe(); };
     }, [load, ownerId, returnChildId]);
 
-    async function start(childId: string) {
+    async function start(childId: string, options?: { restart?: true }) {
         const child = resource.overview?.children.find(value => value.childId === childId);
-        if (!ownerId || !current.current || busy.current || !child?.canStartPayout) return;
+        const restart = options?.restart === true;
+        if (!ownerId || !current.current || busy.current || !child || (restart ? !child.canRestartPayout : !child.canStartPayout)) return;
         busy.current = true; const ticket = ++generation.current;
         setResource(value => ({ ...value, pendingChild: childId, error: null }));
-        let operation = operations.current.get(childId);
-        if (!operation) { operation = crypto.randomUUID(); operations.current.set(childId, operation); }
+        const operationScope = restart ? `${childId}:restart` : childId;
+        let operation = operations.current.get(operationScope);
+        if (!operation) { operation = crypto.randomUUID(); operations.current.set(operationScope, operation); }
         try {
-            const result = await paymentRequest<unknown>("/api/payments/guardian/recipients", { childId, consent: true, uiMode:"embedded" }, operation, ownerId);
+            const result = await paymentRequest<unknown>("/api/payments/guardian/recipients", { childId, consent: true, uiMode:"embedded", ...(restart ? { restart: true } : {}) }, operation, ownerId);
             if (!current.current || ticket !== generation.current) return;
             const setup=guardianPayoutEmbeddedSession(result,ownerId,childId);
             if(!setup)throw new Error("unconfirmed_embedded_session");
+            operations.current.set(childId, operation);
             sessionScope.current=childId;setSession(setup);
             setResource(value=>({...value,pendingChild:null,error:null}));
         } catch (error) {
@@ -159,15 +164,15 @@ export function GuardianPayoutsProvider({ ownerId, returnChildId, children }: { 
     }
     const visibleOverview=resource.overview?.ownerId===ownerId ? resource.overview : null;
     const visibleSession=session?.ownerId===ownerId ? session : null;
-    return <Payouts.Provider value={{ ...resource, overview:visibleOverview, start, refresh: childId => load(childId),session:visibleSession,closeSession,renewSession,
-        failSession:()=>setResource(value=>({...value,error:"Die Auszahlungseinrichtung konnte gerade nicht geladen werden. Bitte lade den Bereich erneut."})) }}>{children}<GuardianEmbeddedSetup />{resource.error && <div role="alert"><p className={styles.fieldHint}>{resource.error}</p><button type="button" className={styles.quiet} disabled={resource.pendingChild!==null} onClick={()=>void load()}><RefreshCw size={15} aria-hidden="true"/>Erneut versuchen</button></div>}</Payouts.Provider>;
+    return <Payouts.Provider value={{ ...resource, overview:visibleOverview, start, refresh: childId => load(childId),reload:()=>load(),session:visibleSession,closeSession,renewSession,
+        failSession:()=>setResource(value=>({...value,error:"Die Auszahlungseinrichtung konnte gerade nicht geladen werden. Bitte lade den Bereich erneut."})) }}>{children}<GuardianEmbeddedSetup /></Payouts.Provider>;
 }
 
 export function guardianPayoutHint(entry: ChildPayout): string | null {
-    if (entry.reasonCode === "guardian_identity_mismatch") return "Die gesetzliche Vertretung konnte bei Stripe noch nicht zugeordnet werden. Bitte prüfe die Angaben.";
+    if (entry.reasonCode === "guardian_identity_mismatch") return entry.canStartPayout ? "Bitte prüfe deine Angaben als gesetzliche Vertretung bei Stripe." : "Die frühere Auszahlungseinrichtung ist einer anderen gesetzlichen Vertretung zugeordnet. Deine Elternfreigabe bleibt gültig.";
     if (entry.reasonCode === "guardian_terms_required") return "Die Stripe-Bedingungen müssen noch direkt bei Stripe bestätigt werden.";
     if (entry.reasonCode === "recipient_country_model_unsupported") return "Stripe unterstützt die Auszahlung für dieses Konto derzeit nicht. Es wurde keine Auszahlung freigegeben.";
-    if (entry.reasonCode === "recipient_guardian_binding_conflict") return "Die Auszahlung ist einer anderen gesetzlichen Vertretung zugeordnet. Bitte kontaktiere den Support.";
+    if (entry.reasonCode === "recipient_guardian_binding_conflict") return "Die frühere Auszahlungseinrichtung ist einer anderen gesetzlichen Vertretung zugeordnet. Deine Elternfreigabe bleibt gültig.";
     if (entry.status === "pending") return "Stripe prüft die Angaben. Die Auszahlung ist noch nicht freigegeben.";
     if (entry.status === "restricted" || entry.status === "unavailable") return "Die Auszahlung ist noch nicht freigegeben. Bitte prüfe den aktuellen Stand.";
     return null;
@@ -176,9 +181,11 @@ export function guardianPayoutHint(entry: ChildPayout): string | null {
 export function GuardianPayoutAction({ childId }: { childId: string }) {
     const context = useContext(Payouts);
     const entry = context?.overview?.children.find(value => value.childId === childId);
-    if (!context || !entry) return null;
+    if (!context) return null;
+    if (!entry) return context.error ? <div role="alert"><p>{context.error}</p><button type="button" className={styles.quiet} onClick={()=>void context.reload()}>Erneut laden</button></div>
+        : <p>{context.loaded ? "Die Auszahlungseinrichtung ist gerade nicht verfügbar. Deine Elternfreigabe bleibt gespeichert." : "Auszahlungsangaben werden geladen …"}</p>;
     if(context.session?.childId===childId) return null;
-    return <GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => context.start(childId)} onRefresh={() => context.refresh(childId)} />;
+    return <>{context.error && <p role="alert">{context.error}</p>}<GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => context.start(childId)} onRestart={() => context.start(childId,{restart:true})} onRefresh={() => context.refresh(childId)} /></>;
 }
 
 function GuardianEmbeddedSetup() {
@@ -200,21 +207,23 @@ function GuardianEmbeddedSetup() {
     </section>;
 }
 
-export function GuardianPayoutActionView({ entry, pending, onStart, onRefresh }: { entry: ChildPayout; pending: boolean; onStart: () => void; onRefresh: () => void }) {
+export function GuardianPayoutActionView({ entry, pending, onStart, onRestart, onRefresh }: { entry: ChildPayout; pending: boolean; onStart: () => void; onRestart?: () => void; onRefresh: () => void }) {
     const [expanded, setExpanded] = useState(false);
     const [accepted, setAccepted] = useState(false);
     if (entry.status === "ready") return <p className={styles.fieldHint}>Auszahlung eingerichtet.</p>;
     const hint = guardianPayoutHint(entry);
+    const restart = !entry.canStartPayout && entry.canRestartPayout === true && Boolean(onRestart);
+    const canOpen = entry.canStartPayout || restart;
     return <div className={styles.payoutSetup}>
         {hint && <p className={styles.fieldHint}>{hint}</p>}
-        {expanded && entry.canStartPayout ? <GuardianPayoutConsent name={entry.name} accepted={accepted} pending={pending} onAccepted={setAccepted} onStart={onStart} onCancel={() => { setExpanded(false); setAccepted(false); }} /> : <div className={styles.actions}>{entry.canStartPayout && <button type="button" className={`${styles.action} ${styles.glass}`} disabled={pending} onClick={() => { setExpanded(true); setAccepted(false); }}>{entry.status === "not_started" ? "Auszahlung einrichten" : "Einrichtung fortsetzen"}<ArrowUpRight size={16} aria-hidden="true" /></button>}{entry.status !== "not_started" && <button type="button" className={styles.quiet} disabled={pending} onClick={onRefresh}><RefreshCw size={15} aria-hidden="true" />Stand prüfen</button>}</div>}
+        {expanded && canOpen ? <GuardianPayoutConsent name={entry.name} accepted={accepted} pending={pending} restart={restart} onAccepted={setAccepted} onStart={restart ? onRestart! : onStart} onCancel={() => { setExpanded(false); setAccepted(false); }} /> : canOpen && <div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={pending} onClick={() => { setExpanded(true); setAccepted(false); }}>{restart ? "Einrichtung neu beginnen" : entry.status === "not_started" ? "Auszahlung einrichten" : "Einrichtung fortsetzen"}<ArrowUpRight size={16} aria-hidden="true" /></button>{entry.canStartPayout && entry.status !== "not_started" && <button type="button" className={styles.quiet} disabled={pending} onClick={onRefresh}><RefreshCw size={15} aria-hidden="true" />Stand prüfen</button>}</div>}
     </div>;
 }
 
-export function GuardianPayoutConsent({ name, accepted, pending, onAccepted, onStart, onCancel }: { name: string; accepted: boolean; pending: boolean; onAccepted: (value: boolean) => void; onStart: () => void; onCancel: () => void }) {
+export function GuardianPayoutConsent({ name, accepted, pending, restart = false, onAccepted, onStart, onCancel }: { name: string; accepted: boolean; pending: boolean; restart?: boolean; onAccepted: (value: boolean) => void; onStart: () => void; onCancel: () => void }) {
     return <form className={styles.form} onSubmit={event => { event.preventDefault(); if (accepted && !pending) onStart(); }}>
-        <p className={styles.fieldHint}>Stripe prüft deine Angaben als gesetzliche Vertretung und die Auszahlung für {name}. Die Stripe-Bedingungen bestätigst du direkt dort.</p>
-        <label className={styles.consent}><input type="checkbox" checked={accepted} onChange={event => onAccepted(event.target.checked)} required disabled={pending} /><span>Ich möchte die Stripe-Einrichtung für {name} als gesetzliche Vertretung starten.</span></label>
-        <div className={styles.actions}><button type="submit" className={`${styles.action} ${styles.glass}`} disabled={!accepted || pending}>{pending ? <Loader2 size={16} className={styles.spinner} aria-hidden="true" /> : <ArrowUpRight size={16} aria-hidden="true" />}{pending ? "Wird vorbereitet …" : "Auszahlung einrichten"}</button><button type="button" className={styles.quiet} disabled={pending} onClick={onCancel}>Abbrechen</button></div>
+        <p className={styles.fieldHint}>{restart ? `Die frühere Einrichtung für ${name} wird getrennt aufbewahrt. Du beginnst die notwendige Prüfung als gesetzliche Vertretung neu.` : `Stripe prüft deine Angaben als gesetzliche Vertretung und die Auszahlung für ${name}.`} Die Stripe-Bedingungen bestätigst du direkt dort.</p>
+        <label className={styles.consent}><input type="checkbox" checked={accepted} onChange={event => onAccepted(event.target.checked)} required disabled={pending} /><span>{restart ? `Ich möchte eine neue Stripe-Einrichtung für ${name} als gesetzliche Vertretung beginnen.` : `Ich möchte die Stripe-Einrichtung für ${name} als gesetzliche Vertretung starten.`}</span></label>
+        <div className={styles.actions}><button type="submit" className={`${styles.action} ${styles.glass}`} disabled={!accepted || pending}>{pending ? <Loader2 size={16} className={styles.spinner} aria-hidden="true" /> : <ArrowUpRight size={16} aria-hidden="true" />}{pending ? "Wird vorbereitet …" : restart ? "Neu beginnen" : "Auszahlung einrichten"}</button><button type="button" className={styles.quiet} disabled={pending} onClick={onCancel}>Abbrechen</button></div>
     </form>;
 }

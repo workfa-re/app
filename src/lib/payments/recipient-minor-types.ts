@@ -15,5 +15,5 @@ export type GuardianRecipientReason = "guardian_kyc_required" | "guardian_identi
 export type GuardianRecipientContext = Readonly<{
     ownerId: string;
     kind: "live";
-    children: readonly Readonly<{ childId: string; name: string; status: RecipientStatus; canStartPayout: boolean; reasonCode: GuardianRecipientReason | null }>[];
+    children: readonly Readonly<{ childId: string; name: string; status: RecipientStatus; canStartPayout: boolean; canRestartPayout?: boolean; reasonCode: GuardianRecipientReason | null }>[];
 }>;

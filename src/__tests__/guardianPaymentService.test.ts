@@ -1,10 +1,11 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
 vi.mock("server-only",()=>({}));
-const mock=vi.hoisted(()=>({user:vi.fn(),rpc:vi.fn(),create:vi.fn(),createSession:vi.fn(),link:vi.fn(),inspect:vi.fn(),save:vi.fn(),begin:vi.fn(),apply:vi.fn()}));
+const mock=vi.hoisted(()=>({user:vi.fn(),rpc:vi.fn(),create:vi.fn(),createSession:vi.fn(),link:vi.fn(),inspect:vi.fn(),restart:vi.fn(),save:vi.fn(),begin:vi.fn(),apply:vi.fn()}));
 vi.mock("@/lib/supabaseServer",()=>({supabaseServer:async()=>({auth:{getUser:mock.user}})}));
 vi.mock("@/lib/supabase/admin",()=>({getSupabaseAdminClient:()=>({rpc:mock.rpc})}));
 vi.mock("@/lib/payments/recipient-stripe.server",()=>({createRecipientStripeAdapter:()=>({createAccount:mock.create,createSession:mock.createSession,createHostedOnboarding:mock.link,inspect:mock.inspect})}));
 vi.mock("@/lib/payments/recipient-repository.server",()=>({saveRecipientAccount:mock.save,beginRecipientSync:mock.begin,applyRecipientSync:mock.apply}));
+vi.mock("@/lib/payments/minor-bank.server",()=>({restartUnusedMinorSetup:mock.restart}));
 import {getGuardianRecipientContext,startGuardianRecipient,syncGuardianRecipient,refreshGuardianRecipient} from "@/lib/payments/guardian-recipient.server";
 import {GET,POST} from "@/app/api/payments/guardian/recipients/route";
 import {POST as sync} from "@/app/api/payments/guardian/recipients/sync/route";
@@ -101,6 +102,25 @@ describe("guardian payout HTTP authorization",()=>{
 
 
 describe("embedded parent-authenticated youth payout onboarding", () => {
+ it("restarts an abandoned setup only after explicit consent, then claims the scoped child again",async()=>{
+  await startGuardianRecipient({...input,uiMode:"embedded",restart:true},parent);
+  expect(mock.restart).toHaveBeenCalledExactlyOnceWith(parent,child,parent,operation);
+  expect(mock.restart.mock.invocationCallOrder[0]).toBeLessThan(mock.rpc.mock.invocationCallOrder[0]);
+  expect(mock.createSession).toHaveBeenCalledExactlyOnceWith(child,accountRef,"onboarding");
+ });
+ it.each([false,"true",null,1,{}])("rejects an implicit or malformed restart %j before any account read",async restart=>{
+  await expect(startGuardianRecipient({...input,uiMode:"embedded",restart},parent)).rejects.toMatchObject({code:"invalid_request"});
+  expect(mock.restart).not.toHaveBeenCalled();expect(mock.rpc).not.toHaveBeenCalled();
+ });
+ it("does not start a new account when safe restart checks fail",async()=>{
+  mock.restart.mockRejectedValue(new Error("private bank or verification state"));
+  await expect(startGuardianRecipient({...input,uiMode:"embedded",restart:true},parent)).rejects.toThrow();
+  expect(mock.rpc).not.toHaveBeenCalled();expect(mock.create).not.toHaveBeenCalled();expect(mock.createSession).not.toHaveBeenCalled();
+ });
+ it("accepts explicit restart over HTTP only after the current parent and origin are authorized",async()=>{
+  const request=new Request("https://app.workfa.re/api/payments/guardian/recipients",{method:"POST",headers:{origin:"https://app.workfa.re","content-type":"application/json","idempotency-key":operation,"x-workfare-owner":parent},body:JSON.stringify({childId:child,consent:true,uiMode:"embedded",restart:true})});
+  const response=await POST(request);expect(response.status).toBe(200);expect(mock.restart).toHaveBeenCalledExactlyOnceWith(parent,child,parent,operation);
+ });
  it("returns an owner/child-bound live onboarding session without a hosted redirect or cookie", async () => {
   const result = await startGuardianRecipient({ ...input, uiMode: "embedded" }, parent);
   expect(mock.rpc).toHaveBeenCalledExactlyOnceWith("pay_guardian_recipient_claim", { p_guardian_id: parent, p_child_id: child, p_operation_id: operation });

@@ -3,6 +3,16 @@ export class PaymentRequestError extends Error {
 }
 
 const messages: Record<string, string> = {
+    recipient_bank_token_invalid: "Bitte prüfe deine Bankverbindung und gib sie erneut ein.",
+    recipient_bank_already_saved: "Eine Bankverbindung ist bereits hinterlegt. Lade den aktuellen Stand.",
+    recipient_bank_unconfirmed: "Die Bankverbindung wurde noch nicht bestätigt. Prüfe bitte den aktuellen Stand.",
+    recipient_setup_changed: "Der Stand hat sich inzwischen geändert. Bitte lade den Bereich erneut.",
+    guardian_consent_required: "Bitte hole zuerst die Elternfreigabe ein. Danach kannst du deine Bankverbindung ergänzen.",
+    recipient_guardian_choice_required: "Wähle aus, welches Elternteil die Auszahlung begleiten soll.",
+    recipient_restart_consent_required: "Bitte bestätige, dass du die ungenutzte Einrichtung neu beginnen möchtest.",
+    recipient_restart_review_required: "Die bisherige Auszahlungseinrichtung muss zuerst geprüft werden. Sie wurde nicht verändert.",
+    RECIPIENT_RESTART_NOT_ALLOWED: "Die bisherige Auszahlungseinrichtung kann nicht automatisch neu begonnen werden. Bitte kontaktiere den Support.",
+    RECIPIENT_RESTART_CONFLICT: "Der Stand hat sich inzwischen geändert. Lade den Bereich erneut, bevor du fortfährst.",
     recipient_identity_unconfirmed: "Vervollständige deine persönlichen Angaben bei Stripe.",
     recipient_identity_mismatch: "Die Identitätsangaben bei Stripe müssen mit deinem Workfare-Profil übereinstimmen.",
     owner_mismatch: "Bitte öffne Workfare Pay nach deiner Anmeldung erneut.",

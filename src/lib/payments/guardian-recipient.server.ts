@@ -10,12 +10,13 @@ import { createHostedConsent, readHostedConsent, RECIPIENT_HOSTED_TTL } from "./
 import { minorProviderError } from "./recipient-guardian-evidence.server";
 import type { GuardianRecipientContext } from "./recipient-minor-types";
 import { stripePublishableKey } from "./stripe-mode.server";
+import { restartUnusedMinorSetup } from "./minor-bank.server";
 
 const uuid=z.string().uuid();
 const binding=z.object({guardianId:uuid,consentId:uuid,childBirthdate:z.iso.date(),guardianBirthdate:z.iso.date(),guardianEmail:z.email(),guardianName:z.string().min(1).max(200)}).strict();
 const privateRecipient=z.object({userId:uuid,accountRef:z.string().regex(/^acct_[A-Za-z0-9]+$/),minorBinding:binding});
 const claimSchema=z.object({claimed:z.boolean(),accountRef:z.string().regex(/^acct_[A-Za-z0-9]+$/).nullable(),minorBinding:binding,prefill:z.object({contactEmail:z.email(),displayName:z.string().min(1).max(200).optional()})});
-const contextSchema=z.object({ownerId:uuid,kind:z.literal("live"),children:z.array(z.object({childId:uuid,name:z.string().min(1),status:z.enum(["not_started","onboarding","pending","ready","restricted","unavailable"]),canStartPayout:z.boolean(),reasonCode:z.string().nullable()})).max(100)});
+const contextSchema=z.object({ownerId:uuid,kind:z.literal("live"),children:z.array(z.object({childId:uuid,name:z.string().min(1),status:z.enum(["not_started","onboarding","pending","ready","restricted","unavailable"]),canStartPayout:z.boolean(),canRestartPayout:z.boolean().optional(),reasonCode:z.string().nullable()})).max(100)});
 const cookieName="wf-pay-guardian-hosted";
 type Rpc={rpc(name:string,args:Record<string,unknown>):PromiseLike<{data:unknown;error:{message?:string}|null}>};
 async function actor(expectedOwnerId?:string) {
@@ -50,15 +51,17 @@ function cookie(userId:string,childId:string,accountRef:string) {
     const state=createHostedConsent(userId,`${accountRef}:${childId}`,null,secret());
     return `${cookieName}=${childId}.${state.value}; Max-Age=${RECIPIENT_HOSTED_TTL}; Path=/api/payments/guardian/recipients/hosted; HttpOnly; SameSite=Lax; Secure`;
 }
-export async function startGuardianRecipient(input:{childId:unknown;consent:unknown;operationId:unknown;uiMode?:unknown},expectedOwnerId:string) {
+export async function startGuardianRecipient(input:{childId:unknown;consent:unknown;operationId:unknown;uiMode?:unknown;restart?:unknown},expectedOwnerId:string) {
     const {runtime,userId}=await actor(expectedOwnerId);
     const childId=uuid.safeParse(input.childId),operationId=uuid.safeParse(input.operationId);
     if(!childId.success || !operationId.success) throw new PaymentFlowError("invalid_request");
     if(input.consent!==true) throw new PaymentFlowError("explicit_consent_required");
     if(input.uiMode!==undefined && input.uiMode!=="embedded") throw new PaymentFlowError("invalid_request");
+    if(input.restart!==undefined&&input.restart!==true)throw new PaymentFlowError("invalid_request");
     const embedded=input.uiMode==="embedded";
     const publishableKey=embedded ? stripePublishableKey() : null;
     if(!embedded) secret(); // Hosted refresh must be operational before claiming.
+    if(input.restart===true)await restartUnusedMinorSetup(userId,childId.data,userId,operationId.data);
     const claim=claimSchema.safeParse(await rpc("pay_guardian_recipient_claim",{p_guardian_id:userId,p_child_id:childId.data,p_operation_id:operationId.data}));
     if(!claim.success || claim.data.minorBinding.guardianId!==userId) throw new PaymentFlowError("recipient_guardian_unavailable",503);
     let accountRef=claim.data.accountRef;

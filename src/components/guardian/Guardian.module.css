@@ -110,6 +110,9 @@
 .success .action { margin-top: 9px; }
 .relationships { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
 .relationship { display: flex; flex-direction: column; align-items: stretch; gap: 15px; min-width: 0; }
+.permissionNote { margin: -3px 0 0; color: var(--guardian-muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+.payoutDetails > .stack { gap: 12px; padding-top: 3px; }
+.payoutDetails > .stack > p { margin: 0; }
 .payoutSetup { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: var(--guardian-field); box-shadow: inset 0 1px 0 var(--guardian-rule); }
 .payoutSetup .form { margin: 0; gap: 12px; }
 .payoutSetup .actions .action { flex: 0 1 auto; }

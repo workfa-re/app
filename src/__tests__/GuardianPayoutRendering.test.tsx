@@ -26,6 +26,10 @@ describe("parent-led recipient setup", () => {
         expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, status: "ready", reasonCode: "guardian_terms_required" }] }, ownerId)).toBe(false);
         expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, reasonCode: "all_clear" }] }, ownerId)).toBe(false);
         expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, status: "unavailable", canStartPayout: false }] }, ownerId)).toBe(true);
+        expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, canStartPayout: false, canRestartPayout: true }] }, ownerId)).toBe(true);
+        expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, canRestartPayout: "true" }] }, ownerId)).toBe(false);
+        expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, canRestartPayout: true }] }, ownerId)).toBe(false);
+        expect(validGuardianPayoutOverview({ ...overview, children: [{ ...child, status: "ready", canStartPayout: false, canRestartPayout: true, reasonCode: null }] }, ownerId)).toBe(false);
     });
     it("accepts only a current same-owner Stripe-hosted setup link", () => {
         expect(guardianPayoutHostedUrl(hosted, ownerId, now)).toBe(hosted.url);
@@ -57,8 +61,24 @@ describe("parent-led recipient setup", () => {
     });
     it.each(["guardian_identity_mismatch", "guardian_terms_required", "recipient_country_model_unsupported", "recipient_guardian_binding_conflict"] as const)("keeps %s visibly unready without offering an unapproved start", reasonCode => {
         const html = renderToStaticMarkup(<GuardianPayoutActionView entry={{ ...child, status: "restricted", canStartPayout: false, reasonCode }} pending={false} onStart={vi.fn()} onRefresh={vi.fn()} />);
-        expect(text(html)).toContain("Stand prüfen"); expect(html).not.toMatch(/Auszahlung eingerichtet|>Auszahlung einrichten</);
+        expect(text(html)).not.toContain("Stand prüfen"); expect(html).not.toMatch(/<button|Auszahlung eingerichtet|>Auszahlung einrichten</);
         expect(text(html).length).toBeGreaterThan(30);
+    });
+    it("offers a guarded restart only when the backend explicitly permits it", () => {
+        const onStart=vi.fn(),onRestart=vi.fn();
+        const html=renderToStaticMarkup(<GuardianPayoutActionView entry={{...child,status:"pending",canStartPayout:false,canRestartPayout:true,reasonCode:"recipient_guardian_binding_conflict"}} pending={false} onStart={onStart} onRestart={onRestart} onRefresh={vi.fn()}/>);
+        expect(text(html)).toContain("Deine Elternfreigabe bleibt gültig.");
+        expect(text(html)).toContain("Einrichtung neu beginnen");
+        expect(text(html)).not.toContain("Stand prüfen");
+        expect(html).not.toContain('type="checkbox"');
+        expect(onStart).not.toHaveBeenCalled();expect(onRestart).not.toHaveBeenCalled();
+    });
+    it("requires a separate unchecked choice before replacing an abandoned setup", () => {
+        const html=renderToStaticMarkup(<GuardianPayoutConsent name={child.name} accepted={false} pending={false} restart onAccepted={vi.fn()} onStart={vi.fn()} onCancel={vi.fn()}/>);
+        expect(html).toContain('type="checkbox"');expect(html).not.toContain('checked=""');
+        expect(html).toMatch(/type="submit"[^>]*disabled=""/);
+        expect(text(html)).toContain("Die frühere Einrichtung");expect(text(html)).toContain("Neu beginnen");
+        expect(text(html)).not.toContain("Auszahlung freigegeben");
     });
     it("shows ready only from a ready backend entry with no next setup action", () => {
         const html = renderToStaticMarkup(<GuardianPayoutActionView entry={{ ...child, status: "ready", canStartPayout: false, reasonCode: null }} pending={false} onStart={vi.fn()} onRefresh={vi.fn()} />);

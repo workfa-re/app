@@ -1,15 +1,17 @@
+import {createHash} from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const api = vi.hoisted(() => ({ create: vi.fn(), update:vi.fn(),retrieve: vi.fn(), legacy: vi.fn(), external: vi.fn(), session: vi.fn(), link:vi.fn(),balance:vi.fn(),settings:vi.fn(),persons:vi.fn(),privateRecord:vi.fn() }));
+const api = vi.hoisted(() => ({ create: vi.fn(), update:vi.fn(),retrieve: vi.fn(), legacy: vi.fn(), external: vi.fn(), session: vi.fn(), link:vi.fn(),balance:vi.fn(),settings:vi.fn(),persons:vi.fn(),privateRecord:vi.fn(),payouts:vi.fn(),transfers:vi.fn(),charges:vi.fn(),token:vi.fn(),attach:vi.fn() }));
 vi.mock("@/lib/payments/recipient-repository.server",()=>({getRecipientAccount:api.privateRecord}));
 vi.mock("stripe", async (original) => {
     const { default: Actual } = await original<typeof import("stripe")>();
     return { default: class extends Actual {
         constructor(...args: ConstructorParameters<typeof Actual>) {
             super(...args); this.v2.core.accounts.create = api.create; this.v2.core.accounts.update=api.update;this.v2.core.accounts.retrieve = api.retrieve;
-            this.accounts.retrieve = api.legacy; this.accounts.listExternalAccounts = api.external; this.accountSessions.create = api.session;
+            this.accounts.retrieve = api.legacy;this.tokens.retrieve=api.token;this.accounts.createExternalAccount=api.attach; this.accounts.listExternalAccounts = api.external; this.accountSessions.create = api.session;
             this.accounts.listPersons=api.persons; this.v2.core.accountLinks.create=api.link;
             this.balance.retrieve=api.balance;this.balanceSettings.retrieve=api.settings;
+            this.payouts.list=api.payouts;this.transfers.list=api.transfers;this.charges.list=api.charges;
         }
     } };
 });
@@ -37,7 +39,7 @@ beforeEach(() => {
 describe("narrow Accounts v2 sandbox adapter", () => {
     it("creates a recipient configuration with explicit responsibilities and stable idempotency", async () => {
         const adapter = createRecipientStripeAdapter(env);
-        expect(Object.keys(adapter)).toEqual(["createAccount", "createSession", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"]);
+        expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
         expect(await adapter.createAccount(user,{contactEmail:"recipient@example.test"})).toBe(accountRef);
         const [params, opts] = api.create.mock.calls[0];
         expect(params).toMatchObject({ contact_email:"recipient@example.test", dashboard: "none", identity: { country: "de", entity_type: "individual" },
@@ -300,4 +302,156 @@ describe("live guardian KYC without identity substitution",()=>{
         await expect(result).rejects.not.toHaveProperty("message",expect.stringContaining("child@"));
         expect(api.create).toHaveBeenCalledOnce();
     });
+});
+
+describe("safe unused minor setup and bank-only capabilities",()=>{
+    const childBirthdate=`${new Date().getUTCFullYear()-16}-01-01`;
+    const guardianId="22222222-2222-4222-8222-222222222222",consentId="33333333-3333-4333-8333-333333333333";
+    const binding={guardianId,consentId,childBirthdate,guardianBirthdate:"1980-03-12",guardianEmail:"parent@fixture.invalid",guardianName:"Paula Beispiel"};
+    const liveEnv={WORKFARE_PAY_MODE:"live",WORKFARE_PAY_LIVE_ENABLED:"enabled",WORKFARE_PAY_LIVE_PROJECT_REF:"aaaaaaaaaaaaaaaaaaaa",WORKFARE_PAY_LIVE_PLATFORM_ACCOUNT:"acct_platformFixture",APP_ORIGIN:"https://app.workfa.re",SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",NEXT_PUBLIC_SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",STRIPE_SECRET_KEY:"rk_live_offlineFixture"};
+    const liveAccount=()=>({...account(),livemode:true,metadata:{...metadata,workfare_pay_minor_guardian:guardianId,workfare_pay_minor_consent:consentId,workfare_pay_minor_birthdate:childBirthdate},identity:{country:"de",entity_type:"individual",individual:{date_of_birth:{year:Number(childBirthdate.slice(0,4)),month:1,day:1}}},requirements:{entries:[{awaiting_action_from:"user"}]}});
+    const empty=()=>({object:"list",data:[],has_more:false});
+    const zero=()=>({object:"balance",livemode:true,available:[{currency:"eur",amount:0}],pending:[]});
+    function setup(){
+        api.legacy.mockImplementation(async id=>id===null?{id:"acct_platformFixture",country:"DE"}:{...legacy(),details_submitted:false});
+        api.retrieve.mockResolvedValue(liveAccount());api.create.mockResolvedValue(liveAccount());api.update.mockResolvedValue(liveAccount());
+        api.privateRecord.mockResolvedValue({userId:user,accountRef,birthdate:childBirthdate,displayName:"Child Beispiel",minorBinding:binding});
+        api.external.mockResolvedValue(empty());api.persons.mockResolvedValue(empty());api.balance.mockResolvedValue(zero());
+        api.payouts.mockResolvedValue(empty());api.transfers.mockResolvedValue(empty());api.charges.mockResolvedValue(empty());
+        api.session.mockImplementation(async params=>({account:accountRef,client_secret:"fixture_bank_only_secret",livemode:true,expires_at:2_100_000_000,components:params.components}));
+    }
+    it("authorizes a replacement only after fresh empty account, bank, identity and money-history reads",async()=>{
+        setup();await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).resolves.toBeUndefined();
+        expect(api.external).toHaveBeenCalledExactlyOnceWith(accountRef,{limit:1});
+        expect(api.persons).toHaveBeenCalledExactlyOnceWith(accountRef,{relationship:{legal_guardian:true},limit:1});
+        expect(api.balance).toHaveBeenCalledExactlyOnceWith({},{stripeAccount:accountRef});
+        expect(api.payouts).toHaveBeenCalledExactlyOnceWith({limit:1},{stripeAccount:accountRef});
+        expect(api.transfers).toHaveBeenCalledExactlyOnceWith({destination:accountRef,limit:1});
+        expect(api.charges).toHaveBeenCalledExactlyOnceWith({limit:1},{stripeAccount:accountRef});
+        expect(api.create).not.toHaveBeenCalled();expect(api.update).not.toHaveBeenCalled();expect(api.session).not.toHaveBeenCalled();
+    });
+    it.each(["bank","guardian","payout","transfer","charge"])("refuses replacement when %s history exists",async kind=>{
+        setup();const methods={bank:api.external,guardian:api.persons,payout:api.payouts,transfer:api.transfers,charge:api.charges};
+        methods[kind as keyof typeof methods].mockResolvedValue({object:"list",data:[{id:"existing_fixture"}],has_more:false});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_review_required"});
+    });
+    it.each(["available","pending","connect_reserved"])("refuses replacement with nonzero %s money",async key=>{
+        setup();api.balance.mockResolvedValue({...zero(),[key]:[{currency:"eur",amount:key==="pending"?1:-1}]});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_review_required"});
+    });
+    it.each([{livemode:false},{available:null},{pending:undefined},{object:"payout"},{available:[{amount:0.5}]},{available:[{amount:NaN}]}])("refuses unknown or incompatible balance evidence %j",async patch=>{
+        setup();api.balance.mockResolvedValue({...zero(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_review_required"});
+    });
+    it.each([{details_submitted:true},{details_submitted:undefined},{livemode:false},{id:"acct_other"}])("refuses a submitted, different or contradictory legacy account %j",async patch=>{
+        setup();api.legacy.mockImplementation(async id=>id===null?{id:"acct_platformFixture",country:"DE"}:{...legacy(),details_submitted:false,...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_review_required"});
+    });
+    it.each([{requirements:null},{requirements:{entries:[{awaiting_action_from:"stripe"}]}},{requirements:{}}])("does not interpret missing or pending verification as empty setup %j",async patch=>{
+        setup();api.retrieve.mockResolvedValue({...liveAccount(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_review_required"});
+    });
+    it.each([{livemode:false},{metadata:{...metadata,workfare_pay_minor_guardian:"other"}},{metadata:{...metadata,workfare_pay_minor_guardian:guardianId,workfare_pay_minor_consent:"other"}},{metadata:{...metadata,workfare_pay_user:"other"}},{identity:{country:"US",entity_type:"individual"}}])("rejects wrong ownership, mode or frozen minor identity before restart %j",async patch=>{
+        setup();api.retrieve.mockResolvedValue({...liveAccount(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).inspectUnusedSetup(user,accountRef,binding)).rejects.toThrow();
+        expect(api.external).not.toHaveBeenCalled();
+    });
+    it("does not inspect real restart evidence in a sandbox adapter",async()=>{
+        await expect(createRecipientStripeAdapter(env).inspectUnusedSetup(user,accountRef,binding)).rejects.toMatchObject({code:"recipient_restart_unavailable"});
+        expect(api.retrieve).not.toHaveBeenCalled();
+    });
+    it("binds minor account idempotency to the actual consent snapshot without putting identity data in the key",async()=>{
+        setup();const adapter=createRecipientStripeAdapter(liveEnv);
+        await adapter.createAccount(user,{contactEmail:"child@fixture.invalid"},binding);
+        await adapter.createAccount(user,{contactEmail:"child@fixture.invalid"},binding);
+        await adapter.createAccount(user,{contactEmail:"child@fixture.invalid"},{...binding,consentId:"44444444-4444-4444-8444-444444444444"});
+        const keys=api.create.mock.calls.map(call=>call[1].idempotencyKey);
+        expect(keys[0]).toMatch(new RegExp(`^workfare-pay:minor-recipient:${user}:[a-f0-9]{32}$`));
+        expect(keys[1]).toBe(keys[0]);expect(keys[2]).not.toBe(keys[0]);
+        expect(keys.join(" ")).not.toMatch(/parent@|1980|Paula/);
+    });
+    it("reports an owned saved bank independently from legal identity or full payout readiness",async()=>{
+        setup();api.external.mockResolvedValue({object:"list",data:[bank()],has_more:false});
+        expect(await createRecipientStripeAdapter(liveEnv).inspectBankSetup(user,accountRef,binding)).toBe(true);
+        expect(api.persons).not.toHaveBeenCalled();expect(api.balance).not.toHaveBeenCalled();
+        api.external.mockResolvedValue(empty());expect(await createRecipientStripeAdapter(liveEnv).inspectBankSetup(user,accountRef,binding)).toBe(false);
+    });
+    it.each([{account:"acct_other"},{currency:"usd"},{default_for_currency:false},{status:"errored"}])("does not call a missing or invalid destination saved %j",async patch=>{
+        setup();api.external.mockResolvedValue({object:"list",data:[{...bank(),...patch}],has_more:false});
+        expect(await createRecipientStripeAdapter(liveEnv).inspectBankSetup(user,accountRef,binding)).toBe(false);
+    });
+    const bankToken="btok_bankFixture",operation="44444444-4444-4444-8444-444444444444";
+    const bankMetadata=()=>({workfare_pay_user:user,workfare_bank_operation:operation,workfare_bank_token_hash:createHash("sha256").update(bankToken).digest("hex")});
+    const savedBank=()=>({...bank(),metadata:bankMetadata()});
+    const freshToken=()=>({id:bankToken,object:"token",type:"bank_account",livemode:true,used:false,bank_account:{...bank(),account:undefined,currency:"eur"}});
+    function bankSetup(){
+        setup();api.token.mockResolvedValue(freshToken());api.attach.mockResolvedValue(savedBank());
+        api.external.mockResolvedValueOnce(empty()).mockResolvedValue({object:"list",data:[savedBank()],has_more:false});
+    }
+    it("adds an initial bank token to the exact child account with a stable account-scoped idempotency key",async()=>{
+        bankSetup();await createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation);
+        expect(api.token).toHaveBeenCalledExactlyOnceWith(bankToken);
+        expect(api.attach).toHaveBeenCalledExactlyOnceWith(accountRef,{external_account:bankToken,default_for_currency:true,metadata:bankMetadata()},{idempotencyKey:`workfare-pay:initial-bank:${accountRef}`});
+        expect(api.retrieve.mock.invocationCallOrder[0]).toBeLessThan(api.attach.mock.invocationCallOrder[0]);
+        expect(api.external.mock.invocationCallOrder[0]).toBeLessThan(api.attach.mock.invocationCallOrder[0]);
+        expect(api.create).not.toHaveBeenCalled();expect(api.update).not.toHaveBeenCalled();expect(api.session).not.toHaveBeenCalled();
+        expect(api.persons).not.toHaveBeenCalled();expect(api.balance).not.toHaveBeenCalled();expect(api.payouts).not.toHaveBeenCalled();expect(api.transfers).not.toHaveBeenCalled();expect(api.charges).not.toHaveBeenCalled();
+    });
+    it("recognizes the same completed operation before attempting to reuse a one-time bank token",async()=>{
+        setup();api.external.mockResolvedValue({object:"list",data:[savedBank()],has_more:false});
+        await createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation);
+        expect(api.token).not.toHaveBeenCalled();expect(api.attach).not.toHaveBeenCalled();
+    });
+    it.each([{metadata:{}},{metadata:{...bankMetadata(),workfare_bank_operation:"55555555-5555-4555-8555-555555555555"}},{metadata:{...bankMetadata(),workfare_bank_token_hash:"different"}}])("does not replace an existing bank with unrelated replay metadata %j",async patch=>{
+        setup();api.external.mockResolvedValue({object:"list",data:[{...savedBank(),...patch}],has_more:false});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toMatchObject({code:"recipient_bank_already_saved"});
+        expect(api.token).not.toHaveBeenCalled();expect(api.attach).not.toHaveBeenCalled();
+    });
+    it("does not change an existing payout card or make a new bank its replacement default",async()=>{
+        setup();api.external.mockResolvedValue({object:"list",data:[{id:"card_existingPayout",object:"card",account:accountRef,currency:"eur",default_for_currency:true}],has_more:false});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toMatchObject({code:"recipient_bank_already_saved"});
+        expect(api.external).toHaveBeenCalledExactlyOnceWith(accountRef,{limit:100});
+        expect(api.token).not.toHaveBeenCalled();expect(api.attach).not.toHaveBeenCalled();expect(api.update).not.toHaveBeenCalled();
+    });
+    it.each([{livemode:false},{used:true},{used:undefined},{type:"card"},{object:"bank_account"},{id:"btok_another"},{bank_account:null},{bank_account:{currency:"usd"}}])("rejects actual token evidence which cannot authorize a fresh EUR bank %j",async patch=>{
+        bankSetup();api.token.mockResolvedValue({...freshToken(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+        expect(api.attach).not.toHaveBeenCalled();
+    });
+    it.each(["tok_card","","btok_","btok_has spaces","btok_"+"a".repeat(300)])("rejects an invalid bank token before requesting Stripe %s",async value=>{
+        setup();await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,value,operation)).rejects.toThrow();
+        expect(api.token).not.toHaveBeenCalled();expect(api.attach).not.toHaveBeenCalled();
+    });
+    it.each([{livemode:false},{metadata:{...metadata,workfare_pay_minor_guardian:"other"}},{metadata:{...metadata,workfare_pay_minor_guardian:guardianId,workfare_pay_minor_consent:"other"}},{metadata:{...metadata,workfare_pay_user:"other"}},{identity:{country:"US",entity_type:"individual"}}])("checks live owner and frozen child/guardian identity before attaching a bank %j",async patch=>{
+        bankSetup();api.retrieve.mockResolvedValue({...liveAccount(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+        expect(api.token).not.toHaveBeenCalled();expect(api.attach).not.toHaveBeenCalled();
+    });
+    it.each([{account:"acct_other"},{currency:"usd"},{default_for_currency:false},{status:"errored"},{object:"card"},{metadata:{workfare_pay_user:"other"}}])("does not confirm a contradictory attachment response %j",async patch=>{
+        bankSetup();api.attach.mockResolvedValue({...savedBank(),...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+    });
+    it("does not confirm saving until a fresh bank list includes the actual saved destination",async()=>{
+        bankSetup();api.external.mockReset().mockResolvedValue(empty());
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+        expect(api.attach).toHaveBeenCalledOnce();
+    });
+    it.each([{object:"list",data:[],has_more:true},{object:"list",data:[]},{object:"bank_account",data:[],has_more:false}])("refuses incomplete current destination evidence %j",async page=>{
+        bankSetup();api.external.mockReset().mockResolvedValue(page);
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+        expect(api.attach).not.toHaveBeenCalled();
+    });
+
+    it.each([{userId:"someone-else"},{accountRef:"acct_other"},{minorBinding:null},{minorBinding:{...binding,consentId:"55555555-5555-4555-8555-555555555555"}}])("rechecks the current private payout binding before using a bank token %j",async patch=>{
+        bankSetup();api.privateRecord.mockResolvedValue({userId:user,accountRef,birthdate:childBirthdate,displayName:"Child Beispiel",minorBinding:binding,...patch});
+        await expect(createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation)).rejects.toThrow();
+        expect(api.attach).not.toHaveBeenCalled();expect(api.token).not.toHaveBeenCalled();
+    });
+    it("does not treat a saved destination as proof that the guardian accepted Stripe's agreement",async()=>{
+        bankSetup();await createRecipientStripeAdapter(liveEnv).saveInitialBankMethod(user,accountRef,binding,bankToken,operation);
+        const writes=JSON.stringify(api.attach.mock.calls);
+        expect(writes).not.toMatch(/tos_accept|verification|legal_guardian|transfers|payouts/);
+        expect(api.update).not.toHaveBeenCalled();expect(api.session).not.toHaveBeenCalled();expect(api.persons).not.toHaveBeenCalled();
+    });
+
 });

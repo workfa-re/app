@@ -22,7 +22,9 @@ function Connection({ connection, busy, onApprove, onRevoke }: {
 }) {
     const [review, setReview] = useState(false);
     const [confirmRevoke, setConfirmRevoke] = useState(false);
+    const [payoutOpen, setPayoutOpen] = useState(false);
     const canApprove = connection.actorRole === "guardian" && connection.status !== "revoked" && connection.consentRequired && !connection.consented;
+    const approvedMinor = connection.actorRole === "guardian" && connection.status === "active" && connection.consentRequired && connection.consented;
     const name = connection.name || (connection.actorRole === "guardian" ? "Dein Kind" : "Dein Elternteil");
     return <li className={styles.relationship}>
         <div className={styles.summary}><span className={styles.avatar} aria-hidden="true">{guardianInitials(name)}</span><div><strong>{name}</strong><span>{guardianConnectionLabel(connection)}</span></div></div>
@@ -31,10 +33,18 @@ function Connection({ connection, busy, onApprove, onRevoke }: {
             <GuardianConsentReview busy={busy} invitation={{ direction: "child_to_guardian", minorRequired: true, childName: name, inviterName: null }} onConfirm={input => onApprove(connection.childId, input)} />
             <button type="button" className={styles.quiet} disabled={busy} onClick={() => setReview(false)}>Später entscheiden</button>
         </div> : null}
-        {connection.actorRole === "guardian" && connection.status === "active" && connection.consentRequired && connection.consented ? <GuardianPayoutAction childId={connection.childId} /> : null}
+        {approvedMinor && <>
+            <p className={styles.permissionNote}>Die Bankverbindung ergänzt dein Kind im eigenen Workfare Pay.</p>
+            <details className={`${styles.details} ${styles.payoutDetails}`} onToggle={event => setPayoutOpen(event.currentTarget.open)}>
+                <summary><ChevronRight size={15} aria-hidden="true" />Auszahlung begleiten</summary>
+                {payoutOpen && <div className={styles.stack}>
+                    <p>Falls Stripe Angaben der gesetzlichen Vertretung benötigt, ergänzt du sie hier.</p>
+                    <GuardianPayoutAction childId={connection.childId} />
+                </div>}
+            </details>
+        </>}
         <details className={styles.details}>
             <summary><ChevronRight size={15} aria-hidden="true" />Verbindung verwalten</summary>
-            <p>Private Chats und Zahlungsdaten bleiben getrennt. Eine erforderliche Elternfreigabe gilt nur für die Nutzung von Workfare.</p>
             {confirmRevoke ? <div className={styles.stack}>
                 <p>Die Familienverbindung und eine damit erteilte Zustimmung werden aufgehoben. Bestehende Aufträge werden dadurch nicht automatisch beendet.</p>
                 <div className={styles.actions}>

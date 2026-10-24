@@ -13,8 +13,8 @@ export async function GET(request:Request){
 }
 export async function POST(request:Request){
     try{
-        const input=await readPaymentJson(request,["childId","consent","uiMode"]);
-        const result=await startGuardianRecipient({childId:input.childId,consent:input.consent,uiMode:input.uiMode,operationId:request.headers.get("idempotency-key")},paymentExpectedOwner(request));
+        const input=await readPaymentJson(request,["childId","consent","uiMode","restart"]);
+        const result=await startGuardianRecipient({childId:input.childId,consent:input.consent,uiMode:input.uiMode,restart:input.restart,operationId:request.headers.get("idempotency-key")},paymentExpectedOwner(request));
         const response=paymentJson(result.payload);if(result.cookie)response.headers.set("set-cookie",result.cookie);response.headers.set("Referrer-Policy","no-referrer");return response;
     }catch(error){return paymentError(error);}
 }

@@ -30,9 +30,9 @@ describe("truthful payment setup states",()=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"live",status:"ready",eligibility,canStart:eligibility==="adult",
             checkedAt:"2026-10-24T04:00:00Z",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}}
             returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
-        expect(html.indexOf('aria-label="Deine Zahlungsübersicht"')).toBeLessThan(html.indexOf('id="recipient-heading"'));
+        expect(html.indexOf('aria-label="Deine Zahlungsübersicht"')).toBeLessThan(html.indexOf(eligibility === "adult" ? 'id="recipient-heading"' : 'id="minor-bank-heading"'));
         expect(html.match(/aria-label="Deine Zahlungsübersicht"/g)).toHaveLength(1);
-        expect(html).toContain("Auszahlung eingerichtet");
+        expect(html).toContain(eligibility === "adult" ? "Auszahlung eingerichtet" : "Deine Bankverbindung");
     });
     it("renders live payment settings without a test banner and keeps payment identity honest",()=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
@@ -110,6 +110,12 @@ describe("truthful payment setup states",()=>{
             expect(recipientFinancialActionsEnabled({...minorReady,...patch},false,now)).toBe(false);
         }
         expect(recipientFinancialActionsEnabled(minorReady,true,now)).toBe(false);
+    });
+    it("offers the live minor a distinct bank-only setup surface instead of parent-led full onboarding",()=>{
+        const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"live",canStart:false,eligibility:"minor_review_required"}} returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
+        expect(html).toContain("Deine Bankverbindung");expect(html).toContain("Aktueller Stand wird geladen");
+        expect(html).not.toContain("Dein Elternteil richtet die Auszahlung");expect(html).not.toContain('href="/guardian/access"');
+        expect(html).not.toMatch(/Auszahlung bereit|>Auszahlung einrichten</);
     });
     it("labels simulated recipient readiness without inventing a balance or bank payout",()=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"local",eligibility:"local_demo",status:"ready",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}} returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
