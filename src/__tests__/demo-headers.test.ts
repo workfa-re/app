@@ -3,9 +3,9 @@ import nextConfig from "../../next.config";
 
 async function responseHeaders() {
   const rules = await nextConfig.headers!();
-  expect(rules).toHaveLength(1);
-  expect(rules[0].source).toBe("/:path*");
-  return Object.fromEntries(rules[0].headers.map(({ key, value }) => [key, value]));
+  const global = rules.find(rule => rule.source === "/:path*");
+  expect(global).toBeDefined();
+  return Object.fromEntries(global!.headers.map(({ key, value }) => [key, value]));
 }
 function enableDemo() {
   vi.stubEnv("WORKFARE_DEMO_ENABLED", "true");
@@ -34,6 +34,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("full application deployment framing policy", () => {
+  it.each([false, true])("protects invitation and receipt pages independently of demo mode (%s)", async demo => {
+    if (demo) enableDemo();
+    const rules = await nextConfig.headers!();
+    const index = rules.findIndex(rule => rule.source === "/guardian/:path*");
+    expect(index).toBeGreaterThan(rules.findIndex(rule => rule.source === "/:path*"));
+    expect(Object.fromEntries(rules[index].headers.map(({ key, value }) => [key, value]))).toEqual({
+      "Referrer-Policy": "no-referrer", "Cache-Control": "private, no-store, max-age=0", "X-Robots-Tag": "noindex, nofollow, noarchive",
+    });
+  });
   it("keeps the real production platform unframeable without constraining normal requests", async () => {
     expect(await responseHeaders()).toEqual({ "Content-Security-Policy": "frame-ancestors 'none'", "X-Frame-Options": "DENY" });
   });

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabaseClient", () => ({ supabaseBrowser: { auth: {} } }));
 import { PayWordmark } from "@/components/payments/PayWordmark";
 import { StripeEmbedHelp } from "@/components/payments/StripeEmbedHelp";
+import { StripeReloadButton } from "@/components/payments/StripeEmbedControls";
 import { RecipientHostedFallback, recipientHostedUrl } from "@/components/payments/RecipientHostedFallback";
 import { RecipientFundsView, validRecipientFunds } from "@/components/payments/RecipientFunds";
 import { validBuyerPaymentMethods } from "@/components/payments/BuyerPaymentOptions";
@@ -15,6 +16,17 @@ const funds: RecipientPayoutOverview = { kind: "sandbox", currency: "eur", avail
 const renderFunds = (snapshot: RecipientPayoutOverview | null, loading = false, error: string | null = null) => renderToStaticMarkup(<RecipientFundsView snapshot={snapshot} loading={loading} error={error} onRetry={vi.fn()} onDetails={vi.fn()} onHistory={vi.fn()} />);
 
 describe("minimal trustworthy payment surfaces", () => {
+    it("keeps normal Stripe frames free of recovery text and puts recovery beside the close control", () => {
+        expect(renderToStaticMarkup(<StripeEmbedHelp onRetry={vi.fn()} onClose={vi.fn()} />)).toBe("");
+        const failure = renderToStaticMarkup(<StripeEmbedHelp failed headerControls onRetry={vi.fn()} onClose={vi.fn()} />);
+        expect(failure).toContain('role="alert"');
+        expect(failure).not.toMatch(/<button|<details|Probleme beim Öffnen/);
+        const reload = vi.fn();
+        const control = StripeReloadButton({ controls: { current: { reload } } });
+        control.props.onClick();
+        expect(reload).toHaveBeenCalledExactlyOnceWith();
+        expect(renderToStaticMarkup(control)).toContain('aria-label="Stripe-Bereich neu laden"');
+    });
     it("keeps the Workfare name intact with a separate Pay descriptor", () => {
         const html = renderToStaticMarkup(<h1><PayWordmark /></h1>);
         expect(html).toContain(">Workfare</span>"); expect(html).toContain(">Pay</span>"); expect(html).not.toMatch(/JobBridge|Workfair/);

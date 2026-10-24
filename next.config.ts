@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   agentRules: false,
   async headers() {
+    const guardianPrivacy = { source: "/guardian/:path*", headers: [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "private, no-store, max-age=0" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+    ] };
     const demoEnabled = process.env.WORKFARE_DEMO_ENABLED === "true";
     const publicDemoEnabled = process.env.NEXT_PUBLIC_WORKFARE_DEMO_ENABLED === "true";
     if (demoEnabled !== publicDemoEnabled) {
@@ -44,7 +49,7 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
           { key: "X-Frame-Options", value: "DENY" },
         ],
-      }];
+      }, guardianPrivacy];
     }
 
     // Runtime identity validation lives in the server-only demo environment helper.
@@ -94,7 +99,7 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), payment=()" },
       ],
-    }];
+    }, guardianPrivacy];
   },
 };
 

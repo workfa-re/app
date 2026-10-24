@@ -35,6 +35,8 @@ const schemaNames = [
   "../../database/migrations/20261024105853_workfare_pay_live_runtime.sql",
   "../../database/migrations/20261024112104_workfare_pay_guardian_kyc.sql",
   "../../database/migrations/20261024120114_workfare_pay_foreign_key_indexes.sql",
+  "../../database/migrations/20261024175803_guardian_shared_login_permission.sql",
+  "../../database/migrations/20261024180507_guardian_permission_reinvitation.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"
@@ -103,6 +105,7 @@ const databaseStateSql = `SELECT json_build_object(
   AND to_regclass('payment_private.live_configuration') IS NOT NULL
   AND to_regprocedure('public.pay_guardian_recipient_context(uuid)') IS NOT NULL
   AND to_regprocedure('public.get_guardian_schema_readiness()') IS NOT NULL
+  AND to_regprocedure('public.get_guardian_permission_readiness()') IS NOT NULL
   AND to_regprocedure('public.get_my_recipient_payment_summary()') IS NOT NULL
   AND EXISTS(SELECT FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='account_type' AND is_nullable='YES' AND column_default IS NULL)
   AND to_regprocedure('public.redeem_family_invitation(text,boolean,text,text)') IS NOT NULL

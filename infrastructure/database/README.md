@@ -76,23 +76,26 @@ change requires a pre-release export, compatibility window and rehearsed restore
 plan. Reverting application code or deleting a migration-ledger entry is not a
 database rollback.
 
-## Not live
+## Delivery and financial boundaries
 
 Email preference fields do not constitute an email delivery system; a worker,
 provider integration, retries and digest scheduling are still required.
-Workfare Pay is also not live. Its implemented local adapters include buyer
-setup, adult recipient onboarding and a separately gated appointment-payment
-preview. Neither local tests nor successful Stripe test objects constitute
-production approval. No feature may infer a payment or bank payout from a
+Workfare Pay has separate local, sandbox and live adapters; the operator has
+activated production setup and appointment payments. The current deployment
+and actual transaction evidence are tracked in
+[the production protocol](../../docs/operations/workfare-pay-production.md).
+Neither local tests nor successful Stripe test objects constitute a completed
+real transaction or verified minor onboarding. No feature may infer a payment or bank payout from a
 notification, chat message or engagement state. Full financial accounting,
 production reconciliation and a complete dispute operation remain separate work.
 
-## Workfare Pay: isolated local implementation
+## Workfare Pay migrations
 
-The following additive files are local development migrations, not entries in the
-canonical production release ledger above. Do not apply them to a remote target
-merely because they exist in this checkout. Compare that target's actual ledger
-and follow the release path first.
+The following additive files are installed in the production ledger. Their
+inactive installation defaults are distinct from the operator's later explicit
+runtime configuration. Do not reapply them to a remote target merely because
+they exist in this checkout. Compare that target's actual ledger and follow the
+release path first.
 
 | Migration | Purpose and default |
 | --- | --- |
@@ -118,6 +121,16 @@ and follow the release path first.
 | `20261024105853_workfare_pay_live_runtime.sql` | Adds independently gated live setup and payments, a 5% gross service tariff, and mode-bound financial records; all installation defaults remain inactive |
 | `20261024112104_workfare_pay_guardian_kyc.sql` | Binds a youth-owned payout account to the actual authenticated parent, current signed consent and immutable identities; Stripe verification and terms remain required |
 | `20261024120114_workfare_pay_foreign_key_indexes.sql` | Covers financial event, application and job foreign-key lookups without changing financial records or enabling payments |
+| `20261024175803_guardian_shared_login_permission.sql` | Adds service-only, email-confirmed accountless permission with hashed codes/receipts; durable family links require a password. Preserves existing family and Stripe roles |
+| `20261024180507_guardian_permission_reinvitation.sql` | Revokes only the matching unused invitation when its accountless permission is withdrawn, allowing a fresh invitation immediately |
+
+The family additions are byte-identical to production: `20261024175803` is
+17,151 UTF-8 bytes, MD5 `09783cb5bc87a2c60ef6e919d0aa4724`;
+`20261024180507` is 905 bytes, MD5 `0cfdc744576ec92a7e2c3c94ccbb65b5`.
+The target ledger now contains 53 entries. The accountless path additionally
+requires private transactional SMTP configuration; Supabase Auth SMTP alone
+does not configure that server transport. See
+[family access](../../docs/architecture/guardian-family-access.md).
 
 The buyer and recipient gates use separate explicit user cohorts. Sandbox
 membership additionally requires a live seeded local demo visit, matching

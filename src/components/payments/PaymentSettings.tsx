@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, LockKeyhole, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, Users, X } from "lucide-react";
 import type { PaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 import type { RecipientSettingsSnapshot } from "@/lib/payments/recipient-types";
 import { sanitizePaymentReturnPath } from "@/lib/payments/return-path";
@@ -67,7 +67,7 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
         }
     }, [provider, result, returnTo, router, snapshot.buyerReady, snapshot.method]);
 
-    return <div className={styles.page}>
+    return <div className={`${styles.page} ${styles.workspace}`}>
         <Link href={returnTo || "/app-home/settings"} prefetch={false} className={styles.back}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
         <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
         <div className={styles.stack} key={kind}>
@@ -77,9 +77,9 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
                 <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
                 {snapshot.featureEnabled || snapshot.setupEnabled === true ? <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion}>{questions}</BuyerAccountPanel> : <section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>}
             </> : role === "job_seeker" ? <><RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section></> : <>
-                <section className={styles.surface}><div className={styles.methodRow}><span className={styles.cardMark}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Zahlungsrollen bleiben getrennt</strong><span>Eine Elternfreigabe richtet kein eigenes Auszahlungskonto ein.</span></div></div><Link href="/app-home/profile" className={`app-glass-control ${styles.action}`}>Familienverknüpfungen ansehen<ArrowRight size={17} /></Link></section><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>
+                <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>
             </>}
         </div>
-        <footer className={styles.provider}><LockKeyhole size={13} aria-hidden="true" />{kind === "local" ? "Lokaler Test ohne Verbindung zu Stripe" : kind === "disabled" ? "Workfare Pay" : "Zahlungsabwicklung durch Stripe"}</footer>
+        <footer className={styles.provider}>{kind === "local" ? "Lokaler Test ohne Verbindung zu Stripe" : kind === "disabled" ? <PayWordmark /> : <><div className={styles.providerBrands}><a href="https://stripe.com/de" target="_blank" rel="noopener noreferrer">Stripe</a><X size={13} strokeWidth={1.4} aria-hidden="true" /><PayWordmark /></div><span>Zahlungsabwicklung durch Stripe</span></>}</footer>
     </div>;
 }

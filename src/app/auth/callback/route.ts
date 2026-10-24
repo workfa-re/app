@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { Database } from "@/lib/types";
 import { safeInternalRedirectOr } from "@/lib/safe-redirect";
+import { guardianReturnPath } from "@/lib/guardian/navigation";
 
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
@@ -46,7 +47,9 @@ export async function GET(request: NextRequest) {
     }
 
     // No code or exchange failed → send back to onboarding with error hint
-    return NextResponse.redirect(
-        new URL("/onboarding?error=auth_code_error", publicOrigin)
-    );
+    const failed = new URL("/onboarding?error=auth_code_error", publicOrigin);
+    const nextUrl = new URL(next, publicOrigin);
+    const familyReturn = guardianReturnPath(next) || (nextUrl.pathname === "/auth/update-password" ? guardianReturnPath(nextUrl.searchParams.get("redirectTo")) : null);
+    if (familyReturn) failed.searchParams.set("redirectTo", familyReturn);
+    return NextResponse.redirect(failed);
 }

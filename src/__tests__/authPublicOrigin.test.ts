@@ -59,6 +59,14 @@ describe("authentication redirects behind a reverse proxy", () => {
     const response = await GET(request("/auth/callback"));
     expect(response.headers.get("location")).toBe("https://localhost:3000/onboarding?error=auth_code_error");
   });
+  it.each(["/guardian/access?token=private-invite", "/guardian/access?recipientHosted=returned&childId=child", "/auth/update-password?redirectTo=%2Fguardian%2Faccess%3Ftoken%3Dprivate-invite"])("preserves the safe family destination when exchange fails: %s", async next => {
+    auth.exchange.mockResolvedValue({ error: new Error("expired") });
+    const response = await GET(request(`/auth/callback?code=fixture&next=${encodeURIComponent(next)}`));
+    const location = new URL(response.headers.get("location")!);
+    expect(location.origin).toBe("https://app.workfa.re");
+    expect(location.searchParams.get("error")).toBe("auth_code_error");
+    expect(location.searchParams.get("redirectTo")).toMatch(/^\/guardian\/access\?/);
+  });
   it("logs out with cookie removal and redirects POST to a public GET", async () => {
     auth.signOut.mockImplementation(async () => {
       cookies.setAll([{ name: "fixture-auth", value: "", options: { path: "/", maxAge: 0 } }]);

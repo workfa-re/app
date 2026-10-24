@@ -32,8 +32,8 @@ export function PaymentMotion() {
 
     return <div ref={container} className={styles.motion}>
         <div className={styles.motionVisual} data-ready={ready} aria-hidden="true">
-            <Image src="/media/pay/v5/workfare-pay-material-v5-light.webp" alt="" fill sizes="(max-width: 600px) 100vw, (max-width: 1128px) 70vw, 760px" className={styles.posterLight} />
-            <Image src="/media/pay/v5/workfare-pay-material-v5-dark.webp" alt="" fill sizes="(max-width: 600px) 100vw, (max-width: 1128px) 70vw, 760px" className={styles.posterDark} />
+            <Image src="/media/pay/v5/workfare-pay-material-v5-light.webp" alt="" fill sizes="(max-width: 600px) 210px, (max-width: 1128px) 38vw, 340px" className={styles.posterLight} />
+            <Image src="/media/pay/v5/workfare-pay-material-v5-dark.webp" alt="" fill sizes="(max-width: 600px) 210px, (max-width: 1128px) 38vw, 340px" className={styles.posterDark} />
             <video ref={video} key={theme} muted playsInline loop preload="none" tabIndex={-1}
                 poster={`/media/pay/v5/workfare-pay-material-v5-${theme}.webp`} className={styles.motionVideo} data-ready={ready} />
         </div>

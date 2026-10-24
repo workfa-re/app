@@ -15,6 +15,8 @@ import { PaymentEmbedBoundary } from "./PaymentEmbedBoundary";
 import { RecipientHostedFallback } from "./RecipientHostedFallback";
 import { isStripeSurfaceKind, validStripeSurfaceSession } from "./PaymentEnvironment";
 import { RecipientOverview } from "./RecipientOverview";
+import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
+import overviewStyles from "./RecipientOverview.module.css";
 import styles from "./Payments.module.css";
 
 const EmbeddedRecipient = dynamic(() => import("./EmbeddedRecipient"), { ssr: false, loading: () => <p role="status" className={styles.loading}>Stripe wird geladen …</p> });
@@ -46,6 +48,7 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
     const consentRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<HTMLFormElement>(null);
     const embedRef = useRef<HTMLDivElement>(null);
+    const stripeControls = useRef<StripeEmbedControls | null>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
     const headingRef = useRef<HTMLHeadingElement>(null);
     const consentId = useId();
@@ -177,12 +180,11 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
     }
 
     if (ownerChanged) return <section className={styles.surface}><p className={styles.error} role="alert">{PAYMENT_OWNER_CHANGED}</p><a className={`app-glass-control ${styles.action}`} href="/app-home/settings/payments">Workfare Pay neu öffnen</a></section>;
-    return <div className={styles.stack}>
-        {!session && !editing && ownerId && snapshot && snapshot.kind !== "disabled" && <RecipientOverview key={ownerId} ownerId={ownerId} kind={snapshot.kind}
+    const overviewSlot = <div key="overview" className={overviewStyles.overviewSlot}>{!session && !editing && ownerId && snapshot && snapshot.kind !== "disabled" && <RecipientOverview key={ownerId} ownerId={ownerId} kind={snapshot.kind}
             busy={busy || statusUnknown}
-            onPayouts={canReadFinancials ? () => void start("payouts_list") : undefined} onFunds={canReadFinancials ? () => void start("balances") : undefined} />}
-        <section className={styles.surface} aria-labelledby="recipient-heading" aria-busy={busy}>
-            <div className={styles.sectionHeading}><h2 id="recipient-heading" ref={headingRef} tabIndex={-1}>{session ? componentTitles[session.component] : "Deine Auszahlung"}</h2>{(editing || session) && <button type="button" className={styles.close} aria-label="Auszahlungsbereich schließen" onClick={() => void close()} disabled={busy}><X size={19} /></button>}</div>
+            onPayouts={canReadFinancials ? () => void start("payouts_list") : undefined} onFunds={canReadFinancials ? () => void start("balances") : undefined} />}</div>;
+    const setupSlot = <section key="setup" className={`${styles.surface} ${styles.stripeSurface} ${overviewStyles.setupSlot}`} data-embedded={session && session.kind !== "local" || undefined} aria-labelledby="recipient-heading" aria-busy={busy}>
+            <div className={styles.sectionHeading}><h2 id="recipient-heading" ref={headingRef} tabIndex={-1}>{session ? componentTitles[session.component] : "Deine Auszahlung"}</h2>{(editing || session) && <div className={styles.headerTools}>{session && session.kind !== "local" && <StripeReloadButton controls={stripeControls} disabled={busy} />}<button type="button" className={`app-glass-control ${styles.close}`} aria-label="Auszahlungsbereich schließen" onClick={() => void close()} disabled={busy}><X size={19} /></button></div>}</div>
             {!session && !editing && <>
                 <div className={styles.methodRow}><span className={styles.cardMark} aria-hidden="true">{ready ? <Check size={24} /> : pending || statusUnknown || restrictedWithoutUserAction ? <Clock3 size={24} /> : <Wallet size={24} />}</span><div className={styles.identity}><strong>{statusTitle}</strong><span>{statusDescription}</span></div>{ready && canStart && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={busy}>Ändern</button>}</div>
                 {statusUnknown || restrictedWithoutUserAction ? <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={() => void sync()} disabled={busy}><RefreshCw size={16} />Status prüfen</button> : !ready && canStart && <div className={styles.editorActions}><button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={busy}><ArrowRight size={17} />{needsInformation ? "Angaben ergänzen" : pending ? "Angaben ansehen" : snapshot?.status === "onboarding" ? "Einrichtung fortsetzen" : "Auszahlung einrichten"}</button>{pending && <button type="button" className={styles.quietButton} onClick={() => void sync()} disabled={busy}><RefreshCw size={15} />Status prüfen</button>}</div>}
@@ -190,11 +192,15 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
                 {snapshot?.eligibility === "minor_review_required" && <Link href="/guardian/access" className={`app-glass-control ${styles.action}`}><ArrowRight size={17} aria-hidden="true" />Zur Familie</Link>}
             </>}
             {editing && !session && <form ref={editorRef} className={styles.editor} onSubmit={event => { event.preventDefault(); void start(ready ? "management" : "onboarding"); }}><p className={styles.editorIntro}>{local ? "Du prüfst den Ablauf ohne echte Bankdaten und ohne Auszahlung." : !ready ? "Beim ersten Einrichten übernehmen wir deinen Namen und deine bestätigte E-Mail. Bank- und Prüfdaten gibst du direkt bei Stripe ein." : "Stripe führt dich durch die benötigten Angaben. Bank- und Prüfdaten bleiben bei Stripe."}</p><label className={styles.consent} htmlFor={consentId}><input ref={consentRef} id={consentId} type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} disabled={busy} /><span>{local ? "Ich möchte die Auszahlungseinrichtung mit Testdaten ausprobieren." : ready ? "Ich möchte meine Auszahlungsdaten bei Stripe verwalten." : "Ich möchte meine Auszahlung bei Stripe einrichten und dafür die erforderlichen Angaben machen."}</span></label><div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={busy || !consent}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Weiter</button><button type="button" className={styles.quietButton} disabled={busy} onClick={() => void close()}>Abbrechen</button></div></form>}
-            {session && session.kind !== "local" && isStripeSurfaceKind(session.kind) && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={() => void close()}><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} clientSecret={session.clientSecret} publishableKey={session.publishableKey} component={session.component} onExit={onStripeExit} onError={onStripeError} onRetry={onStripeRetry} /></PaymentEmbedBoundary>{session.component === "management" && <button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void sync(true)} disabled={busy}>Fertig</button>}</div>}
+            {session && session.kind !== "local" && isStripeSurfaceKind(session.kind) && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={() => void close()} headerControls><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} clientSecret={session.clientSecret} publishableKey={session.publishableKey} component={session.component} onExit={onStripeExit} onError={onStripeError} onRetry={onStripeRetry} controlsRef={stripeControls} /></PaymentEmbedBoundary>{session.component === "management" && <button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void sync(true)} disabled={busy}>Fertig</button>}</div>}
             {session?.kind === "local" && <div ref={embedRef} className={styles.editor}>{session.component === "onboarding" || session.component === "management" ? <><div className={styles.localPreview}><Wallet size={27} /><div><strong>Test-Auszahlung</strong><span>Keine IBAN, kein Ausweis und kein echtes Geld.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void localFinish("complete")} disabled={busy}>{busy ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} onClick={() => void localFinish("cancel")} disabled={busy}>Abbrechen</button></div></> : <p className={styles.smallCopy}>In der lokalen Simulation gibt es keine Geldbewegungen. Echte Testdaten werden hier im Stripe-Testbetrieb angezeigt.</p>}</div>}
             {error && <p role="alert" className={styles.error}>{error}</p>}{feedback && !error && <p role="status" className={styles.feedback}><Check size={15} />{feedback}</p>}
             {snapshot && isStripeSurfaceKind(snapshot.kind) && canStart && snapshot.eligibility === "adult" && ownerId && (session?.kind === snapshot.kind || snapshot.status !== "not_started") && <RecipientHostedFallback key={ownerId} ownerId={ownerId} kind={snapshot.kind} returnTo={returnTo} />}
-        </section>
-        {!session && !editing && !statusUnknown && !busy && <RecipientNotifications snapshot={snapshot} ownerId={ownerId} onChanged={onNotificationChanged} />}
+        </section>;
+    // Stable sibling keys preserve the overview when readiness changes while
+    // keeping visual, keyboard and screen-reader order aligned.
+    return <div className={`${styles.stack} ${overviewStyles.recipientLayout}`} data-overview-first={ready}>
+        {ready ? [overviewSlot, setupSlot] : [setupSlot, overviewSlot]}
+        <div key="notifications" className={overviewStyles.notificationsSlot}>{!session && !editing && !statusUnknown && !busy && <RecipientNotifications snapshot={snapshot} ownerId={ownerId} onChanged={onNotificationChanged} />}</div>
     </div>;
 }

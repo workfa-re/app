@@ -275,5 +275,69 @@ try {
  await execute(readinessMigration);
  check(await json(asRole('anon',null,'SELECT public.get_guardian_schema_readiness()')),{ready:true,release:'workfare-guardian-purpose-v1',revision:'20261024101749'},'anonymous readiness reveals only an installed deployment capability');
  check(await json(`SELECT to_json(prosecdef) FROM pg_proc WHERE oid='public.get_guardian_schema_readiness()'::regprocedure`),false,'readiness wrapper has no elevated privileges');
+
+ {
+ // Accountless permission: actual PostgreSQL, private hashed challenge, no Auth identity or relationship.
+ await execute(await readFile(new URL('../../infrastructure/database/migrations/20261024175803_guardian_shared_login_permission.sql',import.meta.url),'utf8'));
+ await execute(await readFile(new URL('../../infrastructure/database/migrations/20261024180507_guardian_permission_reinvitation.sql',import.meta.url),'utf8'));
+ const permissionChild=id();
+ await execute(`INSERT INTO auth.users(id,email,email_confirmed_at) VALUES(${args([permissionChild,'youth-permission@example.invalid'])},now());
+ INSERT INTO profiles(id,full_name,birthdate,account_type) VALUES(${args([permissionChild,'Mila Beispiel','2010-01-01'])},'job_seeker');`);
+ const permissionInvite=await invite(permissionChild), challenge=id(), codeHash='d'.repeat(64), receipt='e'.repeat(64);
+ const receiptHash=await json(`SELECT to_json(encode(extensions.digest(${quote(receipt)},'sha256'),'hex'))`);
+ const preview=()=>call('get_guardian_permission_context',[permissionInvite.token,null]);
+ const prepare=(email='parent-permission@example.invalid',challengeId=challenge,hash=codeHash)=>call('prepare_guardian_permission',[permissionInvite.token,email,challengeId,hash]);
+ const submit=(hash=codeHash,v=version,receiptValue=receiptHash)=>call('submit_guardian_permission',[permissionInvite.token,challenge,hash,'Paula Beispiel','mother','true','true',v,receiptValue]);
+ const beforeCounts=await json(`SELECT json_build_array((SELECT count(*) FROM auth.users),(SELECT count(*) FROM profiles),(SELECT count(*) FROM guardian_relationships))`);
+ await deny(asRole('anon',null,`SELECT public.prepare_guardian_permission(${args([permissionInvite.token,'parent-permission@example.invalid',challenge,codeHash])})`),'browser anonymous cannot invoke privileged mail challenge');
+ await deny(asRole('authenticated',permissionChild,'SELECT challenge_code_hash FROM guardian_consent_links'),'child cannot read private challenge hashes');
+ check((await preview()).childName,'Mila','bearer preview discloses only child first name, not profile/DOB/contact');
+ check((await prepare('youth-permission@example.invalid')).code,'parent_email_required','own youth mailbox cannot confirm parent permission');
+ check((await prepare()).ok,true,'parent mailbox challenge can be prepared without Auth identity');
+ check((await prepare()).code,'permission_rate_limited','immediate resend is throttled under same child lock');
+ check((await submit(codeHash,'old-version')).code,'explicit_consent_required','outdated declaration cannot be confirmed');
+ check((await submit('a'.repeat(64))).code,'permission_code_invalid','wrong code cannot confirm permission');
+ check(await eligible(permissionChild),false,'challenge or wrong code grants no application capability');
+ await execute(`UPDATE guardian_consent_links SET challenge_expires_at=now()-interval '1 second' WHERE child_id=${quote(permissionChild)}`);
+ check((await submit()).code,'permission_code_invalid','expired code cannot confirm a declaration');
+ await execute(`UPDATE guardian_consent_links SET challenge_expires_at=now()+interval '1 minute' WHERE child_id=${quote(permissionChild)}`);
+ check((await submit()).ok,true,'correct private challenge commits accountless permission');
+ check(await eligible(permissionChild),true,'verified accountless permission covers the normal consent gate');
+ check(await invoke(permissionChild,'get_guardian_application_access'),{guardianStatus:'none',hasActiveGuardian:false,canApply:true,isVerified:false},'normal permission does not fabricate a linked parent or identity verification');
+ check(await json(`SELECT json_build_array((SELECT count(*) FROM auth.users),(SELECT count(*) FROM profiles),(SELECT count(*) FROM guardian_relationships))`),beforeCounts,'permission creates no account, profile or family relationship');
+ check((await submit()).reused,true,'lost response retry returns the same committed permission without duplicate evidence');
+ await execute(`UPDATE guardian_consents SET declaration_version='superseded-version' WHERE child_id=${quote(permissionChild)}`);
+ check(await eligible(permissionChild),false,'old ledger version never grants current application readiness');
+ await execute(`UPDATE guardian_consents SET declaration_version=${quote(version)} WHERE child_id=${quote(permissionChild)}`);
+ check((await submit(codeHash,version,'f'.repeat(64))).ok,false,'different receipt cannot claim committed permission');
+ check(await json(`SELECT json_build_array(count(*),bool_and(linked_guardian_id IS NULL),bool_and(email_verified_at IS NOT NULL),bool_and(signature_method='email_otp_typed_name')) FROM guardian_consents WHERE child_id=${quote(permissionChild)}`),[1,true,true,true],'ledger records the actual email declaration, never guardian identity');
+ await execute(`UPDATE guardian_invitations SET expires_at=now()-interval '1 day' WHERE token=${quote(permissionInvite.token)}`);
+ check(await eligible(permissionChild),true,'invitation expiry does not retroactively expire an already granted permission');
+ check((await call('get_guardian_permission_context',[null,receipt])).status,'approved','receipt remains usable after invitation expires');
+ await execute(`UPDATE guardian_invitations SET expires_at=now()+interval '1 hour' WHERE token=${quote(permissionInvite.token)}`);
+ check((await call('revoke_guardian_permission',[receipt])).ok,true,'parent can revoke using private receipt without account');
+ check(await json(`SELECT to_json(status) FROM guardian_invitations WHERE token=${quote(permissionInvite.token)}`),'revoked','revocation invalidates exactly its still-active unused invitation');
+ check(await eligible(permissionChild),false,'receipt revocation closes application capability immediately');
+ check((await call('get_guardian_permission_context',[null,receipt])).status,'revoked','receipt clearly projects withdrawn permission');
+ check((await submit()).ok,false,'old code and receipt cannot reactivate withdrawn permission');
+ check((await call('revoke_guardian_permission',[receipt])).ok,true,'revocation retry is safe');
+ check(await json(`SELECT to_json(count(*)::int) FROM guardian_consents WHERE child_id=${quote(permissionChild)}`),1,'revocation preserves the auditable original declaration');
+ const freshInvite=await invite(permissionChild), freshChallenge=id();
+ check(freshInvite.token===permissionInvite.token,false,'immediate reinvitation gets a new usable token instead of recycling withdrawn permission');
+ const freshPrepare=(challengeId,mail='parent-next@example.invalid')=>call('prepare_guardian_permission',[freshInvite.token,mail,challengeId,codeHash]);
+ check((await freshPrepare(freshChallenge)).ok,true,'new explicit invitation permits a fresh challenge after revocation');
+ await execute(`UPDATE guardian_consent_links SET challenge_sent_at=now()-interval '61 seconds' WHERE child_id=${quote(permissionChild)} AND status='active'`);
+ const replacement=id();check((await freshPrepare(replacement,'second-parent@example.invalid')).ok,true,'changed email receives a new challenge after cooldown');
+ check((await call('submit_guardian_permission',[freshInvite.token,freshChallenge,codeHash,'Paula Beispiel','mother','true','true',version,receiptHash])).code,'permission_code_invalid','old challenge does not survive a replacement email/code request');
+ for(let attempt=0;attempt<5;attempt++) check((await call('submit_guardian_permission',[freshInvite.token,replacement,'a'.repeat(64),'Paula Beispiel','mother','true','true',version,'f'.repeat(64)])).code,'permission_code_invalid','wrong challenge attempt is bounded');
+ check((await call('submit_guardian_permission',[freshInvite.token,replacement,codeHash,'Paula Beispiel','mother','true','true',version,'f'.repeat(64)])).code,'permission_code_invalid','fifth failed attempt consumes verification opportunity');
+ check(await eligible(permissionChild),false,'failed attempts cannot grant readiness');
+ check((await invite(futureParent,'guardian_to_child')).error,'password_required','legacy passwordless parent must choose password before issuing a new durable invitation');
+ const familyOnlyInvite=await invite(ids.second);
+ check((await redeem(futureParent,familyOnlyInvite.token)).error,'password_required','new durable relationship cannot be created by a legacy passwordless identity');
+ check((await workspace(upgradeParent)).workspace.access,'provider_complete','previous upgraded parent retains provider capability');
+ check((await workspace(upgradeParent)).relationships.some(r=>r.childId===ids.second&&r.status==='active'),true,'completed provider retains its active parental family rights');
+
+ }
  console.log(JSON.stringify({ok:true,checks,database:f.database,remoteDatabases:0,emailsSent:0}));
 } finally { await dispose(); }

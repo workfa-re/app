@@ -77,7 +77,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
     const guardianError = guardianResult ? guardianResult.error : guardianLoadError;
     const wardsError = wardsResult ? wardsResult.error : wardsLoadError;
     const consentRequired = !isProvider && !isAdultBirthdate(profile.birthdate);
-    const guardianRequired = consentRequired && !guardianError && guardianAccess?.isVerified !== true;
+    const guardianRequired = consentRequired && !guardianError && guardianAccess?.canApply !== true;
     const payload = useMemo(() => buildProfileUpdate(draft, isProvider), [draft, isProvider]);
     const isDirty = JSON.stringify(payload) !== JSON.stringify(buildProfileUpdate(savedDraft, isProvider));
     const visibleCity = isProvider ? profile.city : draft.city;
@@ -166,7 +166,7 @@ export function ProfileEditForm({ profile, className, isStaff = false, guardians
                         <div className={styles.identityFacts}>
                             {visibleCity && <p className={styles.identityMeta}><MapPin aria-hidden="true" /><span>{visibleCity}</span></p>}
                             {isProvider && isVerified && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>Adresse geprüft</span></p>}
-                            {!isProvider && (consentRequired ? guardianAccess?.isVerified === true : guardiansList.length > 0) && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>{consentRequired ? "Elternfreigabe aktiv" : "Familie verknüpft"}</span></p>}
+                            {!isProvider && (consentRequired ? guardianAccess?.canApply === true : guardiansList.length > 0) && <p className={styles.identityTrust}><ShieldCheck aria-hidden="true" /><span>{consentRequired ? "Elternfreigabe aktiv" : "Familie verknüpft"}</span></p>}
                         </div>
                     </div>
                 </div>

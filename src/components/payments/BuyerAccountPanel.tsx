@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Check, ChevronRight, FileText, Loader2, RotateCw } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight, FileText, Loader2, RotateCw, UserRound } from "lucide-react";
 import type { BuyerAccountSnapshot, BuyerBillingDetails, BuyerBillingInput, BuyerInvoiceEntry, BuyerPaymentEntry } from "@/lib/payments/buyer-account-types";
 import type { PaymentSurfaceKind } from "./PaymentEnvironment";
 import { supabaseBrowser } from "@/lib/supabaseClient";
@@ -57,6 +57,7 @@ export async function saveBuyerAccountBilling(ownerId: string, input: BuyerBilli
     if (!response.ok) {
         if (response.status === 401) throw new Error("Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.");
         if (object(data) && data.code === "invalid_billing_details") throw new Error("Bitte prüfe Name, E-Mail und die vollständige Rechnungsadresse.");
+        if (object(data) && data.code === "billing_sync_unconfirmed") throw new Error("Stripe hat die Speicherung noch nicht bestätigt. Versuche es erneut; deine Eingaben bleiben erhalten.");
         throw new Error("Die Rechnungsdaten konnten nicht gespeichert werden. Deine Eingaben bleiben erhalten.");
     }
     if (!object(data) || data.ok !== true || data.ownerId !== ownerId || !billingResponse(data.billing)) throw new Error("Die Speicherung konnte nicht bestätigt werden. Bitte lade den aktuellen Stand erneut.");
@@ -89,9 +90,8 @@ function DocumentLink({ href, children, label }: { href: string | null; children
 function History({ snapshot }: { snapshot: BuyerAccountSnapshot }) {
     const { history } = snapshot;
     if (!history.payments.length && !history.invoices.length) return <div className={account.empty}>
-        <p>{history.hasMore.payments || history.hasMore.invoices ? "Keine Zahlungen in diesem Ausschnitt." : "Noch keine Zahlungen."}</p>
-        <span>{history.state === "local_simulation" ? "Die lokale Vorschau enthält keine echten Zahlungsdaten."
-            : history.hasMore.payments || history.hasMore.invoices ? "Angezeigt werden die letzten 20 Einträge je Bereich." : "Zahlungen und verfügbare Belege erscheinen hier."}</span>
+        <p>{history.hasMore.payments || history.hasMore.invoices ? "Keine Zahlungen in diesem Ausschnitt." : "Noch keine Zahlung."}</p>
+        {(history.hasMore.payments || history.hasMore.invoices) && <span>Angezeigt werden die letzten 20 Einträge je Bereich.</span>}
     </div>;
     return <div className={account.history}>
         {history.payments.length > 0 && <section aria-label="Zahlungsverlauf">
@@ -139,6 +139,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
     const busyRef = useRef(false);
     const mounted = useRef(false);
     const wasEditing = useRef(false);
+    const saveOperation = useRef<{ input: string; id: string } | null>(null);
     const [editing, setEditing] = useState(false);
     const [input, setInput] = useState(() => initialBilling(snapshot.billing.details));
     const [saving, setSaving] = useState(false);
@@ -162,9 +163,10 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
         onSavingChange(true);
         setSaving(true); setError(null); setSaved(false);
         try {
-            const operationId = crypto.randomUUID();
-            const billing = await saveBuyerAccountBilling(snapshot.ownerId, input, operationId);
-            if (mounted.current && isOwnerCurrent()) { onSaved(billing); setEditing(false); setSaved(true); }
+            const serialized = JSON.stringify(input);
+            if (saveOperation.current?.input !== serialized) saveOperation.current = { input: serialized, id: crypto.randomUUID() };
+            const billing = await saveBuyerAccountBilling(snapshot.ownerId, input, saveOperation.current.id);
+            if (mounted.current && isOwnerCurrent()) { saveOperation.current = null; onSaved(billing); setEditing(false); setSaved(true); }
         } catch (failure) {
             if (mounted.current) setError(failure instanceof TypeError ? "Die Verbindung ist gerade unterbrochen. Deine Eingaben bleiben erhalten."
                 : failure instanceof Error ? failure.message : "Bitte versuche es erneut.");
@@ -179,14 +181,14 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
     const hasDetails = Boolean(details?.name || details?.email || address?.line1);
     return <details className={account.billing}>
         <summary className={account.billingSummary}><span className={account.billingLabel}>
-            <span className={`app-glass-control ${account.billingIcon}`} aria-hidden="true"><FileText size={19} strokeWidth={1.5} /></span>
+            <span className={`app-glass-control ${account.billingIcon}`} aria-hidden="true"><UserRound size={19} strokeWidth={1.5} /></span>
             <span>Rechnungsdaten</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
         <div className={account.billingBody}>
             {!snapshot.billing.available ? <p className={account.unavailable}>{snapshot.kind === "local"
                 ? "Rechnungsdaten werden in der lokalen Vorschau nicht gespeichert."
                 : "Hinterlege zuerst ein Zahlungsmittel. Danach kannst du deine Rechnungsdaten ergänzen."}</p>
                 : editing ? <form onSubmit={save} className={account.form}>
-                    <p className={account.billingNote}>Für deine Rechnungen. Deine Profil- und Anmeldeangaben bleiben unverändert.</p>
+                    <p className={account.billingNote}>Für Rechnungen und Zahlungsbelege. Deine Anmelde-E-Mail bleibt unverändert.</p>
                     <fieldset disabled={saving} aria-busy={saving}>
                         <label htmlFor={`${fieldId}-name`}>Name oder Unternehmen<input ref={firstField} id={`${fieldId}-name`} name="billing-name" autoComplete="billing name" value={input.name}
                             required minLength={2} maxLength={150} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>

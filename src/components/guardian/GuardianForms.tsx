@@ -19,7 +19,7 @@ export function GuardianPrivacy({ children }: { children?: React.ReactNode }) {
     return <p className={styles.privacy}><LockKeyhole size={13} aria-hidden="true" /><span>{children || <>Dein Zugang bleibt privat. <Link href="/legal/datenschutz" prefetch={false}>Datenschutz</Link></>}</span></p>;
 }
 
-export function GuardianEmailForm({ email, codeSent, busy, resendAllowed = true, fixedEmail = false, onRequest, onVerify, onChangeEmail, onPasswordSignIn }: {
+export function GuardianEmailForm({ email, codeSent, busy, resendAllowed = true, fixedEmail = false, onRequest, onVerify, onChangeEmail }: {
     email: string;
     codeSent: boolean;
     busy: boolean;
@@ -28,10 +28,7 @@ export function GuardianEmailForm({ email, codeSent, busy, resendAllowed = true,
     onRequest: (email: string) => void;
     onVerify: (email: string, code: string) => void;
     onChangeEmail: () => void;
-    onPasswordSignIn?: (email: string, password: string) => void;
 }) {
-    const [passwordMode, setPasswordMode] = useState(false);
-    if (passwordMode && onPasswordSignIn) return <GuardianPasswordLogin email={email} busy={busy} onSignIn={onPasswordSignIn} onUseCode={() => setPasswordMode(false)} />;
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
@@ -40,7 +37,7 @@ export function GuardianEmailForm({ email, codeSent, busy, resendAllowed = true,
     }
     return <>
         <h2>{codeSent ? "Schau in dein Postfach" : "Mit E-Mail fortfahren"}</h2>
-        <p className={styles.intro}>{codeSent ? <>Öffne den Anmeldelink oder gib den Code aus der E-Mail an <strong>{email}</strong> ein.</> : fixedEmail ? "Bestätige deinen Zugang erneut per E-Mail." : "Ein Anmeldelink oder Code per E-Mail genügt. Ein Passwort kannst du später freiwillig festlegen."}</p>
+        <p className={styles.intro}>{codeSent ? <>Öffne den Anmeldelink oder gib den Code aus der E-Mail an <strong>{email}</strong> ein.</> : fixedEmail ? "Bestätige deinen Zugang erneut per E-Mail." : "Bestätige deinen bestehenden Zugang per E-Mail."}</p>
         <form className={styles.form} onSubmit={submit}>
             {codeSent ? <label className={styles.field}>Anmeldecode
                 <input key="code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" minLength={6} maxLength={10} className={styles.code} placeholder="Code aus der E-Mail" required disabled={busy} />
@@ -52,28 +49,7 @@ export function GuardianEmailForm({ email, codeSent, busy, resendAllowed = true,
         {codeSent ? <div className={styles.actions}>
             {!fixedEmail ? <button type="button" className={styles.quiet} disabled={busy} onClick={onChangeEmail}>E-Mail ändern</button> : null}
             <button type="button" className={styles.quiet} disabled={busy || !resendAllowed} onClick={() => onRequest(email)}>{resendAllowed ? "Code erneut senden" : "Code versendet"}</button>
-        </div> : onPasswordSignIn ? <button type="button" className={styles.quiet} disabled={busy} onClick={() => setPasswordMode(true)}>Mit Passwort anmelden</button> : null}
-    </>;
-}
-
-export function GuardianPasswordLogin({ email, busy, onSignIn, onUseCode }: { email: string; busy: boolean; onSignIn: (email: string, password: string) => void; onUseCode: () => void }) {
-    function submit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (busy) return;
-        const form = new FormData(event.currentTarget);
-        onSignIn(String(form.get("email") || "").trim(), String(form.get("password") || ""));
-        const passwordField = event.currentTarget.elements.namedItem("password");
-        if (passwordField instanceof HTMLInputElement) passwordField.value = "";
-    }
-    return <>
-        <h2>Willkommen zurück</h2>
-        <p className={styles.intro}>Melde dich mit E-Mail und Passwort an.</p>
-        <form className={styles.form} onSubmit={submit} aria-busy={busy}>
-            <label className={styles.field}>Deine E-Mail-Adresse<input name="email" type="email" autoComplete="username" defaultValue={email} placeholder="name@beispiel.de" required maxLength={254} disabled={busy} /></label>
-            <label className={styles.field}>Passwort<input name="password" type="password" autoComplete="current-password" required maxLength={128} disabled={busy} /></label>
-            <Submit busy={busy}>{busy ? "Wird angemeldet …" : "Anmelden"}</Submit>
-        </form>
-        <button type="button" className={styles.quiet} disabled={busy} onClick={onUseCode}>Stattdessen E-Mail-Code verwenden</button>
+        </div> : null}
     </>;
 }
 

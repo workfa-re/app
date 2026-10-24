@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { mountBuyerCheckout } from "./buyer-checkout-mount";
 import styles from "./Payments.module.css";
 import { StripeEmbedHelp } from "./StripeEmbedHelp";
+import type { StripeEmbedControls } from "./StripeEmbedControls";
 
 const loaders = new Map<string, Promise<Stripe | null>>();
 function stripeFor(key: string) {
@@ -18,8 +19,9 @@ function stripeFor(key: string) {
     return loader;
 }
 
-export default function EmbeddedBuyerSetup({ publishableKey, clientSecret, onComplete, onCancel }: {
+export default function EmbeddedBuyerSetup({ publishableKey, clientSecret, onComplete, onCancel, controlsRef }: {
     publishableKey: string; clientSecret: string; onComplete: () => void; onCancel: () => void;
+    controlsRef?: RefObject<StripeEmbedControls | null>;
 }) {
     const targetRef = useRef<HTMLDivElement>(null);
     const [attempt, setAttempt] = useState(0);
@@ -29,10 +31,11 @@ export default function EmbeddedBuyerSetup({ publishableKey, clientSecret, onCom
         return mountBuyerCheckout({ load: () => stripeFor(publishableKey), target: targetRef.current, clientSecret, onComplete,
             onReady: () => setStatus("ready"), onError: () => setStatus("error") });
     }, [publishableKey, clientSecret, onComplete, attempt]);
-    const retry = () => { loaders.delete(publishableKey); setStatus("loading"); setAttempt(value => value + 1); };
+    const retry = useCallback(() => { loaders.delete(publishableKey); setStatus("loading"); setAttempt(value => value + 1); }, [publishableKey]);
+    useImperativeHandle(controlsRef, () => ({ reload: retry }), [retry]);
     return <div className={styles.embedFrame} aria-busy={status === "loading"}>
         {status === "loading" && <p role="status" className={styles.loading}>Stripe wird geladen …</p>}
         <div ref={targetRef} hidden={status === "error"} />
-        <StripeEmbedHelp failed={status === "error"} onRetry={retry} onClose={onCancel} />
+        <StripeEmbedHelp failed={status === "error"} onRetry={retry} onClose={onCancel} headerControls={Boolean(controlsRef)} />
     </div>;
 }

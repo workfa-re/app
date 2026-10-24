@@ -5,6 +5,7 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
 import { useRouter } from "next/navigation";
 import { OnboardingFrame, OnboardingHeading } from "@/components/onboarding/OnboardingFrame";
+import { guardianReturnPath } from "@/lib/guardian/navigation";
 
 export default function UpdatePasswordPage() {
     const [password, setPassword] = useState("");
@@ -22,7 +23,7 @@ export default function UpdatePasswordPage() {
             if (error) throw error;
 
             // Redirect to home/dashboard after success
-            router.push("/app-home");
+            router.push(guardianReturnPath(new URLSearchParams(window.location.search).get("redirectTo")) || "/app-home");
             router.refresh();
         } catch (err: unknown) {
             setError(err instanceof Error && err.message ? err.message : "Fehler beim Aktualisieren des Passworts.");

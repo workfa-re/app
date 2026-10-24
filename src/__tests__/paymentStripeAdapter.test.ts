@@ -42,7 +42,7 @@ const embedded = () => ({ ...session(), ui_mode: "embedded_page", status: "open"
 describe("restricted Stripe sandbox setup adapter", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        api.customerCreate.mockResolvedValue({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId } });
+        api.customerCreate.mockImplementation(async input => ({ id: customerId, livemode: false, ...input }));
         api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId } });
         api.customerUpdate.mockImplementation(async (id, input) => ({ id, livemode: false, email: input.email, metadata: { workfare_pay_user: userId } }));
         api.sessionCreate.mockResolvedValue(session()); api.sessionRetrieve.mockResolvedValue(session());
@@ -88,46 +88,79 @@ describe("restricted Stripe sandbox setup adapter", () => {
         expect(api.sessionCreate.mock.calls[0][0].branding_settings).toMatchObject({ background_color: "#101010", button_color: "#f2f2f2", font_family: "inter" });
     });
 
-    it.each(["hosted", "embedded"])("sets the verified owner's email before creating %s Checkout, without a second customer", async surface => {
-        if (surface === "embedded") api.sessionCreate.mockResolvedValue(embedded());
+    it("sets the confirmed Auth email only when creating a new Customer", async () => {
         const email = "provider@example.com";
-        const adapter = createStripeSandboxAdapter(environment);
-        if (surface === "embedded") await adapter.createEmbeddedSetup(customerId, userId, setupId, null, null, "light", email);
-        else await adapter.createSetup(customerId, userId, setupId, null, email);
-        expect(api.customerUpdate).toHaveBeenCalledWith(customerId, { email }, { idempotencyKey: expect.stringMatching(new RegExp(`^workfare-pay:setup-email:${setupId}:[a-f0-9]{64}$`)) });
-        expect(api.customerUpdate.mock.invocationCallOrder[0]).toBeLessThan(api.sessionCreate.mock.invocationCallOrder[0]);
-        expect(api.sessionCreate.mock.calls[0][0]).toMatchObject({ customer: customerId });
-        expect(api.sessionCreate.mock.calls[0][0]).not.toHaveProperty("customer_email");
-        expect(api.customerCreate).not.toHaveBeenCalled();
-        expect(api.customerUpdate.mock.calls[0][2].idempotencyKey).not.toContain(email);
+        await createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", email);
+        expect(api.customerCreate).toHaveBeenCalledExactlyOnceWith({ metadata: { workfare_pay_user: userId }, email }, { idempotencyKey: "stable-customer-operation" });
+        expect(api.customerUpdate).not.toHaveBeenCalled();
     });
 
-    it("does not update a matching email, and syncs the Customer before resuming an already owned session", async () => {
-        const email = "provider@example.com";
-        api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, email, metadata: { workfare_pay_user: userId } });
-        api.sessionRetrieve.mockResolvedValue(embedded());
-        await createStripeSandboxAdapter(environment).createEmbeddedSetup(customerId, userId, setupId, null, "cs_test_fixture", "light", email);
+    it("recovers a legacy metadata-only creation under exactly the same key", async () => {
+        api.customerCreate.mockRejectedValueOnce(new Stripe.errors.StripeIdempotencyError({ type: "idempotency_error", statusCode: 400 }));
+        await expect(createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", "provider@example.com")).resolves.toBe(customerId);
+        expect(api.customerCreate.mock.calls).toEqual([
+            [{ metadata: { workfare_pay_user: userId }, email: "provider@example.com" }, { idempotencyKey: "stable-customer-operation" }],
+            [{ metadata: { workfare_pay_user: userId } }, { idempotencyKey: "stable-customer-operation" }],
+        ]);
         expect(api.customerUpdate).not.toHaveBeenCalled();
-        api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, email: "old@example.com", metadata: { workfare_pay_user: userId } });
-        await createStripeSandboxAdapter(environment).createEmbeddedSetup(customerId, userId, setupId, null, "cs_test_fixture", "light", email);
-        expect(api.customerUpdate).toHaveBeenCalledOnce();
-        expect(api.sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        new Stripe.errors.StripeConnectionError({ message: "timeout" }),
+        new Stripe.errors.StripeInvalidRequestError({ statusCode: 400 }),
+        new Stripe.errors.StripeIdempotencyError({ statusCode: 409 }),
+        { type: "StripeIdempotencyError", statusCode: 400 },
+    ])("does not retry creation on an ambiguous or unrelated error (%j)", async failure => {
+        api.customerCreate.mockRejectedValueOnce(failure);
+        await expect(createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", "provider@example.com")).rejects.toBe(failure);
+        expect(api.customerCreate).toHaveBeenCalledOnce();
+        expect(api.customerUpdate).not.toHaveBeenCalled();
+    });
+
+    it.each([{ metadata: { workfare_pay_user: "other" } }, { livemode: true }, { deleted: true }])("still validates the recovered legacy Customer (%j)", async patch => {
+        api.customerCreate.mockRejectedValueOnce(new Stripe.errors.StripeIdempotencyError({ statusCode: 400 }))
+            .mockResolvedValueOnce({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId }, ...patch });
+        await expect(createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", "provider@example.com")).rejects.toThrow();
+        expect(api.customerUpdate).not.toHaveBeenCalled();
+    });
+
+    it("does not accept an unconfirmed initial email or a different created contact", async () => {
+        const adapter = createStripeSandboxAdapter(environment);
+        await expect(adapter.createCustomer(userId, "operation", "invalid")).rejects.toMatchObject({ code: "confirmed_email_required" });
+        expect(api.customerCreate).not.toHaveBeenCalled();
+        api.customerCreate.mockResolvedValueOnce({ id: customerId, livemode: false, email: "other@example.com", metadata: { workfare_pay_user: userId } });
+        await expect(adapter.createCustomer(userId, "operation", "provider@example.com")).rejects.toThrow();
+    });
+
+    it.each(["hosted", "embedded", "resumed"])("preserves the owned Customer contact without any default-write in %s setup", async surface => {
+        // No extra marker is needed: the server-bound Customer is the billing
+        // source. A parallel explicit edit cannot be overwritten by setup.
+        api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, email: "invoices@example.com", metadata: { workfare_pay_user: userId } });
+        const adapter = createStripeSandboxAdapter(environment);
+        if (surface === "hosted") await adapter.createSetup(customerId, userId, setupId, null);
+        else {
+            api.sessionCreate.mockResolvedValue(embedded()); api.sessionRetrieve.mockResolvedValue(embedded());
+            await adapter.createEmbeddedSetup(customerId, userId, setupId, null, surface === "resumed" ? "cs_test_fixture" : null, "light");
+        }
+        expect(api.customerUpdate).not.toHaveBeenCalled(); expect(api.customerCreate).not.toHaveBeenCalled();
+        if (surface === "resumed") expect(api.sessionCreate).not.toHaveBeenCalled();
+        else expect(api.sessionCreate.mock.calls[0][0].customer).toBe(customerId);
+    });
+
+    it("lets Checkout collect a legacy missing contact instead of repairing it with a competing write", async () => {
+        api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, email: null, metadata: { workfare_pay_user: userId } });
+        await createStripeSandboxAdapter(environment).createSetup(customerId, userId, setupId, null);
+        expect(api.customerUpdate).not.toHaveBeenCalled();
+        expect(api.sessionCreate.mock.calls[0][0]).not.toHaveProperty("customer_email");
     });
 
     it.each([{ id: "cus_foreign" }, { metadata: { workfare_pay_user: "other" } }, { livemode: true }, { deleted: true }])
-    ("cannot overwrite an unbound customer email (%j)", async patch => {
+    ("rejects an unbound Customer before Checkout (%j)", async patch => {
         api.customerRetrieve.mockResolvedValue({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId }, ...patch });
-        await expect(createStripeSandboxAdapter(environment).createEmbeddedSetup(customerId, userId, setupId, null, null, "light", "provider@example.com")).rejects.toThrow();
-        expect(api.customerUpdate).not.toHaveBeenCalled();
-        expect(api.sessionCreate).not.toHaveBeenCalled();
+        await expect(createStripeSandboxAdapter(environment).createEmbeddedSetup(customerId, userId, setupId, null)).rejects.toThrow();
+        expect(api.customerUpdate).not.toHaveBeenCalled(); expect(api.sessionCreate).not.toHaveBeenCalled();
     });
 
-    it.each([{ id: "cus_foreign" }, { metadata: { workfare_pay_user: "other" } }, { livemode: true }, { email: "wrong@example.com" }])
-    ("verifies the email-update response before creating Checkout (%j)", async patch => {
-        api.customerUpdate.mockResolvedValue({ id: customerId, livemode: false, email: "provider@example.com", metadata: { workfare_pay_user: userId }, ...patch });
-        await expect(createStripeSandboxAdapter(environment).createSetup(customerId, userId, setupId, null, "provider@example.com")).rejects.toThrow();
-        expect(api.sessionCreate).not.toHaveBeenCalled();
-    });
     it("accepts opaque Stripe secrets with punctuation instead of guessing their alphabet", async () => {
         const secret = `cs_test_fixture_secret_${"offline".repeat(60)}-._~+/=|`;
         api.sessionCreate.mockResolvedValue({ ...embedded(), client_secret: secret });

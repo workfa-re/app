@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 import { readBrandStorage, writeBrandStorage } from "@/lib/brand-storage";
+import { getSafeInternalRedirect } from "@/lib/safe-redirect";
 
 const COOLDOWN_SECONDS = 60;
 const STORAGE_PREFIX = "workfare-confirmation-email-last-sent:";
@@ -43,7 +44,7 @@ interface UseEmailResendReturn {
 /**
  * Hook für E-Mail-Resend mit Rate Limiting (60s Cooldown).
  */
-export function useEmailResend(email: string): UseEmailResendReturn {
+export function useEmailResend(email: string, returnPath?: string): UseEmailResendReturn {
     const [cooldown, setCooldown] = useState(0);
     const [message, setMessage] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -84,9 +85,13 @@ export function useEmailResend(email: string): UseEmailResendReturn {
         setError(null);
 
         try {
+            const next = getSafeInternalRedirect(returnPath);
+            const callback = next && typeof window !== "undefined" ? new URL("/auth/callback", window.location.origin) : null;
+            if (callback && next) callback.searchParams.set("next", next);
             const { error: err } = await supabaseBrowser.auth.resend({
                 type: "signup",
                 email,
+                ...(callback ? { options: { emailRedirectTo: callback.href } } : {}),
             });
 
             if (err?.message === "Error sending confirmation email") {
@@ -113,7 +118,7 @@ export function useEmailResend(email: string): UseEmailResendReturn {
         } finally {
             setLoading(false);
         }
-    }, [email, cooldown, markSent]);
+    }, [email, cooldown, markSent, returnPath]);
 
     const resend = useCallback(() => sendConfirmationEmail(), [sendConfirmationEmail]);
 

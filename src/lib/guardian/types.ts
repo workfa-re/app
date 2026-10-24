@@ -39,6 +39,7 @@ export type GuardianAccessContext = {
     };
     invitation: GuardianInvitationPreview | null;
     relationships: GuardianConnection[];
+    permission?: { required: boolean; granted: boolean };
     workspace: {
         access: "family_only" | "provider_complete" | "provider_incomplete" | "child" | "unconfigured";
         providerSetupHref: "/onboarding?purpose=provider";

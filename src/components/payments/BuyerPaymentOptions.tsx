@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { BuyerPaymentMethods } from "@/lib/payments/method-capabilities";
 import { paymentErrorMessage, paymentRequest } from "./payment-client";
 import styles from "./Payments.module.css";
@@ -32,7 +33,7 @@ export function BuyerPaymentOptions() {
         finally { loading.current = false; setPending(false); }
     }
     return <details className={styles.embedHelp} onToggle={event => { if (event.currentTarget.open && !methods && !loading.current) void load(); }}>
-        <summary>Zahlungsarten ansehen</summary>
+        <summary>Zahlungsarten ansehen<ChevronRight size={15} aria-hidden="true" /></summary>
         {pending ? <p role="status">Zahlungsarten werden geprüft …</p> : error ? <><p role="alert">{error}</p><button type="button" className={styles.textAction} onClick={() => void load()}>Erneut versuchen</button></>
             : methods && <dl className={styles.methodOptions}>
                 <div><dt>Karte</dt><dd>{methods.kind === "local" ? "Nur lokale Simulation" : methods.methods[0].setupEnabled ? "Verfügbar" : "Für dieses Konto noch nicht freigeschaltet"}</dd></div>

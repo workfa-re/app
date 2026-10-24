@@ -41,12 +41,12 @@ export async function getPaymentSetupForUser(userId: string, sessionId: string) 
     return { id: setup.id, mode: setup.mode, status: setup.status, expiresAt: setup.expiresAt, returnTo: sanitizePaymentReturnPath(setup.returnTo) };
 }
 
-async function ensureCustomer(userId: string, mode: PaymentMode, operationId: string) {
+async function ensureCustomer(userId: string, mode: PaymentMode, operationId: string, email?: string) {
     const claim = await repository.claimPaymentCustomer(userId, mode, operationId);
     if (claim.customerRef) return claim.customerRef;
     if (!claim.claimed) throw new PaymentFlowError("setup_in_progress", 409);
     const customerRef = mode === "local_simulation" ? `local_cus_${userId}`
-        : await createStripeSandboxAdapter().createCustomer(userId, `workfare-pay:customer:${userId}`);
+        : await createStripeSandboxAdapter().createCustomer(userId, `workfare-pay:customer:${userId}`, email);
     await repository.savePaymentCustomer(userId, mode, operationId, customerRef);
     return customerRef;
 }
@@ -70,14 +70,14 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
     const returnTo = input.returnTo === undefined || input.returnTo === null ? null : sanitizePaymentReturnPath(input.returnTo);
     if (input.returnTo != null && !returnTo) throw new PaymentFlowError("invalid_return_path");
     if (input.operationId && !UUID.test(input.operationId)) throw new PaymentFlowError("invalid_operation_id");
-    // Auth supplies the confirmed account address; profile/form data must never
-    // select another person's Checkout contact or overwrite their Customer.
+    // Auth supplies only the initial Customer contact. Later Checkout sessions
+    // preserve the separately editable billing contact on the owned Customer.
     const email = runtime.mode === "local_simulation" ? undefined : user.email;
     if (runtime.mode !== "local_simulation" && (!user.email_confirmed_at || !z.email().max(254).safeParse(email).success)) {
         throw new PaymentFlowError("confirmed_email_required", 403);
     }
     const operationId = input.operationId ?? randomUUID();
-    const customerRef = await ensureCustomer(userId, runtime.mode, operationId);
+    const customerRef = await ensureCustomer(userId, runtime.mode, operationId, email);
     const setup = await repository.createPaymentSetup(userId, runtime.mode, operationId, returnTo, PAYMENT_SETUP_CONSENT_VERSION);
     if (setup.status === "complete") {
         if (embedded) return { kind: "complete" as const, sessionId: setup.id, returnTo: sanitizePaymentReturnPath(setup.returnTo) };
@@ -93,7 +93,7 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
         return { url: url.pathname + url.search };
     }
     if (embedded) {
-        const session = await createStripeSandboxAdapter().createEmbeddedSetup(customerRef, userId, setup.id, returnTo, setup.externalSessionId, theme, email);
+        const session = await createStripeSandboxAdapter().createEmbeddedSetup(customerRef, userId, setup.id, returnTo, setup.externalSessionId, theme);
         await repository.attachPaymentSetupSession(setup.id, session.id, session.expiresAt);
         if (session.status === "complete") {
             // A retried operation may have completed at Stripe while its webhook
@@ -104,7 +104,7 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
         }
         return { kind: "embedded" as const, sessionId: setup.id, clientSecret: session.clientSecret, publishableKey: publishableKey! };
     }
-    const session = await createStripeSandboxAdapter().createSetup(customerRef, userId, setup.id, returnTo, email);
+    const session = await createStripeSandboxAdapter().createSetup(customerRef, userId, setup.id, returnTo);
     await repository.attachPaymentSetupSession(setup.id, session.id, session.expiresAt);
     return { url: session.url };
 }

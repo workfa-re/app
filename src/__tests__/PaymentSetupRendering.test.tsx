@@ -13,6 +13,27 @@ import { PaymentQuestions, PaymentSettings } from "@/components/payments/Payment
 const buyer:PaymentSettingsSnapshot={kind:"local",featureEnabled:true,buyerReady:false,method:null,recipientStatus:"not_started",pendingRemoval:false};
 const recipient:RecipientSettingsSnapshot={kind:"sandbox",featureEnabled:true,status:"not_started",canStart:true,eligibility:"adult",requirementCount:0,hasPayoutMethod:false,detailsSubmitted:false,transfersActive:false,payoutsEnabled:false,checkedAt:null};
 describe("truthful payment setup states",()=>{
+    it.each([
+        {status:"not_started" as const,checkedAt:null},
+        {status:"onboarding" as const,checkedAt:null},
+        {status:"pending" as const,checkedAt:null},
+        {status:"pending" as const,checkedAt:"2026-10-24T04:00:00Z"},
+        {status:"restricted" as const,checkedAt:"2026-10-24T04:00:00Z"},
+    ])("places setup before the single overview in DOM/read order while status is $status ($checkedAt)",patch=>{
+        const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,...patch}} returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
+        const setupPosition=html.indexOf('id="recipient-heading"');
+        const overviewPosition=html.indexOf('aria-label="Deine Zahlungsübersicht"');
+        expect(setupPosition).toBeGreaterThan(-1);expect(overviewPosition).toBeGreaterThan(setupPosition);
+        expect(html.match(/aria-label="Deine Zahlungsübersicht"/g)).toHaveLength(1);
+    });
+    it.each(["adult","minor_review_required"] as const)("places the single overview before setup after confirmed readiness, independently of management permission (%s)",eligibility=>{
+        const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"live",status:"ready",eligibility,canStart:eligibility==="adult",
+            checkedAt:"2026-10-24T04:00:00Z",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}}
+            returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
+        expect(html.indexOf('aria-label="Deine Zahlungsübersicht"')).toBeLessThan(html.indexOf('id="recipient-heading"'));
+        expect(html.match(/aria-label="Deine Zahlungsübersicht"/g)).toHaveLength(1);
+        expect(html).toContain("Auszahlung eingerichtet");
+    });
     it("renders live payment settings without a test banner and keeps payment identity honest",()=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
         expect(html).toContain("Zahlungsabwicklung durch Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);

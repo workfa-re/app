@@ -18,6 +18,7 @@ import { CinematicDateInput } from "@/components/ui/CinematicDateInput";
 import { getOnboardingCompanyError, getOnboardingProfileError } from "@/lib/onboarding-validation";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { guardianReturnPath } from "@/lib/guardian/navigation";
 import {
   getInitialOnboardingRole,
   getOnboardingEntryStep,
@@ -59,6 +60,7 @@ type OnboardingWizardProps = {
   reserveFooterSpace?: boolean;
   initialError?: string | null;
   providerUpgrade?: boolean;
+  familySetup?: boolean;
 };
 
 const getErrorMessage = (err: unknown, fallback: string) =>
@@ -193,11 +195,12 @@ export function OnboardingWizard({
   isJustVerified = false,
   initialError = null,
   providerUpgrade = false,
+  familySetup = false,
 }: OnboardingWizardProps) {
   const router = useRouter();
   const safeRedirectTo = safeInternalRedirectOr(redirectTo, "/app-home");
-  const [step, setStep] = useState<Step>(() => getOnboardingEntryStep({ forcedStep, initialMode }));
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [step, setStep] = useState<Step>(() => getOnboardingEntryStep({ forcedStep: forcedStep || (familySetup ? "auth" : null), initialMode }));
+  const [mode, setMode] = useState<AuthMode>(initialMode ?? (familySetup ? "signup" : null));
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [checkingRegion, setCheckingRegion] = useState(false);
@@ -223,7 +226,7 @@ export function OnboardingWizard({
     resend: handleResendConfirmation,
     forceResend: forceResendConfirmation,
     markSent: markConfirmationEmailSent,
-  } = useEmailResend(email);
+  } = useEmailResend(email, familySetup ? guardianReturnPath(safeRedirectTo) || "/guardian/access" : undefined);
   const mustChooseRole = mustChooseOnboardingRole(forcedStep, isJustVerified);
 
   // Initialwerte aus Session, Profil und lokalem Onboarding-Entwurf zusammenführen.
@@ -260,7 +263,7 @@ export function OnboardingWizard({
     const normalizedDraftEmail = normalizeEmail(draft?.email);
     const draftMatchesSession = Boolean(draft && (!normalizedInitialEmail || normalizedDraftEmail === normalizedInitialEmail));
 
-    if (draft && draftMatchesSession && !initialMode && !providerUpgrade) {
+    if (draft && draftMatchesSession && !initialMode && !providerUpgrade && !familySetup) {
       setEmail(draft.email);
       setMode(draft.mode);
       setProfileData((prev) => ({
@@ -277,7 +280,7 @@ export function OnboardingWizard({
     }
 
     setResumeChecked(true);
-  }, [forcedStep, initialEmail, initialProfile, isJustVerified, mustChooseRole, initialMode, providerUpgrade]);
+  }, [forcedStep, initialEmail, initialProfile, isJustVerified, mustChooseRole, initialMode, providerUpgrade, familySetup]);
 
   useEffect(() => {
     if (!resumeChecked) return;
@@ -358,6 +361,13 @@ export function OnboardingWizard({
       const isComplete = isProfileComplete(profileTyped);
       const isConfirmed = !!user.email_confirmed_at;
 
+      if (isConfirmed && (familySetup || guardianReturnPath(safeRedirectTo))) {
+        confirmedEmailRef.current = expectedEmail;
+        clearOnboardingDraft();
+        window.location.href = guardianReturnPath(safeRedirectTo) || "/guardian/access";
+        return true;
+      }
+
       if (isConfirmed && isComplete) {
         confirmedEmailRef.current = expectedEmail;
         setEmailConfirmed(true);
@@ -414,7 +424,7 @@ export function OnboardingWizard({
     } finally {
       if (confirmationCheck.current?.promise === promise) confirmationCheck.current = null;
     }
-  }, [email, mustChooseRole, safeRedirectTo]);
+  }, [email, mustChooseRole, safeRedirectTo, familySetup, setEmailConfirmed, setCodeMessage, setStep, setProfileData]);
 
   useEffect(() => {
     if (step !== "email-confirm") return;
@@ -491,7 +501,7 @@ export function OnboardingWizard({
         ? null
         : "Wir haben dein Konto gefunden. Bitte bestätige deine E-Mail mit dem Code. Falls kein neuer Code ankommt, ist der Versand gleich erneut möglich.",
     );
-  }, [email, forceResendConfirmation, mode, profileData]);
+  }, [email, forceResendConfirmation, mode, profileData, setCode, setCodeError, setErrorType, setErrorMsg, setEmailConfirmed, setMode, setStep, setCodeMessage]);
 
   const handleSignIn = async () => {
     setLoading(true);
@@ -535,9 +545,10 @@ export function OnboardingWizard({
     setErrorMsg(null);
     try {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
-      const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteUrl}/auth/update-password`,
-      });
+      const callback = new URL("/auth/callback", siteUrl);
+      const familyReturn = guardianReturnPath(safeRedirectTo);
+      callback.searchParams.set("next", familyReturn ? `/auth/update-password?redirectTo=${encodeURIComponent(familyReturn)}` : "/auth/update-password");
+      const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email, { redirectTo: callback.href });
       if (error) throw error;
       setResetSuccess(true);
     } catch (err: unknown) {
@@ -566,7 +577,9 @@ export function OnboardingWizard({
         full_name: "",
         market_id: profileData.marketId
       };
-      const { error } = await signUpWithEmail(email, password, signUpData);
+      const callback = new URL("/auth/callback", window.location.origin);
+      callback.searchParams.set("next", familySetup ? guardianReturnPath(safeRedirectTo) || "/guardian/access" : `/onboarding?redirectTo=${encodeURIComponent(safeRedirectTo)}`);
+      const { error } = await signUpWithEmail(email, password, familySetup ? { signup_purpose: "family" } : signUpData, callback.toString());
 
       if (error?.message === "Error sending confirmation email") {
         throw new Error("Bestätigungs-E-Mail konnte nicht gesendet werden. Bitte versuche es später erneut oder kontaktiere den Support.");
@@ -727,6 +740,7 @@ export function OnboardingWizard({
       if (providerUpgrade) { router.push("/guardian/access"); return; }
       setStep("welcome");
     } else if (step === "auth") {
+      if (familySetup) { router.push(guardianReturnPath(safeRedirectTo) || "/guardian/access"); return; }
       if (mode === "signup") {
         setStep("location");
       } else {
@@ -832,7 +846,7 @@ export function OnboardingWizard({
 
                 <CardHeader
                   title={passwordResetOpen ? "Passwort zurücksetzen" : mode === "signup" ? "Konto erstellen" : "Anmelden"}
-                  subtitle={passwordResetOpen ? "Wir senden dir einen Link an deine E-Mail-Adresse." : mode === "signup" ? "Lege deine Zugangsdaten fest. Danach bestätigst du deine E-Mail." : "Schön, dass du wieder bei Workfare bist."}
+                  subtitle={passwordResetOpen ? "Wir senden dir einen Link an deine E-Mail-Adresse." : mode === "signup" ? familySetup ? "Dein Familienkonto: Lege deine Zugangsdaten fest und bestätige deine E-Mail." : "Lege deine Zugangsdaten fest. Danach bestätigst du deine E-Mail." : "Schön, dass du wieder bei Workfare bist."}
                 />
                 <form
                   onSubmit={(e) => {
@@ -878,16 +892,17 @@ export function OnboardingWizard({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-4 text-lg text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      placeholder={mode === "signup" ? "Mindestens 6 Zeichen" : "Dein Passwort"}
+                      placeholder={mode === "signup" ? familySetup ? "Mindestens 10 Zeichen" : "Mindestens 6 Zeichen" : "Dein Passwort"}
                       required
-                      minLength={mode === "signup" ? 6 : undefined}
+                      minLength={mode === "signup" ? familySetup ? 10 : 6 : undefined}
+                      maxLength={128}
                       disabled={loading || resettingPassword}
                     />
                     <button type="button" className="onboarding-password-toggle" aria-label={passwordVisible ? "Passwort verbergen" : "Passwort anzeigen"}
                       aria-pressed={passwordVisible} onClick={() => setPasswordVisible(visible => !visible)}>
                       {passwordVisible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
                     </button></div>
-                    {mode === "signup" && <p className="onboarding-field-hint">Mindestens 6 Zeichen.</p>}
+                    {mode === "signup" && <p className="onboarding-field-hint">Mindestens {familySetup ? 10 : 6} Zeichen.</p>}
                     {mode === "signin" && <div className="onboarding-password-help"><button type="button" className="onboarding-link" disabled={authBusy}
                       onClick={() => { setPasswordResetOpen(true); setPassword(""); setErrorMsg(null); setErrorType(null); setResetSuccess(false); }}>Passwort vergessen?</button></div>}
                   </div>}

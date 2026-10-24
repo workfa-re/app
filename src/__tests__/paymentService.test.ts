@@ -130,7 +130,7 @@ describe("provider-owned payment setup service", () => {
         mocks.createPaymentSetup.mockResolvedValue({ ...setup(), mode: "sandbox", externalSessionId: null });
         expect(await startPaymentSetup({ consent: true, uiMode: "embedded", operationId, returnTo: setup().returnTo }))
             .toEqual({ kind: "embedded", sessionId: setupId, clientSecret: "cs_test_fixture_secret_fixture", publishableKey: "pk_test_fixtureOnly" });
-        expect(mocks.createEmbeddedSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, setup().returnTo, null, "light", confirmedEmail);
+        expect(mocks.createEmbeddedSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, setup().returnTo, null, "light");
         expect(mocks.attachPaymentSetupSession).toHaveBeenCalledWith(setupId, "cs_test_fixture", "2035-01-01T00:00:00.000Z");
         expect(mocks.createSetup).not.toHaveBeenCalled();
     });
@@ -161,7 +161,7 @@ describe("provider-owned payment setup service", () => {
         mocks.createEmbeddedSetup.mockResolvedValue({ status: "complete", id: "cs_test_fixture", expiresAt: "2035-01-01T00:00:00.000Z" });
         expect(await startPaymentSetup({ consent: true, uiMode: "embedded", returnTo: setup().returnTo }))
             .toEqual({ kind: "complete", sessionId: setupId, returnTo: setup().returnTo });
-        expect(mocks.createEmbeddedSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, setup().returnTo, "cs_test_fixture", "light", confirmedEmail);
+        expect(mocks.createEmbeddedSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, setup().returnTo, "cs_test_fixture", "light");
         expect(mocks.inspectSetup).toHaveBeenCalledOnce();
         expect(mocks.completePaymentSetup).toHaveBeenCalledOnce();
     });
@@ -215,14 +215,14 @@ describe("provider-owned payment setup service", () => {
         mocks.claimPaymentCustomer.mockResolvedValue({ claimed: false, customerRef: "cus_fixture" });
         await startPaymentSetup({ consent: true, operationId });
         expect(mocks.createCustomer).not.toHaveBeenCalled();
-        expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null, confirmedEmail);
+        expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null);
         expect(mocks.attachPaymentSetupSession).toHaveBeenCalledWith(setupId, "cs_test_fixture", "2035-01-01T00:00:00.000Z");
     });
 
     it("uses one stable Stripe customer idempotency key across retried claims", async () => {
         sandbox();
         await startPaymentSetup({ consent: true, operationId });
-        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`);
+        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail);
         expect(mocks.savePaymentCustomer).toHaveBeenCalledWith(userId, "sandbox", operationId, "cus_fixture");
     });
 
@@ -231,7 +231,8 @@ describe("provider-owned payment setup service", () => {
         mocks.auth.mockResolvedValue({ state: "ready", session: { user: confirmedUser() },
             profile: { account_type: "job_provider", email: "someone-else@example.com" } });
         await startPaymentSetup({ consent: true, operationId });
-        expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null, confirmedEmail);
+        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail);
+        expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null);
     });
 
     it.each([

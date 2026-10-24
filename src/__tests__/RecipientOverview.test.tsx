@@ -23,6 +23,15 @@ const render = (value: RecipientPaymentSummary | null, props: Partial<Parameters
 const text = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 
 describe("recipient financial overview", () => {
+    it("uses a descriptive page heading while retaining Pay branding on the home widget", () => {
+        const full = render(summary);
+        expect(full).toMatch(/<h2[^>]*>Deine Zahlungsübersicht<\/h2>/);
+        expect(full).not.toMatch(/class="[^"]*wordmark/);
+        const home = render(summary, { compact: true });
+        expect(home).toMatch(/class="[^"]*wordmark/);
+        expect(home).toContain("Workfare Pay öffnen");
+        expect(home).not.toContain("<h2");
+    });
     it("separates available, pending, confirmed earnings and payouts without inventing a total balance", () => {
         const html = text(render(summary));
         for (const value of ["Verfügbar", "In Bearbeitung", "Bestätigt verdient", "Bereits ausgezahlt", "12,50", "33,00", "65,00", "15,00"]) expect(html).toContain(value);

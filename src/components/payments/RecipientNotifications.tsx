@@ -7,6 +7,7 @@ import type { RecipientSessionResult, RecipientSettingsSnapshot } from "@/lib/pa
 import { paymentErrorMessage, paymentRequest } from "./payment-client";
 import { PaymentEmbedBoundary } from "./PaymentEmbedBoundary";
 import { isStripeSurfaceKind, validStripeSurfaceSession, type StripeSurfaceKind } from "./PaymentEnvironment";
+import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
 import styles from "./Payments.module.css";
 
 const EmbeddedRecipient = dynamic(() => import("./EmbeddedRecipient"), { ssr: false, loading: () => <p className={styles.loading} role="status">Stripe-Hinweise werden geladen …</p> });
@@ -28,6 +29,7 @@ function NotificationRegion({ kind, onChanged, ownerId }: { kind: StripeSurfaceK
     const [error, setError] = useState<string | null>(null);
     const inFlight = useRef(false);
     const trigger = useRef<HTMLButtonElement>(null);
+    const stripeControls = useRef<StripeEmbedControls | null>(null);
     const close = useCallback(() => {
         setSession(null); setError(null); void onChanged();
         requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
@@ -43,9 +45,9 @@ function NotificationRegion({ kind, onChanged, ownerId }: { kind: StripeSurfaceK
         } catch (failure) { setError(paymentErrorMessage(failure)); }
         finally { inFlight.current = false; setPending(false); }
     }
-    return <section className={`${styles.surface} ${styles.compactSurface}`} aria-label="Offene Hinweise von Stripe" aria-busy={pending}>
-        {session ? <><div className={styles.sectionHeading}><h2>Hinweise von Stripe</h2><button type="button" className={styles.close} onClick={close} aria-label="Stripe-Hinweise schließen"><X size={18} /></button></div>
-            <div className={styles.embedded}><PaymentEmbedBoundary onCancel={close}><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} publishableKey={session.publishableKey} clientSecret={session.clientSecret} component="notification_banner" onExit={close} onError={failed} onRetry={() => setError(null)} /></PaymentEmbedBoundary></div>
+    return <section className={`${styles.surface} ${styles.compactSurface} ${styles.stripeSurface}`} data-embedded={Boolean(session) || undefined} aria-label="Offene Hinweise von Stripe" aria-busy={pending}>
+        {session ? <><div className={styles.sectionHeading}><h2>Hinweise von Stripe</h2><div className={styles.headerTools}><StripeReloadButton controls={stripeControls} /><button type="button" className={`app-glass-control ${styles.close}`} onClick={close} aria-label="Stripe-Hinweise schließen"><X size={18} /></button></div></div>
+            <div className={styles.embedded}><PaymentEmbedBoundary onCancel={close} headerControls><EmbeddedRecipient key={`${ownerId}:${session.clientSecret}`} ownerId={ownerId} kind={session.kind} publishableKey={session.publishableKey} clientSecret={session.clientSecret} component="notification_banner" onExit={close} onError={failed} onRetry={() => setError(null)} controlsRef={stripeControls} /></PaymentEmbedBoundary></div>
             <button type="button" className={styles.quietButton} onClick={close}><RefreshCw size={15} />Stand aktualisieren</button></>
             : <button type="button" ref={trigger} className={styles.settingsRow} disabled={pending} onClick={() => void open()}>
                 <span className={`app-glass-control ${styles.rowIcon}`} aria-hidden="true">{pending ? <LoaderCircle size={20} className={styles.spinner} /> : <ShieldAlert size={21} />}</span>

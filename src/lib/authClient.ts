@@ -3,12 +3,13 @@
 import { supabaseBrowser } from "./supabaseClient";
 
 // Client-seitige Auth-Funktionen (nur für Client Components)
-export const signUpWithEmail = async (email: string, password: string, data?: object) => {
+export const signUpWithEmail = async (email: string, password: string, data?: object, emailRedirectTo?: string) => {
   const { data: result, error } = await supabaseBrowser.auth.signUp({
     email,
     password,
     options: {
       data,
+      ...(emailRedirectTo ? { emailRedirectTo } : {}),
     },
   });
   return { data: result, error };

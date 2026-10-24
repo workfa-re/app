@@ -13,7 +13,7 @@ import type { BuyerAccountSnapshot, BuyerBillingDetails, BuyerInvoiceEntry, Buye
 
 const HISTORY_LIMIT = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const plainText = (minimum: number, maximum: number) => z.string().trim().min(minimum).max(maximum).refine((value) => !/[\u0000-\u001f\u007f]/.test(value));
+const plainText = (minimum: number, maximum: number) => z.string().trim().min(minimum).max(maximum).refine((value) => !/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/.test(value));
 const billingSchema = z.object({
     name: plainText(2, 150),
     email: z.string().trim().email().max(254),
@@ -78,6 +78,14 @@ function billingDetails(customer: Stripe.Customer): BuyerBillingDetails {
             country: safeText(customer.address.country, 2),
         } : null,
     };
+}
+
+function confirmsBilling(customer: Stripe.Customer, input: z.infer<typeof billingSchema>): boolean {
+    const stored = billingDetails(customer);
+    return stored.name === input.name && stored.email === input.email
+        && stored.address?.line1 === input.address.line1 && (stored.address.line2 ?? "") === input.address.line2
+        && stored.address.postalCode === input.address.postalCode && stored.address.city === input.address.city
+        && stored.address.country === input.address.country;
 }
 
 function paymentEntry(charge: Stripe.Charge, customerId: string, mode: PaymentMode = "sandbox"): BuyerPaymentEntry {
@@ -167,7 +175,13 @@ export function createBuyerAccountSandboxAdapter(environment: PaymentsEnvironmen
                 address: { line1: details.address.line1, line2: details.address.line2, postal_code: details.address.postalCode,
                     city: details.address.city, country: details.address.country },
             }, { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` }), customerId, userId, mode);
-            return billingDetails(customer);
+            if (!confirmsBilling(customer, details)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
+            // A timeout or concurrent edit must never become a false "saved".
+            // Repeating the same operation reuses Stripe's idempotent write and
+            // checks the current customer again without touching Auth/profile.
+            const current = await retrieveOwned(customerId, userId);
+            if (!confirmsBilling(current, details)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
+            return billingDetails(current);
         },
     });
 }

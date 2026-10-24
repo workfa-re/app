@@ -28,6 +28,7 @@ const messages: Record<string, string> = {
     password_login_failed: "Die Anmeldung war nicht möglich. Prüfe deine E-Mail-Adresse und dein Passwort oder nutze einen E-Mail-Code.",
     password_reauthentication_required: "Bitte bestätige deine E-Mail-Adresse erneut mit einem Code, bevor du dein Passwort einrichtest.",
     password_already_configured: "Dein Passwort ist bereits eingerichtet. Du kannst es über „Passwort vergessen“ zurücksetzen.",
+    password_required: "Lege zuerst ein Passwort für deinen dauerhaften Familienzugang fest.",
     demo_password_managed: "Die Beispielzugänge haben ein verwaltetes Passwort. Dein persönliches Passwort legst du in deinem eigenen Konto fest.",
     guardian_schema_not_ready: "Der Familienbereich ist gerade nicht vollständig verfügbar. Bitte lade die Seite neu oder versuche es später erneut.",
     unavailable: "Der aktuelle Stand ist gerade nicht verfügbar. Bitte versuche es erneut.",
@@ -86,13 +87,14 @@ export async function requestGuardianEmailOtp(input: { email: unknown; token?: u
         const client = await supabaseServer(); const current = await client.auth.getUser();
         if (await readGuardianSchemaState(client) !== "ready") return failure("guardian_schema_not_ready");
         if (current.error && current.error.name !== "AuthSessionMissingError") return failure("unavailable");
+        if (!current.data.user || input.reauthenticate !== true) return failure("authentication_required");
         if (current.data.user) {
             if (current.data.user.email?.toLowerCase() !== email.data) return failure("account_switch_required");
             if (input.reauthenticate !== true) return { ok: true };
         }
         const demo = process.env.WORKFARE_DEMO_ENABLED === "true";
         if (demo && !await demoEmailAllowed(email.data)) return failure("demo_identity_required");
-        const { error } = await client.auth.signInWithOtp({ email: email.data, options: { shouldCreateUser: !demo, emailRedirectTo: emailReturnUrl(token?.success ? token.data : undefined) } });
+        const { error } = await client.auth.signInWithOtp({ email: email.data, options: { shouldCreateUser: false, emailRedirectTo: emailReturnUrl(token?.success ? token.data : undefined) } });
         return error ? failure("unavailable") : { ok: true };
     } catch { return failure("unavailable"); }
 }

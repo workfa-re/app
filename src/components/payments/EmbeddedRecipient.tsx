@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 import { loadConnectAndInitialize } from "@stripe/connect-js/pure";
 import { ConnectAccountManagement, ConnectAccountOnboarding, ConnectBalances, ConnectComponentsProvider, ConnectNotificationBanner, ConnectPayoutsList } from "@stripe/react-connect-js";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -10,6 +10,7 @@ import { createRecipientConnectSession } from "./recipient-connect-lifecycle";
 import { StripeEmbedHelp } from "./StripeEmbedHelp";
 import { type StripeSurfaceKind } from "./PaymentEnvironment";
 import styles from "./Payments.module.css";
+import type { StripeEmbedControls } from "./StripeEmbedControls";
 
 function appearance(dark: boolean) {
     return { variables: {
@@ -23,14 +24,17 @@ function appearance(dark: boolean) {
     } };
 }
 
-type Props = { kind: StripeSurfaceKind; publishableKey: string; clientSecret: string; component: RecipientComponent; ownerId?: string; onExit: () => void; onError: () => void; onRetry?: () => void };
+type Props = { kind: StripeSurfaceKind; publishableKey: string; clientSecret: string; component: RecipientComponent; ownerId?: string; onExit: () => void; onError: () => void; onRetry?: () => void; controlsRef?: RefObject<StripeEmbedControls | null> };
 
 export default function EmbeddedRecipient(props: Props) {
     const [attempt, setAttempt] = useState(0);
-    return <RecipientConnectFrame key={attempt} {...props} firstAttempt={attempt === 0} retry={() => { props.onRetry?.(); setAttempt(value => value + 1); }} />;
+    const onRetry = props.onRetry;
+    const retry = useCallback(() => { onRetry?.(); setAttempt(value => value + 1); }, [onRetry]);
+    useImperativeHandle(props.controlsRef, () => ({ reload: retry }), [retry]);
+    return <RecipientConnectFrame key={attempt} {...props} firstAttempt={attempt === 0} retry={retry} />;
 }
 
-function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, ownerId, onExit, onError, firstAttempt, retry }: Props & { firstAttempt: boolean; retry: () => void }) {
+function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, ownerId, onExit, onError, firstAttempt, retry, controlsRef }: Props & { firstAttempt: boolean; retry: () => void }) {
     const { resolvedTheme } = useTheme();
     const [failed, setFailed] = useState(false);
     const [slow, setSlow] = useState(false);
@@ -65,6 +69,6 @@ function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, 
                 : component === "management" ? <ConnectAccountManagement onLoadError={loadFailed} onLoaderStart={loaderStarted} />
                     : component === "balances" ? <ConnectBalances onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : component === "notification_banner" ? <ConnectNotificationBanner onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : <ConnectPayoutsList onLoadError={loadFailed} onLoaderStart={loaderStarted} />}
         </ConnectComponentsProvider>}
-        <StripeEmbedHelp failed={failed} slow={slow} onRetry={retry} onClose={onExit} />
+        <StripeEmbedHelp failed={failed} slow={slow} onRetry={retry} onClose={onExit} headerControls={Boolean(controlsRef)} />
     </div>;
 }

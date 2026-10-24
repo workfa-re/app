@@ -21,19 +21,23 @@ import type { PaymentsEnvironment } from "@/lib/payments/config";
 const user="11111111-1111-4111-8111-111111111111",setup="22222222-2222-4222-8222-222222222222";
 const live:PaymentsEnvironment={WORKFARE_PAY_MODE:"live",WORKFARE_PAY_LIVE_ENABLED:"enabled",WORKFARE_PAY_LIVE_PROJECT_REF:"aaaaaaaaaaaaaaaaaaaa",WORKFARE_PAY_LIVE_PLATFORM_ACCOUNT:"acct_fixturePlatform",APP_ORIGIN:"https://app.workfa.re",SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",NEXT_PUBLIC_SUPABASE_URL:"https://aaaaaaaaaaaaaaaaaaaa.supabase.co",STRIPE_SECRET_KEY:"rk_live_offlineFixtureOnly",STRIPE_PUBLISHABLE_KEY:"pk_live_offlineFixtureOnly",STRIPE_WEBHOOK_SECRET:"whsec_offlineFixtureOnly"};
 beforeEach(()=>{
- vi.resetAllMocks();api.account.mockResolvedValue({id:"acct_fixturePlatform",country:"DE"});api.customer.mockResolvedValue({id:"cus_fixture",livemode:true,metadata:{workfare_pay_user:user}});api.createCustomer.mockResolvedValue({id:"cus_fixture",livemode:true,metadata:{workfare_pay_user:user}});
+ vi.resetAllMocks();api.account.mockResolvedValue({id:"acct_fixturePlatform",country:"DE"});api.customer.mockResolvedValue({id:"cus_fixture",livemode:true,metadata:{workfare_pay_user:user}});api.createCustomer.mockImplementation(async input=>({id:"cus_fixture",livemode:true,...input}));
  api.updateCustomer.mockImplementation(async(id,input)=>({id,livemode:true,email:input.email,metadata:{workfare_pay_user:user}}));
  api.checkout.mockResolvedValue({id:"cs_live_fixture",livemode:true,mode:"setup",ui_mode:"embedded_page",status:"open",customer:"cus_fixture",client_reference_id:setup,metadata:{workfare_pay_setup:setup,workfare_pay_user:user},expires_at:Math.floor(Date.now()/1000)+3600,client_secret:"cs_live_fixture_secret_offlineFixture"});
 });
 afterEach(()=>vi.unstubAllEnvs());
 describe("strict production payment isolation",()=>{
- it("prefills live Checkout using the already bound Customer and keeps live mode verified",async()=>{
-  await createStripeSandboxAdapter(live).createEmbeddedSetup("cus_fixture",user,setup,null,null,"light","provider@example.com");
-  expect(api.updateCustomer).toHaveBeenCalledWith("cus_fixture",{email:"provider@example.com"},expect.objectContaining({idempotencyKey:expect.any(String)}));
-  expect(api.updateCustomer.mock.invocationCallOrder[0]).toBeLessThan(api.checkout.mock.invocationCallOrder[0]);
+ it("preserves the bound live billing contact without an Auth default-write",async()=>{
+  api.customer.mockResolvedValue({id:"cus_fixture",livemode:true,email:"invoices@example.com",metadata:{workfare_pay_user:user}});
+  await createStripeSandboxAdapter(live).createEmbeddedSetup("cus_fixture",user,setup,null);
+  expect(api.updateCustomer).not.toHaveBeenCalled();
   expect(api.checkout.mock.calls[0][0]).toMatchObject({customer:"cus_fixture",ui_mode:"embedded_page"});
-  expect(api.checkout.mock.calls[0][0]).not.toHaveProperty("customer_email");
   expect(api.createCustomer).not.toHaveBeenCalled();
+ });
+ it("prefills the confirmed contact during live Customer creation only",async()=>{
+  await createStripeSandboxAdapter(live).createCustomer(user,"operation","provider@example.com");
+  expect(api.createCustomer).toHaveBeenCalledExactlyOnceWith({email:"provider@example.com",metadata:{workfare_pay_user:user}},{idempotencyKey:"operation"});
+  expect(api.updateCustomer).not.toHaveBeenCalled();
  });
  it.each(["rk_live_fixture","sk_live_fixture"])("accepts an explicit private live credential with the production project/origin and exposes no key (%s)",key=>{
   const environment={...live,STRIPE_SECRET_KEY:key};

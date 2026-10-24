@@ -57,7 +57,7 @@ describe("compact payment history and billing UI", () => {
         const html = renderToStaticMarkup(<BuyerAccountPanel />);
         expect(html).toContain("Übersicht wird geladen");
         expect(html).toContain('role="status"');
-        expect(html).not.toContain("Noch keine Zahlungen");
+        expect(html).not.toContain("Noch keine Zahlung");
         expect(html).not.toContain("0,00");
     });
 
@@ -65,13 +65,14 @@ describe("compact payment history and billing UI", () => {
         const html = render(null, false, "Die Zahlungsübersicht ist gerade nicht erreichbar.");
         expect(html).toContain('role="alert"');
         expect(html).toContain("Erneut versuchen");
-        expect(html).not.toContain("Noch keine Zahlungen");
+        expect(html).not.toContain("Noch keine Zahlung");
         expect(html).not.toContain("Rechnungsdaten</span>");
     });
 
-    it("states that the local preview has no real financial data without fake balances or payment actions", () => {
+    it("keeps an empty history brief without fake balances or payment actions", () => {
         const html = render(local);
-        expect(html).toContain("Die lokale Vorschau enthält keine echten Zahlungsdaten");
+        expect(html).toContain("Noch keine Zahlung.");
+        expect(html).not.toContain("Zahlungen und verfügbare Belege erscheinen hier");
         expect(html).not.toContain("0,00");
         expect(html).not.toContain("Jetzt bezahlen");
         expect(html).not.toContain("Guthaben");
@@ -144,7 +145,7 @@ describe("compact payment history and billing UI", () => {
         const html = render({ ...local, kind: "sandbox", history: { ...local.history, state: "empty", hasMore: { payments: false, invoices: true } } });
         expect(html).toContain("Keine Zahlungen in diesem Ausschnitt");
         expect(html).toContain("die letzten 20 Einträge je Bereich");
-        expect(html).not.toContain("Noch keine Zahlungen");
+        expect(html).not.toContain("Noch keine Zahlung");
     });
 
     it("keeps invoice documents and PDF links distinct from payment receipts", () => {

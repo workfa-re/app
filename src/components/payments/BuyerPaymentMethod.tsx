@@ -12,6 +12,7 @@ import { usePaymentSnapshot } from "./usePaymentSnapshot";
 import { PAYMENT_OWNER_CHANGED, usePaymentOwner } from "./usePaymentOwner";
 import { PaymentEmbedBoundary } from "./PaymentEmbedBoundary";
 import { resetBuyerSetupOperation } from "./buyer-setup-retry";
+import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
 import styles from "./Payments.module.css";
 import { BuyerPaymentOptions } from "./BuyerPaymentOptions";
 import { isStripeSurfaceKind, stripeKeyMatchesKind } from "./PaymentEnvironment";
@@ -50,6 +51,7 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
     const consentRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<HTMLFormElement>(null);
     const embedRef = useRef<HTMLDivElement>(null);
+    const stripeControls = useRef<StripeEmbedControls | null>(null);
     const headingRef = useRef<HTMLHeadingElement>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -182,9 +184,9 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
 
     const method = snapshot.method;
     if (ownerChanged) return <section className={styles.surface}><p className={styles.error} role="alert">{PAYMENT_OWNER_CHANGED}</p><a className={`app-glass-control ${styles.action}`} href="/app-home/settings/payments">Workfare Pay neu öffnen</a></section>;
-    return <section className={styles.surface} aria-labelledby="payment-method-title" aria-busy={Boolean(busy)}>
+    return <section className={`${styles.surface} ${styles.methodSurface}`} data-state={editing ? "editing" : ready ? "ready" : unknown ? "unknown" : "empty"} data-embedded={setup?.kind === "embedded" && !unknown || undefined} aria-labelledby="payment-method-title" aria-busy={Boolean(busy)}>
         <div className={styles.sectionHeading}><h2 id="payment-method-title" ref={headingRef} tabIndex={-1}>Zahlungsmittel</h2>
-            {editing && <button type="button" className={styles.close} aria-label="Einrichtung schließen" disabled={Boolean(busy)} onClick={() => setup?.kind === "local" ? void finishLocal("cancel") : closeEditor()}><X size={19} /></button>}
+            {editing && <div className={styles.headerTools}>{setup?.kind === "embedded" && <StripeReloadButton controls={stripeControls} disabled={Boolean(busy)} />}<button type="button" className={`app-glass-control ${styles.close}`} aria-label="Einrichtung schließen" disabled={Boolean(busy)} onClick={() => setup?.kind === "local" ? void finishLocal("cancel") : closeEditor()}><X size={19} /></button></div>}
         </div>
         {ready && method && !editing ? <div className={styles.methodRow}>
             <span className={styles.cardMark} aria-hidden="true">{method.brand === "visa" ? "VISA" : method.brand === "mastercard" ? "MC" : <CreditCard size={25} strokeWidth={1.5} />}</span>
@@ -195,10 +197,10 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
                 </div>
             </div>
         </div> : !editing && <div className={styles.emptyMethod}>
-            <span className={styles.cardMark} aria-hidden="true"><CreditCard size={26} strokeWidth={1.5} /></span>
-            <p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Bereit für deinen ersten Job." : "Die Einrichtung ist noch nicht verfügbar."}</p>
-            <span>{unknown ? "Bitte lade den Status neu, bevor du fortfährst." : snapshot.featureEnabled ? "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Jetzt wird nichts abgebucht." : setupAvailable ? "Hinterlege dein Zahlungsmittel für kommende Aufträge. Jetzt wird nichts abgebucht." : "Du kannst dein Konto und deine Jobentwürfe weiter vorbereiten."}</span>
-            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={Boolean(busy)}><ArrowRight size={17} />Zahlungsmittel einrichten</button>}
+            <span className={`app-glass-control ${styles.cardMark}`} aria-hidden="true"><CreditCard size={25} strokeWidth={1.5} /></span>
+            <div className={styles.emptyCopy}><p>{unknown ? "Aktuellen Stand prüfen" : setupAvailable ? "Bereit für deinen ersten Job." : "Die Einrichtung ist noch nicht verfügbar."}</p>
+                <span>{unknown ? "Bitte lade den Status neu, bevor du fortfährst." : snapshot.featureEnabled ? "Hinterlege vor dem Veröffentlichen ein Zahlungsmittel. Jetzt wird nichts abgebucht." : setupAvailable ? "Hinterlege dein Zahlungsmittel für kommende Aufträge. Jetzt wird nichts abgebucht." : "Du kannst dein Konto und deine Jobentwürfe weiter vorbereiten."}</span></div>
+            {setupAvailable && !unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action} ${styles.primaryAction}`} onClick={openEditor} disabled={Boolean(busy)}>Zahlungsmittel einrichten<ArrowRight size={17} /></button>}
         </div>}
 
         {editing && !setup && <form ref={editorRef} className={styles.editor} onSubmit={start}>
@@ -207,7 +209,7 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
             <div className={styles.editorActions}><button type="submit" className={`app-glass-control ${styles.action}`} disabled={!consent || Boolean(busy)}>{busy === "start" ? <Loader2 size={17} className={styles.spinner} /> : <ArrowRight size={17} />}Sicher einrichten</button><button type="button" className={styles.quietButton} onClick={closeEditor} disabled={Boolean(busy)}>Abbrechen</button></div>
         </form>}
 
-        {setup?.kind === "embedded" && !unknown && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={closeEditor}><EmbeddedBuyerSetup publishableKey={setup.publishableKey} clientSecret={setup.clientSecret} onComplete={onStripeComplete} onCancel={closeEditor} /></PaymentEmbedBoundary>{busy === "confirm" && <p className={styles.loading} role="status">Zahlungsmittel wird geprüft …</p>}</div>}
+        {setup?.kind === "embedded" && !unknown && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={closeEditor} headerControls><EmbeddedBuyerSetup publishableKey={setup.publishableKey} clientSecret={setup.clientSecret} onComplete={onStripeComplete} onCancel={closeEditor} controlsRef={stripeControls} /></PaymentEmbedBoundary>{busy === "confirm" && <p className={styles.loading} role="status">Zahlungsmittel wird geprüft …</p>}</div>}
         {setup?.kind === "local" && !unknown && <div ref={embedRef} className={styles.editor}><div className={styles.localPreview}><CreditCard size={26} strokeWidth={1.5} /><div><strong>Lokales Test-Zahlungsmittel</strong><span>Keine Karte und keine Bankdaten erforderlich.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => void finishLocal("complete")}>{busy === "confirm" ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} disabled={Boolean(busy)} onClick={() => void finishLocal("cancel")}>Abbrechen</button></div></div>}
 
         {removing && <div className={styles.confirmation} role="group" aria-labelledby={removeTitleId}><h3 id={removeTitleId}>Zahlungsmittel entfernen?</h3><p>Für einen neuen Job brauchst du anschließend wieder eines. Bestehende Aufträge bleiben erhalten.</p><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={remove} disabled={Boolean(busy)}>{busy === "remove" && <Loader2 size={16} className={styles.spinner} />}Entfernen</button><button type="button" ref={keepButtonRef} className={styles.quietButton} onClick={() => { setRemoving(false); restoreFocus(); }} disabled={Boolean(busy)}>Behalten</button></div></div>}

@@ -20,6 +20,7 @@ export const guardianContextSchema = z.object({
     profile: z.object({ fullName: z.string().nullable(), birthdate: z.string().nullable(), accountType: z.enum(["job_seeker", "job_provider"]).nullable(), adultEligible: z.boolean() }),
     invitation: z.object({ direction: z.enum(["child_to_guardian", "guardian_to_child"]), inviterName: z.string().nullable(), childName: z.string().nullable(), minorRequired: z.boolean().nullable(), status: z.enum(["active", "redeemed", "expired", "revoked"]), expiresAt: z.string() }).nullable(),
     relationships: z.array(connection),
+    permission: z.object({ required: z.boolean(), granted: z.boolean() }).optional(),
     workspace: z.object({
         access: z.enum(["family_only", "provider_complete", "provider_incomplete", "child", "unconfigured"]),
         providerSetupHref: z.literal("/onboarding?purpose=provider"),

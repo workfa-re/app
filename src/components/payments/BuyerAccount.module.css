@@ -22,17 +22,17 @@
 .documentLink { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 3px; margin: -4px 0; gap: 3px; color: var(--app-accent-ink); font-size: 12px; text-decoration: none; white-space: nowrap; }
 .documentLink:hover { text-decoration: underline; text-underline-offset: 3px; }
 .limited { margin: 0; font-size: 12px; }
-.utilities { padding: 0; }
+.utilities { padding: 6px 10px; }
 .utilities > details + details { box-shadow: 0 -1px 0 color-mix(in srgb,var(--app-ink) 5%,transparent); }
 .billing { padding: 0; border-radius: inherit; }
-.billingSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 80px; padding: 18px 26px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 500; letter-spacing: -.015em; border-radius: inherit; }
+.billingSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 12px 14px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 500; letter-spacing: -.015em; border-radius: 22px; }
 .billingSummary::-webkit-details-marker { display: none; }
 .billingLabel { display: flex; align-items: center; gap: 15px; }
 .billingIcon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; color: var(--app-muted); }
 .billingChevron { color: var(--app-muted); flex-shrink: 0; transition: transform 180ms ease; }
 .billing[open] > .billingSummary .billingChevron { transform: rotate(90deg); }
 .billingSummary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
-.billingBody { padding: 0 26px 24px; }
+.billingBody { padding: 0 14px 20px; }
 .unavailable, .billingNote { margin: 0; }
 .billingRead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .billingRead button { min-height: 40px; flex-shrink: 0; }
@@ -56,8 +56,8 @@
 @media (max-width: 560px) {
     .overview { padding: 18px 20px 21px; }
     .heading { margin-bottom: 7px; }
-    .billingSummary { min-height: 80px; padding: 18px 20px; }
-    .billingBody { padding: 0 20px 21px; }
+    .billingSummary { padding-inline: 10px; }
+    .billingBody { padding: 0 10px 18px; }
     .entryTitle { gap: 12px; }
     .entryMeta { gap: 0 10px; }
     .billingRead { flex-wrap: wrap; }

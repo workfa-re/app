@@ -43,4 +43,25 @@ describe("family-purpose account routing and explicit provider upgrade", () => {
         const screen = await OnboardingPage({ searchParams: Promise.resolve({ purpose: "provider" }) });
         expect(screen.props).toMatchObject({ providerUpgrade: true, forcedStep: "location", initialProfile: partial });
     });
+    it("keeps an invitation and a Stripe return when a family account signs in normally", async () => {
+        for (const path of ["/guardian/access?token=private-invite", "/guardian/access?recipientHosted=returned&childId=child"]) {
+            await expect(HomePage({ searchParams: Promise.resolve({ redirectTo: path, authMode: "signin" }) })).rejects.toThrow(`REDIRECT:${path}`);
+        }
+        await expect(HomePage({ searchParams: Promise.resolve({ redirectTo: "/app-home/offers" }) })).rejects.toThrow("REDIRECT:/guardian/access");
+    });
+    it("starts family registration in the shared auth form without choosing a marketplace role or city", async () => {
+        mock.auth.mockResolvedValue({ state: "no-session" });
+        const screen = await OnboardingPage({ searchParams: Promise.resolve({ purpose: "family", authMode: "signup", redirectTo: "/guardian/access?token=invite" }) });
+        expect(screen.props).toMatchObject({ familySetup: true, initialMode: "signup", providerUpgrade: false, redirectTo: "/guardian/access?token=invite" });
+    });
+    it("a verified incomplete family signup resumes minimal family details instead of provider onboarding", async () => {
+        mock.auth.mockResolvedValue({ state: "incomplete-profile", profile: null, session: { user: { email: "parent@example.invalid", user_metadata: { signup_purpose: "family" } } } });
+        await expect(HomePage({ searchParams: Promise.resolve({}) })).rejects.toThrow("REDIRECT:/guardian/access");
+        await expect(OnboardingPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("REDIRECT:/guardian/access");
+    });
+    it("resumes the shared email confirmation for family signup after the first tab was closed", async () => {
+        mock.auth.mockResolvedValue({ state: "email-unconfirmed", profile: null, session: { user: { email: "parent@example.invalid", user_metadata: { signup_purpose: "family" } } } });
+        const screen = await OnboardingPage({ searchParams: Promise.resolve({}) });
+        expect(screen.props).toMatchObject({ familySetup: true, forcedStep: "email-confirm", initialEmail: "parent@example.invalid" });
+    });
 });

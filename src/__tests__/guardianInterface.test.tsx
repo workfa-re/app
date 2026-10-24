@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GuardianAccessContext, GuardianConnection, GuardianInvitationPreview } from "@/lib/guardian/types";
 
 const actions = vi.hoisted(() => ({ createFamilyInvitation: vi.fn(), redeemGuardianInvitation: vi.fn(), approveGuardianRelationship: vi.fn(), setGuardianAccessPassword: vi.fn(), signInGuardianAccessPassword: vi.fn() }));
+vi.mock("@/app/guardian/permission/actions", () => ({ getGuardianPermission: vi.fn() }));
 vi.mock("@/app/actions/guardian", () => ({ createFamilyInvitation: actions.createFamilyInvitation }));
 vi.mock("@/app/guardian/access/actions", () => ({
     redeemGuardianInvitation: actions.redeemGuardianInvitation, approveGuardianRelationship: actions.approveGuardianRelationship,
@@ -24,7 +25,8 @@ vi.mock("@headlessui/react", () => ({
 }));
 
 import { guardianAccessStep, GuardianLoading } from "@/components/guardian/GuardianAccess";
-import { GuardianConsentReview, GuardianEmailForm, GuardianPasswordLogin, GuardianProfileForm, GuardianSuccess, guardianReviewCopy } from "@/components/guardian/GuardianForms";
+import { GuardianConsentReview, GuardianEmailForm, GuardianProfileForm, GuardianSuccess, guardianReviewCopy } from "@/components/guardian/GuardianForms";
+import { GuardianGuestEntry } from "@/components/guardian/GuardianGuestEntry";
 import { GuardianAccountSettings, GuardianWorkspaceOffer } from "@/components/guardian/GuardianAccount";
 import { GuardianConnections, guardianConnectionLabel } from "@/components/guardian/GuardianConnections";
 import { FamilyInvitation } from "@/components/guardian/FamilyInvitation";
@@ -34,7 +36,7 @@ import { AddGuardianButton } from "@/components/profile/AddGuardianButton";
 import { guardianAction, invitationLink } from "@/components/guardian/guardian-client";
 
 const invitation: GuardianInvitationPreview = { direction: "child_to_guardian", inviterName: "Mara", childName: "Anna", minorRequired: true, status: "active", expiresAt: "2030-10-25T10:00:00Z" };
-const context: GuardianAccessContext = { authenticated: true, userId: "guardian-owner", email: "parent@example.test", viewer: "guardian", profile: { fullName: "Mara Beispiel", birthdate: "1980-01-01", accountType: null, adultEligible: true }, invitation, relationships: [], workspace: { access: "family_only", providerSetupHref: "/onboarding?purpose=provider", passwordConfigured: false } };
+const context: GuardianAccessContext = { authenticated: true, userId: "guardian-owner", email: "parent@example.test", viewer: "guardian", profile: { fullName: "Mara Beispiel", birthdate: "1980-01-01", accountType: null, adultEligible: true }, invitation, relationships: [], workspace: { access: "family_only", providerSetupHref: "/onboarding?purpose=provider", passwordConfigured: true } };
 const connection: GuardianConnection = { id: "family-connection", childId: "child", guardianId: "guardian", actorRole: "guardian", name: "Anna Beispiel", status: "pending", consentRequired: true, consented: false };
 const noop = () => undefined;
 const text = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -47,6 +49,7 @@ describe("purpose-bound guardian access and consent UI", () => {
     it("requires only a minimal adult profile before a parent reviews an invitation", () => {
         expect(guardianAccessStep({ ...context, viewer: "unconfigured", profile: { fullName: null, birthdate: null, adultEligible: false, accountType: null } }, true)).toBe("profile");
         expect(guardianAccessStep(context, true)).toBe("review");
+        expect(guardianAccessStep({ ...context, workspace: { ...context.workspace, passwordConfigured: false } }, true)).toBe("password");
         expect(context.profile.accountType).toBeNull();
     });
     it("routes a reverse invitation to the child's profile instead of claiming the child is an adult guardian", () => {
@@ -112,19 +115,19 @@ describe("purpose-bound guardian access and consent UI", () => {
         expect(renderToStaticMarkup(<GuardianWorkspaceOffer workspace={{ ...context.workspace, access: "child" }} />)).toBe("");
         expect(renderToStaticMarkup(<GuardianWorkspaceOffer workspace={{ ...context.workspace, access: "unconfigured" }} />)).toBe("");
     });
-    it("keeps optional password setup inside account settings and leaves passwordless entry available", () => {
+    it("migrates legacy passwordless accounts into the shared password login", () => {
         const html = renderToStaticMarkup(<GuardianAccountSettings email={context.email} passwordConfigured={false} busy={false} notice={null} onSavePassword={noop} onReauthenticate={noop} />);
         expect(html).toContain("Anmeldung &amp; Passwort"); expect(html).toContain("Passwort festlegen");
-        expect(html).toContain("E-Mail-Code anmelden"); expect(html).not.toContain('type="password"');
+        expect(html).toContain("normale Workfare-Anmeldung"); expect(html).not.toContain('type="password"');
         expect(actions.setGuardianAccessPassword).not.toHaveBeenCalled();
         const configured = renderToStaticMarkup(<GuardianAccountSettings email={context.email} passwordConfigured busy={false} notice="Dein Passwort ist gespeichert." onSavePassword={noop} onReauthenticate={noop} />);
         expect(configured).toContain('href="/auth/forgot-password"'); expect(configured).not.toContain("Passwort festlegen"); expect(configured).toContain('role="status"');
     });
-    it("allows a familiar email and password login without creating an account during rendering", () => {
-        const html = renderToStaticMarkup(<GuardianPasswordLogin email="parent@example.test" busy={false} onSignIn={noop} onUseCode={noop} />);
-        expect(html).toContain('autoComplete="username"'); expect(html).toContain('autoComplete="current-password"'); expect(html).toContain('type="password"');
-        expect(html).toContain("Stattdessen E-Mail-Code verwenden"); expect(html).not.toMatch(/name="(?:birthdate|fullName|address)"/);
-        expect(actions.signInGuardianAccessPassword).not.toHaveBeenCalled();
+    it("uses the shared normal login and explicit family signup instead of a separate parent login", () => {
+        const html = renderToStaticMarkup(<GuardianGuestEntry token="private-invite-token" />);
+        expect(html).toContain('href="/?authMode=signin&amp;redirectTo=%2Fguardian%2Faccess%3Ftoken%3Dprivate-invite-token"');
+        expect(html).toContain('purpose=family'); expect(html).toContain("Familie dauerhaft verknüpfen");
+        expect(html).not.toContain('type="password"'); expect(html).not.toContain("Anmeldecode senden");
     });
     it("fixes the parent's email during password reauthentication without a second account form", () => {
         const html = renderToStaticMarkup(<GuardianEmailForm email="parent@example.test" codeSent busy={false} fixedEmail onRequest={noop} onVerify={noop} onChangeEmail={noop} />);

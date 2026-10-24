@@ -100,7 +100,8 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
     const funds = summary?.funds;
     return <section className={`${styles.surface}${compact ? ` ${styles.compact}` : ""}`} aria-label={compact ? "Deine Vergütung mit Workfare Pay" : "Deine Zahlungsübersicht"} aria-busy={loading}>
         <div className={styles.heading}>
-            <div className={styles.brand}><PayWordmark />{compact && summary && <PaymentEnvironment kind={summary.kind} compact className={styles.environment} />}</div>
+            {compact ? <div className={styles.brand}><PayWordmark />{summary && <PaymentEnvironment kind={summary.kind} compact className={styles.environment} />}</div>
+                : <h2 className={styles.title}>Deine Zahlungsübersicht</h2>}
             {compact ? <Link href="/app-home/settings/payments" className={`app-glass-control ${styles.open}`} aria-label="Workfare Pay öffnen"><ArrowUpRight size={19} aria-hidden="true" /></Link>
                 : <button type="button" className={`app-glass-control ${styles.open}`} onClick={onRetry} disabled={loading || busy} aria-label="Zahlungsübersicht aktualisieren"><RefreshCw size={18} aria-hidden="true" /></button>}
         </div>

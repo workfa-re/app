@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSafeInternalRedirect } from "@/lib/safe-redirect";
 import type { OnboardingStep } from "@/lib/onboardingFlow";
 import { isIncompletePrivateProviderProfile } from "@/lib/guardian/workspace";
+import { guardianReturnPath } from "@/lib/guardian/navigation";
 
 // server component
 export default async function OnboardingPage(props: {
@@ -11,9 +12,14 @@ export default async function OnboardingPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const authState = await getAuthState();
+  // An Auth-confirmed UI hint resumes the signup purpose; it grants no role or access.
+  const familySetup = searchParams.purpose === "family" || (authState.state === "email-unconfirmed" && authState.session.user.user_metadata?.signup_purpose === "family");
+  const familyReturn = guardianReturnPath(searchParams.redirectTo) || "/guardian/access";
   const providerUpgrade = searchParams.purpose === "provider" && (authState.state === "family-only"
     || (authState.state === "incomplete-profile" && isIncompletePrivateProviderProfile(authState.profile)));
-  if (authState.state === "family-only" && !providerUpgrade) redirect("/guardian/access");
+  if (authState.state === "family-only" && !providerUpgrade) redirect(guardianReturnPath(searchParams.redirectTo) || "/guardian/access");
+  if (familySetup && (authState.state === "incomplete-profile" || authState.state === "ready")) redirect(familyReturn);
+  if (!providerUpgrade && authState.state === "incomplete-profile" && authState.session.user.user_metadata?.signup_purpose === "family") redirect(familyReturn);
 
   // Special handling: If we just came from email verification, we might have a race condition
   // where the session is ready but we want to show the "Email Confirmed" state briefly
@@ -79,6 +85,7 @@ export default async function OnboardingPage(props: {
       initialMode={initialMode}
       isJustVerified={isJustVerified}
       providerUpgrade={providerUpgrade}
+      familySetup={familySetup}
       initialError={searchParams.error === "auth_code_error" ? "Dieser Bestätigungslink ist ungültig oder abgelaufen. Melde dich an, um einen neuen Code anzufordern." : null}
     />
   );

@@ -6,6 +6,7 @@ import { ButtonPrimary } from "@/components/ui/ButtonPrimary";
 import { OnboardingFrame, OnboardingHeading } from "@/components/onboarding/OnboardingFrame";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
+import { guardianReturnPath } from "@/lib/guardian/navigation";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -20,8 +21,11 @@ export default function ForgotPasswordPage() {
         setError(null);
 
         try {
+            const returnTo = guardianReturnPath(new URLSearchParams(window.location.search).get("redirectTo"));
+            const callback = new URL("/auth/callback", window.location.origin);
+            callback.searchParams.set("next", returnTo ? `/auth/update-password?redirectTo=${encodeURIComponent(returnTo)}` : "/auth/update-password");
             const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/auth/update-password`,
+                redirectTo: callback.href,
             });
 
             if (error) throw error;
