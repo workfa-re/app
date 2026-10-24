@@ -34,6 +34,7 @@ const schemaNames = [
   "../../database/migrations/20261024105251_guardian_release_readiness.sql",
   "../../database/migrations/20261024105853_workfare_pay_live_runtime.sql",
   "../../database/migrations/20261024112104_workfare_pay_guardian_kyc.sql",
+  "../../database/migrations/20261024120114_workfare_pay_foreign_key_indexes.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"

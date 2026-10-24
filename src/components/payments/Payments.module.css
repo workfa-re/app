@@ -12,7 +12,7 @@
 .header { margin-bottom: 28px; }
 .header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 36px); line-height: 1.2; font-weight: 600; letter-spacing: -.045em; text-wrap: balance; }
 .header > p { margin: 8px 0 0; color: var(--app-muted); font-size: 16px; line-height: 1.6; text-wrap: pretty; }
-.hero { position: relative; isolation: isolate; display: flex; align-items: center; min-height: 270px; padding: 38px 42px; border-radius: 28px; overflow: hidden; background: #dedede; }
+.hero { position: relative; isolation: isolate; display: flex; align-items: center; min-height: 340px; padding: 38px 42px; border-radius: 28px; overflow: hidden; background: #ededed; }
 .heroCopy { position: relative; z-index: 1; max-width: 55%; pointer-events: none; }
 .hero h1 { font-size: clamp(36px, 5vw, 64px); line-height: 1.03; letter-spacing: -.055em; }
 .heroCopy > p { margin: 12px 0 0; font-size: clamp(14px, 1.7vw, 18px); line-height: 1.5; color: var(--app-ink); text-wrap: pretty; }
@@ -127,12 +127,12 @@
     .back { margin-bottom: 17px; }
     .header { margin-bottom: 23px; }
     .header > p { font-size: 14px; }
-    .hero { min-height: 270px; padding: 27px 24px 145px; align-items: flex-start; border-radius: 25px; }
+    .hero { min-height: 340px; padding: 27px 24px 230px; align-items: flex-start; border-radius: 25px; }
     .heroCopy { max-width: 100%; }
     .hero h1 { font-size: clamp(33px, 9.6vw, 42px); }
     .heroCopy > p { margin-top: 9px; font-size: 14px; }
     .hero .environment { margin-top: 8px; font-size: 10px; }
-    .motionVisual { top: 108px; mask-image: linear-gradient(to bottom, transparent, #000 34px); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34px); }
+    .motionVisual { inset: auto 0 0 auto; width: 145%; height: 225px; mask-image: linear-gradient(to bottom, transparent, #000 28px); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px); }
     .motionVisual > img,.motionVideo { object-position: right center; }
     .motionToggle { right: 12px; bottom: 11px; }
     .surface { padding: 22px; border-radius: 28px; }

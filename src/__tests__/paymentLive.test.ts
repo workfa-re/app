@@ -26,13 +26,29 @@ beforeEach(()=>{
 });
 afterEach(()=>vi.unstubAllEnvs());
 describe("strict production payment isolation",()=>{
- it("accepts only the explicit production project/origin and exposes no key",()=>{
-  expect(requirePaymentRuntime(live)).toEqual({mode:"live",origin:"https://app.workfa.re",platformAccountRef:"acct_fixturePlatform"});
-  expect(inspectPaymentsConfiguration(live)).toMatchObject({status:"live",livePaymentsEnabled:true});
-  expect(JSON.stringify(inspectPaymentsConfiguration(live))).not.toContain("rk_live");
+ it.each(["rk_live_fixture","sk_live_fixture"])("accepts an explicit private live credential with the production project/origin and exposes no key (%s)",key=>{
+  const environment={...live,STRIPE_SECRET_KEY:key};
+  expect(requirePaymentRuntime(environment)).toEqual({mode:"live",origin:"https://app.workfa.re",platformAccountRef:"acct_fixturePlatform"});
+  expect(inspectPaymentsConfiguration(environment)).toMatchObject({status:"live",livePaymentsEnabled:true});
+  expect(JSON.stringify(inspectPaymentsConfiguration(environment))).not.toContain(key);
+  expect(JSON.stringify(requirePaymentRuntime(environment))).not.toContain(key);
  });
- it.each([{WORKFARE_PAY_LIVE_ENABLED:"disabled"},{STRIPE_SECRET_KEY:"sk_live_fixture"},{STRIPE_SECRET_KEY:"rk_test_fixture"},{STRIPE_SECRET_KEY:""},{APP_ORIGIN:"http://app.workfa.re"},{APP_ORIGIN:"https://127.0.0.1"},{APP_ORIGIN:"https://localhost"},{APP_ORIGIN:"https://app.workfa.re/other"},{APP_ORIGIN:"https://app.workfa.re?redirect=1"},{WORKFARE_PAY_LIVE_PROJECT_REF:"bbbbbbbbbbbbbbbbbbbb"},{SUPABASE_URL:"https://bbbbbbbbbbbbbbbbbbbb.supabase.co"},{NEXT_PUBLIC_SUPABASE_URL:"https://bbbbbbbbbbbbbbbbbbbb.supabase.co"},{WORKFARE_PAY_LIVE_PLATFORM_ACCOUNT:"not-account"},{WORKFARE_DEMO_ENABLED:"true"},{NEXT_PUBLIC_WORKFARE_DEMO_ENABLED:"true"},{WORKFARE_DEMO_MODE:"local"},{WORKFARE_DEMO_PROJECT_REF:"local"},{WORKFARE_DEMO_LOCAL_URL:"http://localhost:55321"}])("fails closed for mixed or incomplete live configuration (%j)",patch=>{
+ it.each([{WORKFARE_PAY_LIVE_ENABLED:"disabled"},{STRIPE_SECRET_KEY:"sk_test_fixture"},{STRIPE_SECRET_KEY:"rk_test_fixture"},{STRIPE_SECRET_KEY:""},{APP_ORIGIN:"http://app.workfa.re"},{APP_ORIGIN:"https://127.0.0.1"},{APP_ORIGIN:"https://localhost"},{APP_ORIGIN:"https://app.workfa.re/other"},{APP_ORIGIN:"https://app.workfa.re?redirect=1"},{WORKFARE_PAY_LIVE_PROJECT_REF:"bbbbbbbbbbbbbbbbbbbb"},{SUPABASE_URL:"https://bbbbbbbbbbbbbbbbbbbb.supabase.co"},{NEXT_PUBLIC_SUPABASE_URL:"https://bbbbbbbbbbbbbbbbbbbb.supabase.co"},{WORKFARE_PAY_LIVE_PLATFORM_ACCOUNT:"not-account"},{WORKFARE_DEMO_ENABLED:"true"},{NEXT_PUBLIC_WORKFARE_DEMO_ENABLED:"true"},{WORKFARE_DEMO_MODE:"local"},{WORKFARE_DEMO_PROJECT_REF:"local"},{WORKFARE_DEMO_LOCAL_URL:"http://localhost:55321"}])("fails closed for mixed or incomplete live configuration (%j)",patch=>{
   expect(()=>requirePaymentRuntime({...live,...patch})).toThrow();
+ });
+ it.each(["sk_test_fixture","pk_live_fixture","sk_live_","rk_live_","sk_live_fixture invalid","rk_live_fixture\n"])("rejects a malformed or non-server live credential (%j)",key=>{
+  expect(()=>requirePaymentRuntime({...live,STRIPE_SECRET_KEY:key})).toThrow();
+ });
+ it.each(["rk_live_fixture","sk_live_fixture"])("does not let the server credential bypass platform verification (%s)",async key=>{
+  api.account.mockResolvedValue({id:"acct_other",country:"DE"});
+  await expect(createStripeSandboxAdapter({...live,STRIPE_SECRET_KEY:key}).createCustomer(user,"operation")).rejects.toMatchObject({code:"stripe_platform_mismatch",status:503});
+  expect(api.createCustomer).not.toHaveBeenCalled();
+ });
+ it("keeps production opt-in and project isolation mandatory for a standard live credential",()=>{
+  const environment={...live,STRIPE_SECRET_KEY:"sk_live_fixture"};
+  for(const patch of [{WORKFARE_PAY_LIVE_ENABLED:"disabled"},{WORKFARE_PAY_LIVE_PROJECT_REF:"bbbbbbbbbbbbbbbbbbbb"},{APP_ORIGIN:"http://localhost:3000"},{WORKFARE_DEMO_ENABLED:"true"}]){
+   expect(()=>requirePaymentRuntime({...environment,...patch})).toThrow();
+  }
  });
  it("requires matching live publishable keys and independently enables real orders",()=>{
   expect(stripePublishableKey(live)).toBe(live.STRIPE_PUBLISHABLE_KEY);

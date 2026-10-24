@@ -1,7 +1,7 @@
 export const PAYMENT_PRODUCT_NAME = "Workfare Pay" as const;
 
 export type PaymentsEnvironment = Readonly<Record<string, string | undefined>>;
-export type PaymentsConfigurationIssue = "sandbox_only" | "missing_test_key" | "live_key_forbidden" | "invalid_test_key" | "live_not_enabled" | "restricted_live_key_required";
+export type PaymentsConfigurationIssue = "sandbox_only" | "missing_test_key" | "live_key_forbidden" | "invalid_test_key" | "live_not_enabled" | "live_server_key_required";
 export type PaymentsConfiguration = Readonly<{
     productName: typeof PAYMENT_PRODUCT_NAME;
     status: "disabled" | "invalid" | "sandbox" | "live";
@@ -19,7 +19,7 @@ export function inspectPaymentsConfiguration(environment: PaymentsEnvironment = 
     if (mode === "disabled") return { ...base, status: "disabled", issues: [] };
     if (mode === "live") {
         if (environment.WORKFARE_PAY_LIVE_ENABLED !== "enabled") return { ...base, status: "invalid", issues: ["live_not_enabled"] };
-        if (!key || !/^rk_live_[a-zA-Z0-9]+$/.test(key)) return { ...base, status: "invalid", issues: ["restricted_live_key_required"] };
+        if (!key || !/^(?:rk|sk)_live_[a-zA-Z0-9]+$/.test(key)) return { ...base, status: "invalid", issues: ["live_server_key_required"] };
         return { ...base, status: "live", issues: [], livePaymentsEnabled: true };
     }
     if (mode !== "sandbox") return { ...base, status: "invalid", issues: ["sandbox_only"] };

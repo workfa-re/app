@@ -117,6 +117,7 @@ and follow the release path first.
 | `20261024105251_guardian_release_readiness.sql` | Publishes the family workflow only after the complete required schema is present; old-schema compatibility is deliberately narrow |
 | `20261024105853_workfare_pay_live_runtime.sql` | Adds independently gated live setup and payments, a 5% gross service tariff, and mode-bound financial records; all installation defaults remain inactive |
 | `20261024112104_workfare_pay_guardian_kyc.sql` | Binds a youth-owned payout account to the actual authenticated parent, current signed consent and immutable identities; Stripe verification and terms remain required |
+| `20261024120114_workfare_pay_foreign_key_indexes.sql` | Covers financial event, application and job foreign-key lookups without changing financial records or enabling payments |
 
 The buyer and recipient gates use separate explicit user cohorts. Sandbox
 membership additionally requires a live seeded local demo visit, matching

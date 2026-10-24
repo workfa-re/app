@@ -44,13 +44,14 @@ export function PaymentMotion() {
 
     return <div ref={container} className={styles.motion}>
         <div className={styles.motionVisual} aria-hidden="true">
-            <Image src="/media/pay/workfare-pay-glass-light.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterLight} />
-            <Image src="/media/pay/workfare-pay-glass-dark.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterDark} />
+            <Image src="/media/pay/workfare-pay-bridge-v2-light.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterLight} />
+            <Image src="/media/pay/workfare-pay-bridge-v2-dark.jpg" alt="" fill sizes="(max-width: 600px) 100vw, 1100px" className={styles.posterDark} />
             <video ref={video} key={theme} muted playsInline loop preload="none" tabIndex={-1}
-                src={isHydrated ? `/media/pay/workfare-pay-glass-${theme}.mp4` : undefined}
+                src={isHydrated && (playing || readyTheme === theme) ? `/media/pay/workfare-pay-bridge-loop-v2-${theme}.mp4` : undefined}
+                poster={`/media/pay/workfare-pay-bridge-v2-${theme}.jpg`} onError={() => { setReadyTheme(null); setPlaying(false); }}
                 onLoadedData={() => setReadyTheme(theme)} className={styles.motionVideo} data-ready={readyTheme === theme} />
         </div>
-        <button type="button" className={styles.motionToggle} aria-label={playing ? "Animation pausieren" : "Animation abspielen"}
+        <button type="button" className={styles.motionToggle} aria-pressed={playing} aria-label={playing ? "Animation pausieren" : "Animation abspielen"}
             onClick={() => setPlaying(value => !value)}>{playing ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}</button>
     </div>;
 }

@@ -52,6 +52,10 @@ try {
   assert.equal(await json("SELECT to_json(count(*)::int) FROM payment_private.customers"), 0);
   assert.equal(await json("SELECT to_json(count(*)::int) FROM public.guardian_consents"), 0);
   assert.equal(await json("SELECT to_json(count(*)::int) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('payment_private','guardian_private') AND c.relkind='r' AND NOT c.relrowsecurity"), 0);
+  assert.equal(await json(`SELECT to_json(count(*)::int) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
+    WHERE n.nspname='payment_private' AND c.contype='f' AND NOT EXISTS(
+      SELECT FROM pg_index i WHERE i.indrelid=c.conrelid AND i.indisvalid AND i.indpred IS NULL
+        AND (i.indkey::smallint[])[0:cardinality(c.conkey)-1] @> c.conkey)`), 0);
   console.log(`Production-shaped rollout: ${files.length} migrations applied atomically and rolled back without demo schema; inactive defaults and private RLS verified.`);
 } finally {
   await sql(docker, `DROP DATABASE IF EXISTS ${database} WITH (FORCE);`);
