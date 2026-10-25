@@ -141,10 +141,11 @@
 .utilityGroup.utilityGroup { padding: 6px 10px; margin-top: 20px; }
 .stack > .utilityGroup { margin-top: 0; }
 .utilitySection { position: relative; isolation: isolate; min-width: 0; border-radius: 24px; }
+.utilityGroup :is(details,a).utilitySection { border-radius: 24px 24px 0 0; }
 .utilityGroup :is(details,a).utilitySection::before { content: ""; position: absolute; z-index: -1; inset: -8px 0 0; border-radius: inherit; pointer-events: none; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow),0 -4px 12px rgb(0 0 0 / .025); backdrop-filter: var(--app-glass-filter); -webkit-backdrop-filter: var(--app-glass-filter); }
-.utilityGroup :is(details,a).utilitySection::after { content: ""; position: absolute; inset: -8px 0 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite: exclude; -webkit-mask-composite: xor; }
+.utilityGroup :is(details,a).utilitySection::after { content: ""; position: absolute; inset: -8px 0 0; padding: 1px 1px 0; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite: exclude; -webkit-mask-composite: xor; }
 .utilityGroup :is(details,a).utilitySection:first-child::before,.utilityGroup :is(details,a).utilitySection:first-child::after { top: 0; }
-.utilityGroup > .questions { margin-top: 8px; border-top: 1px solid color-mix(in srgb,var(--app-ink) 14%,transparent); border-radius: 0 0 24px 24px; }
+.utilityGroup > details.questions { margin-top: 8px; border-top: 1px solid color-mix(in srgb,var(--app-ink) 14%,transparent); border-radius: 0 0 24px 24px; }
 .utilityGroup > .questions::before,.utilityGroup > .questions::after { display: none; }
 .utilityLoading { margin: 0; padding: 25px 14px; color: var(--app-muted); font-size: 13px; }
 .planEntry { color: var(--app-ink); text-decoration: none; }

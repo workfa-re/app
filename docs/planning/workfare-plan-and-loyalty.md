@@ -1,6 +1,6 @@
 # Workfare Plan, Gebühren und die nächste Produktphase
 
-Entscheidungsstand: 25.10.2026. Workfare Plan und der neue Tarif sind als Umsetzung vorgesehen; tatsächliche Freischaltungen und Tests stehen im zugehörigen Release-Nachweis. Geplante Vorteile werden nicht als bereits verkauft dargestellt.
+Entscheidungsstand: 25.10.2026. Workfare Plan und der neue Tarif sind freigegeben; tatsächliche Freischaltungen und Tests stehen im zugehörigen Release-Nachweis. Die aktuelle UI-Abnahme und die nächsten Umsetzungsschritte sind unten festgehalten. Geplante Vorteile werden nicht als bereits verkauft dargestellt.
 
 **Aktualisierte Freigabe:** Deutsche Regelbesteuerung mit 19 % wurde bestätigt. Abo und neuer Bruttotarif sind seit 25.10.2026, 15:13:03 MEZ live freigegeben. 5,90 € Monatsbeitrag enthalten 0,94 € Umsatzsteuer. Details und verbleibende Aussteller-/Gebührenbuchhaltungsaufgaben stehen im [Freigabenachweis](../releases/2026-10-25-workfare-plan-vat-release.md).
 
@@ -26,9 +26,9 @@ Beide Prozentanteile werden je Job einzeln auf Cent gerundet. Dadurch kann die S
 | --- | ---: | ---: | --- |
 | Ein Job mit 17 € Vergütung | 2,53 € | 7,41 € | Einzelzahlung ist 4,88 € günstiger |
 | Sechs Jobs mit jeweils 17 € | 15,18 € | 14,96 € | Plan spart 0,22 € |
-| Vier Jobs mit jeweils 50 € | 25,96 € | 19,86 € | Plan spart 6,10 € |
+| Vier Jobs mit jeweils 34 € | 18,28 € | 16,02 € | Plan spart 2,26 € |
 
-Die Vergütungen selbst sind in beiden Varianten identisch und nicht in diesen Gebührenvergleich eingerechnet. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt; die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Der Rechner auf der Abo-Seite zeigt ein bewusst kleines Beispiel: ein Slider für die Jobzahl, jeweils 50 € Vergütung. Er enthält den Monatsbeitrag und zeigt auch einen möglichen Mehrpreis. Keine künstliche Ersparnis oder pauschale Behauptung „50 % weniger Gebühren“, weil der feste Anteil bestehen bleibt.
+Die Tabelle vergleicht Gebühren einschließlich Monatsbeitrag; die Vergütung ist in beiden Varianten identisch. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt; die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Die Abo-Seite verwendet ein greifbares Beispiel: 34 € pro Job, entsprechend zwei Stunden zu 17 €. Ein einziger Slider bestimmt die Jobzahl im Monat. Die beiden angezeigten Monatsbeträge enthalten die gesamte Vergütung, alle Servicegebühren und beim Plan die 5,90 € Monatsbeitrag. Bei vier Jobs ergeben sich 154,28 € ohne Plan und 152,02 € mit Plan. Auch ein Mehrpreis bei geringer Nutzung bleibt sichtbar. Die Hauptfläche nennt unmittelbar 12 % beziehungsweise 6 % zuzüglich jeweils 0,49 € je neuem Job; separate, wiederholende Gebührenerklärungen entfallen.
 
 ## Wirtschaftlichkeit für Workfare
 
@@ -63,6 +63,21 @@ Folgerung: Keine unbegrenzten zusätzlichen Geldboni zum Start. Seltene kleine E
 | 8 | **Workfare Konto und Karte:** Verdienst nach tatsächlichem Eingang mit eigener Karte nutzen | Workfare Pay | Lizenziertes Jugendprogramm, Vertrags-/KYC-Freigabe, wirtschaftliches Angebot und operativer Pilot |
 
 Die ersten drei Punkte stehen knapp als „Demnächst“ auf der Plan-Seite. Die zuvor vorgeschlagenen Jobvorlagen, Sammelübersichten und die unspezifische gemeinsame Organisation werden dort nicht weiter beworben. Sie sind bis zum echten Start ausdrücklich nicht Teil des bezahlten Produkts. Kein schnellerer Zugang zu Jugendlichen, keine bezahlte Bevorzugung im Marktplatz und kein Sicherheitsvorteil nur für zahlende Anbieter.
+
+## Nächste Umsetzung nach der UI-Abnahme
+
+Die folgenden Punkte sind geplante Arbeit. Die bestehenden Unit-, Browser- und öffentlichen Zugriffstests ersetzen keinen bestätigten Zahlungseingang auf einem echten Bankkonto.
+
+| Reihenfolge | Arbeit | Ort und fertiges Ergebnis |
+| --- | --- | --- |
+| 1 | **Gemeinsame Abnahme des Geldflusses** | Anbieter → Termin → Preisbestätigung → Bezahlen → Workfare-Pay-Verlauf → tatsächlicher Bankeingang. Die Rollen- und Elternfreigabe separat prüfen; SCA, unterbrochene Zahlung und Erstattung in der Sandbox abnehmen. Echte Zahlungen nur mit vorher festgelegten Beteiligten und Beträgen. |
+| 2 | **Gebührenbelege vervollständigen** | Workfare Pay → Zahlungen und Belege. Aussteller- und Steuerangaben mit dem Live-Stand abgleichen und gegebenenfalls ergänzen; eigene Servicegebühren und Erstattungen vollständig nachvollziehbar verbuchen. Workfare-Gebührenrechnungen zusätzlich zu den Zahlungsbelegen berücksichtigen. |
+| 3 | **Vollständigen Verlauf erschließen** | Transaktionshistorie → Zeitraum, Status und weitere Seiten. Empfänger sehen heute bis zu zehn jüngste Bewegungen, Anbieter bis zu zwanzig je Bereich. Den begrenzten Ausschnitt klar vom Gesamtverdienst trennen. |
+| 4 | **Familienansicht abnehmen** | Familienbereich → mehrere Kinder, Jobs, Termine und erlaubte Zahlungseinblicke. Widerruf und Volljährigkeitswechsel prüfen; Elternfreigabe und Bankverbindung des Jugendlichen bleiben getrennt. |
+| 5 | **Benachrichtigungen zustellen** | Einstellungen → Benachrichtigungen. Bestehende In-App-/Chat-Ereignisse mit optionalem Push und gezielten wichtigen SMS verbinden; Einwilligung, bestätigtes Ziel, doppelte Zustellung und Kostenlimit berücksichtigen. |
+| 6 | **Tatsächlichen Plan-Nutzen zeigen** | Workfare Plan → bereits erlassene Gebühren aus bezahlten Jobs. Erstattungen und bestehende Preisstände einbeziehen; keine Prognose als erzielte Ersparnis ausgeben. |
+
+Danach folgen die konkret geplanten Einsatzorte, Haushaltsbudget und ein begrenztes Treueprogramm. Konto und Karte bleiben ein eigenes Partnerprojekt und erhalten erst nach bestätigtem Modell einen verbindlichen Starttermin.
 
 ## Vorschlag für ein ruhiges Treueprogramm
 

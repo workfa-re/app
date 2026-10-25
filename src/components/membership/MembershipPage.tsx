@@ -108,7 +108,6 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
     const offer = snapshot?.offer, membership = snapshot?.membership;
     const entitled = membership?.entitled === true;
     const PriceTag = entitled ? "p" : "h2";
-    const unavailable = !snapshot || blocked;
     const contractQuery = membership?.contractReference && snapshot?.manageAvailable ? `?contract=${encodeURIComponent(membership.contractReference)}` : "";
     useEffect(() => {
         if (!confirmation && !hadConfirmation.current) return;
@@ -135,8 +134,9 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
                 {loading ? <div className={styles.loading} role="status"><LoaderCircle size={20} className={styles.spinner} aria-hidden="true" />Dein Plan wird geladen …</div> : offer && membership ? <>
                     {entitled && <div className={styles.planHeading}><h2 id={title}>{membership.cancelAtPeriodEnd ? "Dein Plan endet" : "Dein Plan ist aktiv"}</h2><span className={`app-glass-control ${styles.statusIcon}`} aria-hidden="true"><Check size={18} /></span></div>}
                     <PriceTag id={!entitled ? title : undefined} className={styles.price}><strong>{money.format(offer.priceCents / 100)}</strong><span>/ Monat</span></PriceTag>
-                    <p className={styles.rate}>{percent(offer.standardRateBps - offer.memberRateBps)} Prozentpunkte weniger bei neuen Jobs.</p>
-                    <dl className={styles.comparison}><div><dt>Ohne Abo</dt><dd>{percent(offer.standardRateBps)} % + {money.format(offer.fixedFeeCents / 100)}<span>je Job</span></dd></div><div data-member="true"><dt>Mit {offer.name}</dt><dd>{percent(offer.memberRateBps)} % + {money.format(offer.fixedFeeCents / 100)}<span>je Job</span></dd></div></dl>
+                    <p className={styles.rate}>Servicegebühr je neuem Job</p>
+                    <dl className={styles.comparison}><div><dt>Ohne Plan</dt><dd>{percent(offer.standardRateBps)} %<span>+ {money.format(offer.fixedFeeCents / 100)} je Job</span></dd></div><div data-member="true"><dt>Mit Plan</dt><dd>{percent(offer.memberRateBps)} %<span>+ {money.format(offer.fixedFeeCents / 100)} je Job</span></dd></div></dl>
+                    {!blocked && <MembershipCalculator offer={offer} />}
                     {snapshot.kind !== "live" && <p className={styles.environment}>{snapshot.kind === "sandbox" ? "Stripe-Testbetrieb · Kein Echtgeld" : "Vorschau · Keine Buchung möglich"}</p>}
                     {entitled ? <>
                         {membership.currentPeriodEnd && <div className={styles.period}><CalendarDays size={18} aria-hidden="true" /><span>{membership.cancelAtPeriodEnd ? "Aktiv bis" : "Nächste Verlängerung am"} <strong><time dateTime={membership.currentPeriodEnd}>{date.format(new Date(membership.currentPeriodEnd))}</time></strong></span></div>}
@@ -156,11 +156,9 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
                         <p>{confirmation === "cancel" ? <>Deine Vorteile bleiben {membership.currentPeriodEnd ? <>bis zum {date.format(new Date(membership.currentPeriodEnd))}</> : "bis zum Ende des bezahlten Zeitraums"} aktiv. Danach nutzt du Workfare weiter ohne Abo.</> : <>Die Kündigung wird zurückgenommen. Dein Plan verlängert sich wieder für {money.format(offer.priceCents / 100)} pro Monat.</>}</p>
                         <div className={styles.confirmButtons}><button type="button" className={`app-glass-control ${styles.button}`} disabled={!!busy} onClick={() => onAction(confirmation)}>{busy === confirmation && <LoaderCircle size={16} className={styles.spinner} />}{confirmation === "cancel" ? "Kündigung bestätigen" : "Kostenpflichtig fortsetzen"}</button><button type="button" className={styles.quiet} disabled={!!busy} onClick={() => onConfirmation(null)}>Zurück</button></div>
                     </section>}
-                    <details className={styles.feeInfo}><summary>Gebühren erklärt<ChevronDown size={15} aria-hidden="true" /></summary><p>Der allgemeine Grundanteil von {percent(offer.memberRateBps)} % und {money.format(offer.fixedFeeCents / 100)} pro Job bleibt für die Abwicklung bestehen. Er gilt unabhängig von der gewählten Zahlungsart. Bestehende Jobs und bereits vorgeschlagene Preise ändern sich durch das Abo nicht.</p></details>
                     {membership.contractReference && snapshot.manageAvailable && <details className={styles.feeInfo}><summary>Vertrag & Bedingungen<ChevronDown size={15} aria-hidden="true" /></summary><div className={styles.contract}><span>Deine Vertragsreferenz</span><div><code>{membership.contractReference}</code><button type="button" className={`app-glass-control ${styles.round}`} aria-label="Vertragsreferenz kopieren" onClick={() => { if (!navigator.clipboard?.writeText) { setCopyResult("Bitte markiere und kopiere deine Vertragsreferenz."); return; } void navigator.clipboard.writeText(membership.contractReference!).then(() => setCopyResult("Vertragsreferenz kopiert."), () => setCopyResult("Bitte markiere und kopiere deine Vertragsreferenz.")); }}><Copy size={16} aria-hidden="true" /></button></div>{copyResult && <p role="status">{copyResult}</p>}<Link href="/legal/workfare-plan" prefetch={false}>Bedingungen und Widerruf<ArrowUpRight size={14} aria-hidden="true" /></Link><Link href={`/membership/withdraw${contractQuery}`} prefetch={false}>Vertrag widerrufen<ArrowRight size={14} aria-hidden="true" /></Link></div></details>}
                 </> : !error ? <p className={styles.unavailable}>Dein Angebot ist gerade nicht verfügbar.</p> : null}
             </section>
-            {offer && !unavailable && <MembershipCalculator offer={offer} />}
             <details className={styles.future}><summary className={styles.disclosure}><span>Demnächst</span><ChevronDown size={16} aria-hidden="true" /></summary><ul><li><MapPin size={18} aria-hidden="true" /><strong>Mehrere Einsatzorte</strong><span>Geplant</span></li><li><House size={18} aria-hidden="true" /><strong>Gemeinsames Haushaltsbudget</strong><span>Geplant</span></li><li><Split size={18} aria-hidden="true" /><strong>Zahlung aufteilen</strong><span>Geplant</span></li></ul><p>Geplant. Noch nicht Bestandteil deines Abos.</p></details>
         </div>
         <footer className={styles.footer}><nav className={styles.contractLinks} aria-label="Vertrag verwalten"><Link href={`/membership/cancel${contractQuery}`} prefetch={false}>Verträge hier kündigen</Link><Link href={`/membership/withdraw${contractQuery}`} prefetch={false}>Vertrag widerrufen</Link></nav><PaymentProviderBrand kind={snapshot?.kind} /></footer>
@@ -170,15 +168,17 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
 export function MembershipCalculator({ offer }: { offer: MembershipOffer }) {
     const id = useId();
     const [jobs, setJobs] = useState(4);
-    const example = membershipExample(5000, jobs, offer)!;
+    const example = membershipExample(3400, jobs, offer)!;
     return <details className={styles.calculator}>
-        <summary className={styles.disclosure}><span>Lohnt sich der Plan?</span><ChevronDown size={16} aria-hidden="true" /></summary>
-        <div className={styles.calculatorBody}><p className={styles.exampleAssumption}>Beispiel: je 50 € Vergütung</p>
-        <label className={styles.sliderLabel} htmlFor={`${id}-jobs`}><span>Jobs pro Monat</span><output htmlFor={`${id}-jobs`}>{jobs}</output></label>
-        <input className={styles.slider} id={`${id}-jobs`} type="range" min="0" max="12" step="1" value={jobs} onChange={event => setJobs(Number(event.target.value))} aria-valuetext={`${jobs} ${jobs === 1 ? "Job" : "Jobs"} pro Monat, jeweils 50 Euro Vergütung`} />
-        <dl className={styles.exampleRows}><div><dt>Ohne Abo</dt><dd>{money.format(example.without / 100)}</dd></div><div><dt>Mit Plan<span>inkl. {money.format(offer.priceCents / 100)} Monatsbeitrag</span></dt><dd>{money.format(example.withPlan / 100)}</dd></div></dl>
-        <p className={styles.saving} role="status" aria-live="polite"><strong>{money.format(Math.abs(example.netSaving) / 100)}</strong><span>{example.netSaving > 0 ? "günstiger mit Plan" : example.netSaving < 0 ? "günstiger ohne Abo" : "Unterschied"}</span></p>
-        <p className={styles.calculationNote}>Nur Servicegebühren und Monatsbeitrag. Vergütung zusätzlich. Je Job auf Cent gerundet.</p>
+        <summary className={styles.disclosure}><span>Gebühren vergleichen</span><ChevronDown size={16} aria-hidden="true" /></summary>
+        <div className={styles.calculatorBody}>
+            <div className={styles.exampleAssumption}><strong>34 € pro Job</strong><span>Beispiel: 2 Stunden à 17 €</span></div>
+            <label className={styles.sliderLabel} htmlFor={`${id}-jobs`}><span>Jobs im Monat</span><output htmlFor={`${id}-jobs`}>{jobs}</output></label>
+            <input className={styles.slider} id={`${id}-jobs`} type="range" min="0" max="12" step="1" value={jobs} onChange={event => setJobs(Number(event.target.value))} aria-valuetext={`${jobs} ${jobs === 1 ? "Job" : "Jobs"} im Monat mit jeweils 34 Euro Vergütung`} />
+            <p className={styles.totalLabel}>Dein Gesamtbetrag im Monat</p>
+            <dl className={styles.exampleRows}><div><dt>Ohne Plan</dt><dd>{money.format((example.totalEarnings + example.without) / 100)}</dd></div><div><dt>Mit Plan</dt><dd>{money.format((example.totalEarnings + example.withPlan) / 100)}</dd></div></dl>
+            <p className={styles.saving} role="status" aria-live="polite"><strong>{money.format(Math.abs(example.netSaving) / 100)}<span> / Monat</span></strong><span>{example.netSaving > 0 ? "günstiger mit Plan" : example.netSaving < 0 ? "günstiger ohne Plan" : "Kein Preisunterschied"}</span></p>
+            <p className={styles.calculationNote}>Vergütung und Gebühren sind enthalten. Mit Plan auch der Monatsbeitrag von {money.format(offer.priceCents / 100)}. Vereinbarte Preise und frühere Tarife bleiben unverändert.</p>
         </div>
     </details>;
 }

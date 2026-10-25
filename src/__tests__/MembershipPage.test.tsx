@@ -49,7 +49,7 @@ describe("membership page content", () => {
         expect(html).toContain("5,90"); expect(html).toContain("Zahlungspflichtig abonnieren");
         expect(html).toContain("Monatlich kündbar, automatische Verlängerung");
         expect(html).not.toMatch(/Für Jobanbieter|Alle Jobs und Funktionen|Ein Beitrag\. Jeden Monat\.|Endpreis/);
-        expect(html).toContain("Prozentpunkte weniger"); expect(html).not.toContain("50 % günstiger");
+        expect(html).toContain("Servicegebühr je neuem Job"); expect(html).toContain("12 %"); expect(html).toContain("6 %"); expect(html).not.toMatch(/Prozentpunkte|Grundanteil|Gebühren erklärt|Lohnt sich der Plan/);
         expect(html).toContain('href="/legal/workfare-plan"'); expect(html).toContain('href="/membership/cancel"'); expect(html).toContain('href="/membership/withdraw"');
         expect(html).toContain("14-tägiges Widerrufsrecht bleibt bestehen");
         expect(html).toMatch(/type="checkbox"/); expect(html).not.toMatch(/type="checkbox"[^>]*checked=""/);
@@ -94,7 +94,9 @@ describe("membership page content", () => {
         expect(html).toMatch(/^<details\b/); expect(html).not.toMatch(/^<details\b[^>]*\bopen=/);
         expect(html).toContain('type="range"'); expect(html.match(/<input/g)).toHaveLength(1);
         expect(html).toContain('min="0"'); expect(html).toContain('max="12"');
-        expect(html).toContain("Beispiel: je 50 € Vergütung"); expect(html).toContain("Jobs pro Monat");
-        expect(html).toContain("6,10"); expect(html).toContain("Monatsbeitrag"); expect(html).toContain("günstiger mit Plan");
+        expect(html).toContain("34 € pro Job"); expect(html).toContain("Beispiel: 2 Stunden à 17 €"); expect(html).toContain("Jobs im Monat");
+        expect(html).toContain("Dein Gesamtbetrag im Monat"); expect(html).toContain("154,28"); expect(html).toContain("152,02");
+        expect(html).toContain("2,26"); expect(html).toContain("Monatsbeitrag von"); expect(html).toContain("günstiger mit Plan");
+        expect(html).not.toMatch(/Gebühren erklärt|Lohnt sich der Plan|50 € Vergütung|Grundanteil/);
     });
 });
