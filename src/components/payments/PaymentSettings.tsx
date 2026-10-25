@@ -16,7 +16,7 @@ import { PaymentMotion } from "./PaymentMotion";
 import { PaymentEnvironment, type PaymentSurfaceKind } from "./PaymentEnvironment";
 import styles from "./Payments.module.css";
 
-const BuyerAccountPanel = dynamic(() => import("./BuyerAccountPanel"), { loading: () => <section className={styles.surface}><p className={styles.loading} role="status">Zahlungen werden geladen …</p></section> });
+const BuyerAccountPanel = dynamic(() => import("./BuyerAccountPanel"), { loading: () => <div className={styles.utilitySection}><p className={styles.utilityLoading} role="status">Zahlungen werden geladen …</p></div> });
 
 type Props = {
     snapshot: PaymentSettingsSnapshot;
@@ -30,7 +30,7 @@ type Props = {
 };
 
 export function PaymentQuestions({ recipient, kind }: { recipient: boolean; kind: PaymentSurfaceKind }) {
-    return <details className={styles.questions}>
+    return <details className={`${styles.questions} ${styles.utilitySection}`}>
         <summary className={styles.settingsRow}><span className={`app-glass-control ${styles.rowIcon}`}><CircleHelp size={21} aria-hidden="true" /></span><span>Fragen zu Workfare Pay</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" /></summary>
         <div className={styles.answers}>
             <h3>{recipient ? "Wann kommt meine Vergütung an?" : "Wird beim Einrichten etwas abgebucht?"}</h3>
@@ -76,20 +76,29 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
             {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}
             {provider ? <>
                 <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
-                {snapshot.featureEnabled || snapshot.setupEnabled === true ? <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion}>{questions}</BuyerAccountPanel> : <section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>}
-                <Link href="/app-home/settings/membership" prefetch={false} className={`${styles.surface} ${styles.planEntry}`}>
-                    <span className={`app-glass-control ${styles.planIcon}`} aria-hidden="true"><CalendarRange size={22} strokeWidth={1.5} /></span>
-                    <span className={styles.planCopy}><strong>Gebühren &amp; Abo</strong><span>Der passende Plan für deine Jobs.</span></span>
-                    <ChevronRight size={19} className={styles.rowArrow} aria-hidden="true" />
-                </Link>
-            </> : role === "job_seeker" ? <><RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section></> : <>
-                <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>
+            </> : role === "job_seeker" ? <RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /> : <>
+                <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section>
             </>}
         </div>
-        <section className={`${styles.surface} ${styles.outlook}`} aria-labelledby="pay-account-outlook-title">
-            <span className={`app-glass-control ${styles.outlookIcon}`} aria-hidden="true"><WalletCards size={23} strokeWidth={1.5} /></span>
-            <div className={styles.outlookCopy}><div className={styles.outlookMeta}><span>In Planung</span><span>Ziel: Januar 2027</span></div><h2 id="pay-account-outlook-title">Konto &amp; Karte</h2><p>Wir planen ein eigenes Zahlungskonto mit Workfare Pay Karte. Der Start hängt von einer Partnerfreigabe ab.</p></div>
+        <section className={`${styles.surface} ${styles.utilityGroup}`} aria-label="Workfare Pay verwalten">
+            {provider && <>
+                {(snapshot.featureEnabled || snapshot.setupEnabled === true) && <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion} />}
+                <Link href="/app-home/settings/membership" prefetch={false} className={`${styles.settingsRow} ${styles.utilitySection} ${styles.planEntry}`}>
+                    <span className={`app-glass-control ${styles.rowIcon}`} aria-hidden="true"><CalendarRange size={21} strokeWidth={1.5} /></span>
+                    <span>Gebühren &amp; Abo</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" />
+                </Link>
+            </>}
+            <details className={`${styles.utilitySection} ${styles.outlook}`}>
+                <summary className={styles.settingsRow}><span className={`app-glass-control ${styles.rowIcon}`} aria-hidden="true"><WalletCards size={21} strokeWidth={1.5} /></span><span>Konto &amp; Karte</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" /></summary>
+                <div className={styles.outlookBody}><p>Wir arbeiten an einem eigenen Zahlungskonto mit Workfare Pay Karte. Neuigkeiten findest du hier.</p></div>
+            </details>
+            {questions}
         </section>
-        <footer className={styles.provider}>{kind === "local" ? "Lokaler Test ohne Verbindung zu Stripe" : kind === "disabled" ? <PayWordmark /> : <span>Zahlungsabwicklung durch Stripe</span>}</footer>
+        <footer className={styles.provider}>
+            {kind === "local" ? <span>Lokaler Test ohne Verbindung zu Stripe</span> : kind === "disabled" ? <PayWordmark /> : <>
+                <div className={styles.providerBrand} aria-label="Workfare Pay mit Stripe"><PayWordmark /><span className={styles.providerCross} aria-hidden="true">×</span><span className={styles.stripeWordmark}>stripe</span></div>
+                <a href="https://stripe.com/de" target="_blank" rel="noopener noreferrer" className={styles.providerLink}>Über Stripe<ArrowRight size={13} aria-hidden="true" /></a>
+            </>}
+        </footer>
     </div>;
 }

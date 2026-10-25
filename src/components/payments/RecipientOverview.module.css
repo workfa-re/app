@@ -19,10 +19,7 @@
 .primary dt { font-size: 13px; }
 .numbers .primary dd { margin-top: 8px; font-size: clamp(32px,3.8vw,48px); letter-spacing: -.05em; font-weight: 500; line-height: 1.15; }
 .caption { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; margin-top: 16px; color: var(--app-muted); font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
-.note, .notice { margin: 14px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; text-wrap: pretty; }
-.notice { padding: 11px 13px; border: 1px solid var(--app-panel-rule); border-radius: 15px; }
-.notice p { margin: 0; }
-.notice .textAction { padding-bottom: 0; }
+.note { margin: 14px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; text-wrap: pretty; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 18px; }
 .action { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 11px 20px; border: 0; border-radius: 999px; color: var(--app-accent-ink); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
 .textAction { display: inline-flex; align-items: center; justify-content: flex-start; min-height: 44px; padding: 8px 0; gap: 7px; background: none; border: 0; color: var(--app-accent-ink); font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }

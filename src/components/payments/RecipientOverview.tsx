@@ -17,9 +17,9 @@ const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR
 const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Berlin" });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states: Record<PaymentOrderState, string> = {
-    awaiting_confirmation: "Preis vorgeschlagen", ready: "Preis bestätigt", authorization_pending: "Bestätigung ausstehend",
+    awaiting_confirmation: "Preis vorgeschlagen", ready: "Preis bestätigt", authorization_pending: "Zahlung noch offen",
     authorized: "Vorgemerkt", capture_pending: "In Bearbeitung", paid: "Bezahlt", cancel_pending: "Storno in Bearbeitung",
-    canceled: "Storniert", refund_pending: "Erstattung in Bearbeitung", refunded: "Erstattet", failed: "Nicht bezahlt", review_required: "Wird geprüft",
+    canceled: "Storniert", refund_pending: "Erstattung in Bearbeitung", refunded: "Erstattet", failed: "Nicht bezahlt", review_required: "Zahlung in Klärung",
 };
 const payoutStates = { paid: "Ausgezahlt", pending: "In Vorbereitung", in_transit: "Unterwegs", canceled: "Storniert", failed: "Fehlgeschlagen" };
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -72,7 +72,7 @@ function useRecipientSummary(ownerId: string, view: "full" | "home" = "full", ki
             if (!validRecipientPaymentSummary(value, ownerId) || (kind !== undefined && value.kind !== kind)) throw new Error("unconfirmed_summary");
             setResource({ summary: value, loading: false, error: null });
         } catch {
-            if (mounted.current && ticket === generation.current) setResource({ summary: null, loading: false, error: "Deine Zahlungsübersicht konnte gerade nicht bestätigt werden." });
+            if (mounted.current && ticket === generation.current) setResource({ summary: null, loading: false, error: "Deine Zahlungsübersicht konnte gerade nicht geladen werden." });
         } finally { if (inFlight.current === ticket) inFlight.current = null; }
     }, [ownerId, view, kind]);
     useEffect(() => {
@@ -103,7 +103,6 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
     const fundsTrigger = useRef<HTMLButtonElement>(null);
     const [detailOwner, setDetailOwner] = useState<string | null>(null);
     const showFunds = !!summary && detailOwner === summary.ownerId && !compact;
-    const reviewPayment = summary?.recentPayments.find(payment => payment.state === "review_required");
     function closeFunds() { setDetailOwner(null); fundsTrigger.current?.focus({ preventScroll: true }); }
     return <section className={`${styles.surface}${compact ? ` ${styles.compact}` : ""}`} aria-label={compact ? "Deine Vergütung mit Workfare Pay" : "Deine Zahlungsübersicht"} aria-busy={loading} onPointerMove={followGlassPointer}>
         <div className={styles.heading}>
@@ -123,7 +122,6 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
                 </dl>
                 {!compact && <>
                 {summary.payouts?.inTransitCents !== null && summary.payouts?.inTransitCents !== undefined && summary.payouts.inTransitCents > 0 && <p className={styles.caption}><Amount value={summary.payouts.inTransitCents} /> auf dem Weg zu deinem Bankkonto</p>}
-                {summary.earnings.underReviewCount > 0 && <div className={styles.notice}><p>{summary.earnings.underReviewCount === 1 ? "Eine Zahlung wird" : `${summary.earnings.underReviewCount} Zahlungen werden`} noch geprüft. {summary.earnings.underReviewCount === 1 ? "Der Betrag zählt" : "Diese Beträge zählen"} erst nach Bestätigung zu deinem Verdienst.</p><Link className={styles.textAction} href={reviewPayment ? `/app-home/activities?conversation=${reviewPayment.applicationId}` : "/app-home/activities"}>{reviewPayment ? "Zahlung im Chat ansehen" : "Nachrichten öffnen"}<ArrowRight size={15} aria-hidden="true" /></Link></div>}
                 {!funds && <p className={styles.note}>{summary.fundsUnavailableReason === "minor_review_required" ? "Bankauszahlungen für Minderjährige sind noch nicht freigegeben."
                     : summary.fundsUnavailableReason === "local_simulation" ? "Diese Vorschau enthält kein Bankguthaben."
                     : summary.fundsUnavailableReason === "provider_unavailable" ? "Dein Guthaben bei Workfare Pay konnte gerade nicht geladen werden." : "Dein Auszahlungsstand erscheint nach der Einrichtung."}</p>}
@@ -151,7 +149,7 @@ export function RecipientBalanceDetail({ id, summary, onClose }: { id: string; s
             <div><dt>Für Auszahlung verfügbar</dt><dd><Amount value={funds.availableCents} /></dd></div>
             <div><dt>In Bearbeitung</dt><dd><Amount value={funds.pendingCents} /></dd></div>
         </dl>
-        {funds.pendingCents > 0 && <div className={styles.availabilityCard}><span className={`app-glass-control ${styles.entryIcon}`} aria-hidden="true"><Clock3 size={19} /></span><div><strong>{funds.pendingAvailableAt ? <>Voraussichtlich verfügbar am <time dateTime={funds.pendingAvailableAt}>{date.format(new Date(funds.pendingAvailableAt))}</time></> : "Freigabe wird noch bestätigt"}</strong><p>Diese Zahlungen werden noch verarbeitet. Danach kannst du sie auf deine Bank auszahlen lassen.</p></div></div>}
+        {funds.pendingCents > 0 && <div className={styles.availabilityCard}><span className={`app-glass-control ${styles.entryIcon}`} aria-hidden="true"><Clock3 size={19} /></span><div><strong>{funds.pendingAvailableAt ? <>Voraussichtlich verfügbar am <time dateTime={funds.pendingAvailableAt}>{date.format(new Date(funds.pendingAvailableAt))}</time></> : "Für die Auszahlung in Bearbeitung"}</strong><p>Der Zahlungsanbieter verarbeitet den Betrag. Sobald er verfügbar ist, kannst du ihn auf dein Bankkonto auszahlen.</p></div></div>}
         {!!summary.payouts?.inTransitCents && <div className={styles.transit}><ArrowDownToLine size={17} aria-hidden="true" /><Amount value={summary.payouts.inTransitCents} /><span>auf dem Weg zu deiner Bank</span></div>}
         {funds.bank && <div className={styles.bank}><span className={`app-glass-control ${styles.entryIcon}`} aria-hidden="true"><Landmark size={19} /></span><div><span>Deine Bankverbindung</span><strong>{funds.bank.bankName ?? "Bankkonto"}</strong><small>{funds.bank.country} · •••• {funds.bank.last4}</small></div></div>}
         <PaymentHistory summary={summary} discovery={false} />

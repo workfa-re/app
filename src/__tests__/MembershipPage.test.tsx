@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MEMBERSHIP_DEFAULT_OFFER, type MembershipSnapshot } from "@/lib/payments/subscription-types";
 import { quoteBundleServiceFee } from "@/lib/payments/tariff";
-import { membershipExample, parseMembershipAmount, trustedMembershipUrl, validMembershipSnapshot } from "@/components/membership/membership-display";
+import { membershipExample, trustedMembershipUrl, validMembershipSnapshot } from "@/components/membership/membership-display";
 
 vi.mock("@/components/payments/PaymentMotion", () => ({ PaymentMotion: () => <div aria-hidden="true" /> }));
 vi.mock("@/components/payments/usePaymentOwner", () => ({ PAYMENT_OWNER_CHANGED: "Bitte neu anmelden.", usePaymentOwner: () => ({ isCurrentOwner: () => true, ownerChanged: false }) }));
@@ -26,7 +26,6 @@ describe("Workfare Plan display boundary", () => {
 });
 
 describe("honest plan calculation", () => {
-    it.each([["1", 100], ["17,50", 1750], ["17.5", 1750], [" 50 ", 5000], ["0.99", null], ["1e3", null], ["-10", null], ["10,001", null], ["", null], ["1.000,00", null]])("parses decimal money without floating-point ambiguity: %s", (value, cents) => expect(parseMembershipAmount(String(value))).toBe(cents));
     it.each([100, 125, 1700, 5000, 9834, 9999, 12345])("matches the tariff per job including component rounding at %i cents", amount => {
         const example = membershipExample(amount, 3, MEMBERSHIP_DEFAULT_OFFER)!;
         expect(example.without).toBe(quoteBundleServiceFee(amount, false).grossCents * 3);
@@ -38,7 +37,10 @@ describe("honest plan calculation", () => {
         expect(example.netSaving).toBe(-488);
         expect(example.savedFees).toBe(102);
     });
-    it.each([[100, 0], [100, 101], [100, 1.5], [99, 1], [NaN, 1]])("refuses an invalid monthly example", (amount, jobs) => expect(membershipExample(amount, jobs, MEMBERSHIP_DEFAULT_OFFER)).toBeNull());
+    it("shows the full membership cost when no jobs are paid", () => {
+        expect(membershipExample(5000, 0, MEMBERSHIP_DEFAULT_OFFER)).toMatchObject({ without: 0, withPlan: 590, netSaving: -590, totalEarnings: 0 });
+    });
+    it.each([[100, -1], [100, 101], [100, 1.5], [99, 1], [NaN, 1]])("refuses an invalid monthly example", (amount, jobs) => expect(membershipExample(amount, jobs, MEMBERSHIP_DEFAULT_OFFER)).toBeNull());
 });
 
 describe("membership page content", () => {
@@ -50,7 +52,10 @@ describe("membership page content", () => {
         expect(html).toContain('href="/legal/workfare-plan"'); expect(html).toContain('href="/membership/cancel"'); expect(html).toContain('href="/membership/withdraw"');
         expect(html).toContain("14-tägiges Widerrufsrecht bleibt bestehen");
         expect(html).toMatch(/type="checkbox"/); expect(html).not.toMatch(/type="checkbox"[^>]*checked=""/);
-        expect(html).toContain("Diese Funktionen sind noch nicht verfügbar und nicht Bestandteil deines Abos");
+        expect(html).toContain("Geplant. Noch nicht Bestandteil deines Abos");
+        expect(html).toContain("Mehrere Einsatzorte"); expect(html).toContain("Gemeinsames Haushaltsbudget"); expect(html).toContain("Zahlung aufteilen");
+        expect(html.match(/Demnächst/g)).toHaveLength(3);
+        expect(html).not.toMatch(/Jobvorlagen|Sammelübersichten|Gemeinsam organisieren/);
         expect(html).not.toMatch(/kostenlos testen|Premium|Plus/);
     });
     it("does not expose an enabled purchase for an unavailable offer", () => {
@@ -83,7 +88,10 @@ describe("membership page content", () => {
     });
     it("includes the monthly subscription cost in the example", () => {
         const html = renderToStaticMarkup(<MembershipCalculator offer={MEMBERSHIP_DEFAULT_OFFER} />);
-        expect(html).toMatch(/^<details\b/); expect(html).not.toMatch(/^<details[^>]* open/); expect(html).toContain("<summary");
-        expect(html).toContain("6,10"); expect(html).toContain("Monatsbeitrag"); expect(html).toContain("Bei wenig Nutzung ist die Einzelzahlung günstiger");
+        expect(html).toMatch(/^<section\b/);
+        expect(html).toContain('type="range"'); expect(html.match(/<input/g)).toHaveLength(1);
+        expect(html).toContain('min="0"'); expect(html).toContain('max="12"');
+        expect(html).toContain("Beispiel: je 50 € Vergütung"); expect(html).toContain("Jobs pro Monat");
+        expect(html).toContain("6,10"); expect(html).toContain("Monatsbeitrag"); expect(html).toContain("günstiger mit Plan");
     });
 });

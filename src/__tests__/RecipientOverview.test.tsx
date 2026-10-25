@@ -86,11 +86,11 @@ describe("recipient financial overview", () => {
         expect(html).toContain("-5,00");
     });
 
-    it("excludes disputed amounts from promises and keeps a direct path to the related conversation", () => {
-        const html = render({ ...summary, earnings: { ...summary.earnings, underReviewCents: 4_000, underReviewCount: 1 } });
-        expect(html).toContain("Eine Zahlung wird");
-        expect(html).toContain("erst nach Bestätigung zu deinem Verdienst");
-        expect(html).toContain("Nachrichten öffnen");
+    it("keeps disputed amounts outside earnings without introducing a general confirmation step", () => {
+        const html = render({ ...summary, earnings: { ...summary.earnings, underReviewCents: 4_000, underReviewCount: 1 },
+            recentPayments: [{ ...summary.recentPayments[0], state: "review_required" }] });
+        expect(html).not.toMatch(/Eine Zahlung wird|erst nach Bestätigung|Nachrichten öffnen/);
+        expect(html).toContain("Zahlung in Klärung");
         expect(html).toContain(`href="/app-home/activities?conversation=${applicationId}"`);
         expect(html).not.toContain("105,00");
     });
@@ -169,9 +169,11 @@ describe("recipient overview focus",()=>{
   expect(html).not.toMatch(/geprüft|Nachrichten öffnen|auf dem Weg|In Bearbeitung|Bereits ausgezahlt|Guthaben ansehen|Letzte/);
   expect(html.match(/<dt>/g)).toHaveLength(2);
  });
- it("links a reviewed payment straight to its own conversation",()=>{
+ it("keeps payment clarification on the affected movement and opens its own conversation",()=>{
   const html=render({...summary,earnings:{...summary.earnings,underReviewCount:1,underReviewCents:2000},recentPayments:[{...summary.recentPayments[0],state:"review_required"}]});
-  expect(html).toMatch(new RegExp('href="/app-home/activities\\?conversation='+applicationId+'"[^>]*>Zahlung im Chat ansehen'));
+  const movement=html.match(new RegExp('<a[^>]*href="/app-home/activities\\?conversation='+applicationId+'"[^>]*>[\\s\\S]*?</a>'))?.[0];
+  expect(movement).toContain("Pflanzen versorgen");expect(movement).toContain("Zahlung in Klärung");
+  expect(html).not.toContain("erst nach Bestätigung");
  });
  it("does not invent balance detail when a provider snapshot is unavailable",()=>{
   expect(renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={{...summary,funds:null}} onClose={()=>{}}/>)).toBe("");
@@ -203,6 +205,14 @@ describe("financial response validation", () => {
 });
 
 describe("settlement information inside Workfare",()=>{
+ it("keeps a paid job distinct from later bank availability without requesting another approval",()=>{
+  const html=renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={summary} onClose={()=>{}}/>);
+  expect(html).toContain("Bezahlt");expect(html).toContain("Für die Auszahlung in Bearbeitung");
+  expect(html).toContain("Der Zahlungsanbieter verarbeitet den Betrag.");
+  expect(html).not.toMatch(/Freigabe wird noch bestätigt|erst nach Bestätigung|bestätigen/);
+  expect(html).toMatch(/Für Auszahlung verfügbar<\/dt><dd><span>12,50/);
+  expect(html).toMatch(/In Bearbeitung<\/dt><dd><span>33,00/);
+ });
  it("shows verified availability, bank and movements in a native funds detail",()=>{
   const value={...summary,funds:{...summary.funds!,pendingAvailableAt:"2026-10-28T00:00:00Z",bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur" as const}}};
   const html=renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={value} onClose={()=>{}}/>);

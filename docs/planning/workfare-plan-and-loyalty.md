@@ -26,7 +26,7 @@ Beide Prozentanteile werden je Job einzeln auf Cent gerundet. Dadurch kann die S
 | Sechs Jobs mit jeweils 17 € | 15,18 € | 14,96 € | Plan spart 0,22 € |
 | Vier Jobs mit jeweils 50 € | 25,96 € | 19,86 € | Plan spart 6,10 € |
 
-Die Vergütungen selbst sind in beiden Varianten identisch und nicht in diesen Gebührenvergleich eingerechnet. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt; die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Der Rechner auf der Abo-Seite rechnet die konkrete Nutzung aus. Keine künstliche Ersparnis oder pauschale Behauptung „50 % weniger Gebühren“, weil der feste Anteil bestehen bleibt.
+Die Vergütungen selbst sind in beiden Varianten identisch und nicht in diesen Gebührenvergleich eingerechnet. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt; die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Der Rechner auf der Abo-Seite zeigt ein bewusst kleines Beispiel: ein Slider für die Jobzahl, jeweils 50 € Vergütung. Er enthält den Monatsbeitrag und zeigt auch einen möglichen Mehrpreis. Keine künstliche Ersparnis oder pauschale Behauptung „50 % weniger Gebühren“, weil der feste Anteil bestehen bleibt.
 
 ## Wirtschaftlichkeit für Workfare
 
@@ -51,16 +51,16 @@ Folgerung: Keine unbegrenzten zusätzlichen Geldboni zum Start. Seltene kleine E
 
 | Reihenfolge | Funktion und konkreter Nutzen | Platz | Voraussetzung |
 | --- | --- | --- | --- |
-| 1 | **Angebotsvorlagen:** Ort, Beschreibung und sichere Standardangaben wiederverwenden; Preis und Termin vor jeder Veröffentlichung erneut prüfen | Meine Jobs → Neuer Job | Funktioniert mit einmaligen Jobs; keine automatische Veröffentlichung und keine Rückkehr zu wiederkehrenden Aufträgen |
-| 2 | **Sammelübersicht:** Bezahlt, erstattet und Gebühren eines Monats mit Originalbelegen gemeinsam exportieren | Pay → Zahlungen und Belege | Echte Finanzzustände; Übersicht ausdrücklich kein neu erfundener Steuerbeleg |
-| 3 | **Familienorganisation:** Eigene Haushaltsjobs abgestimmt planen; bestehende Elternfreigaben bleiben ein anderer Berechtigungsbereich | Einstellungen → Familie und bestehende Jobs | Explizite Rollen/Einladungen, keine automatische Chat- oder Finanzfreigabe |
+| 1 | **Mehrere Einsatzorte:** Eigene Aufträge an unterschiedlichen gespeicherten Orten übersichtlich verwalten | Neuer Job → Einsatzort; Einstellungen → Orte | Je Veröffentlichung den richtigen Ort bestätigen; genaue Privatadressen nur berechtigt freigeben |
+| 2 | **Haushaltsbudget:** Ein monatliches Planungsbudget festlegen und die tatsächlichen Ausgaben daran ablesen | Workfare Pay → Budget | Reine Ausgabenplanung, kein vorausbezahltes Guthaben oder Bankkonto; keine zusätzliche Zahlung ohne Zustimmung |
+| 3 | **Zahlungen aufteilen:** Die Kosten eines Haushaltsauftrags bewusst zwischen volljährigen Auftraggebern verteilen | Auftrag → Zahlung | Vorab PSP-Freigabe, klare Zahlungsverantwortung und Rückabwicklung; keine Kürzung der Vergütung oder automatische Belastung anderer Personen |
 | 4 | **Verständlicher Plan-Nutzen:** Tatsächlich bei bezahlten Jobs erlassene Workfare-Anteile zeigen | Mitgliedschaft → Übersicht | Nur belastbare, nicht erstattete Mitgliedstarif-Aufträge; keine hochgerechnete fiktive Ersparnis |
 | 5 | **Push und wichtige SMS:** Terminänderungen und konkreten Handlungsbedarf auf dem gewählten Kanal erhalten | Benachrichtigungseinstellungen | Bestätigte Geräte/Nummern, bewusste Zustimmung, Kostenlimit, Datenminimierung |
 | 6 | **Treuevorteile:** Kleine, finanzierte Vorteile für verlässliche langfristige Nutzung | Einstellungen → Vorteile | Stabiles Zahlungsmodell, Budget und Betrugsschutz; Details unten |
 | 7 | **Bewusste Empfehlungen:** Einen persönlichen Link teilen, freiwillige Teilnahme | Vorteile → Freunde einladen | Kein Kontaktbuch-Upload oder automatischer Werbeversand; qualifizierte erste Zahlung |
 | 8 | **Workfare Konto und Karte:** Verdienst nach tatsächlichem Eingang mit eigener Karte nutzen | Workfare Pay | Lizenziertes Jugendprogramm, Vertrags-/KYC-Freigabe, wirtschaftliches Angebot und operativer Pilot |
 
-Die ersten drei Punkte dürfen klein als „In Planung“ auf der Plan-Seite stehen. Sie sind bis zum echten Start ausdrücklich nicht Teil des bezahlten Produkts. Kein schnellerer Zugang zu Jugendlichen, keine bezahlte Bevorzugung im Marktplatz und kein Sicherheitsvorteil nur für zahlende Anbieter.
+Die ersten drei Punkte stehen knapp als „Demnächst“ auf der Plan-Seite. Die zuvor vorgeschlagenen Jobvorlagen, Sammelübersichten und die unspezifische gemeinsame Organisation werden dort nicht weiter beworben. Sie sind bis zum echten Start ausdrücklich nicht Teil des bezahlten Produkts. Kein schnellerer Zugang zu Jugendlichen, keine bezahlte Bevorzugung im Marktplatz und kein Sicherheitsvorteil nur für zahlende Anbieter.
 
 ## Vorschlag für ein ruhiges Treueprogramm
 

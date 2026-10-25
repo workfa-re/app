@@ -223,7 +223,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
     const details = snapshot.billing.details;
     const address = details?.address;
     const hasAddress = Boolean(address && [address.line1, address.line2, address.postalCode, address.city, address.country].some(Boolean));
-    return <details className={account.billing}>
+    return <details className={`${account.billing} ${styles.utilitySection}`}>
         <summary className={account.billingSummary}><span className={account.billingLabel}>
             <span className={`app-glass-control ${account.billingIcon}`} aria-hidden="true"><UserRound size={19} strokeWidth={1.5} /></span>
             <span>Rechnungsdaten</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
@@ -288,20 +288,19 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
     const [savingBilling, setSavingBilling] = useState(false);
     const [editingBilling, setEditingBilling] = useState(false);
     const billingAvailable = !loading && !error && snapshot !== null;
-    return <section className={account.utilities} aria-label="Rechnungsdaten und Hilfe">
-        <div className={`${styles.surface} ${account.utilityCard} ${account.historySection}`}><details className={account.billing} open={error ? true : undefined}>
+    return <section className={`${account.utilities} ${styles.utilitySection}`} aria-label="Zahlungen und Rechnungsdaten">
+        <details className={`${account.billing} ${account.historySection} ${styles.utilitySection}`} open={error ? true : undefined}>
             <summary className={`${account.billingSummary} ${account.historySummary}`}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
             <div className={account.billingBody} aria-labelledby={titleId} aria-busy={loading}>
             <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
+            <div className={account.historyTools}><button type="button" className={`app-glass-control ${account.refresh}`} disabled={loading || savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={17} className={loading ? account.spinner : undefined} aria-hidden="true" /></button></div>
             {loading ? <p className={`${styles.loading} ${account.notice}`} role="status"><Loader2 size={16} className={account.spinner} aria-hidden="true" />Übersicht wird geladen …</p>
                 : error ? <div className={account.failure}><p className={styles.error} role="alert">{error}</p><button type="button" className={`app-glass-control ${styles.quietButton}`} onClick={onRetry}>Erneut versuchen</button></div>
                     : snapshot && <History snapshot={snapshot} />}
             </div>
-        </details><div className={account.historyTools}><button type="button" className={`app-glass-control ${account.refresh}`} disabled={loading || savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={17} className={loading ? account.spinner : undefined} aria-hidden="true" /></button></div></div>
-        {(billingAvailable || children) && <div className={`${styles.surface} ${account.utilityCard}`}>
-            {billingAvailable && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
-            {children && <div className={billingAvailable ? account.questionsSeparator : undefined}>{children}</div>}
-        </div>}
+        </details>
+        {billingAvailable && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
+        {children && <div className={styles.utilitySection}>{children}</div>}
     </section>;
 }
 

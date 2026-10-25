@@ -36,10 +36,28 @@ describe("truthful payment setup states",()=>{
     });
     it("renders live payment settings without a test banner and keeps payment identity honest",()=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
-        expect(html).toContain("Zahlungsabwicklung durch Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);
+        expect(html).toContain('aria-label="Workfare Pay mit Stripe"');expect(html).toContain("Über Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);
         const faq=renderToStaticMarkup(<PaymentQuestions recipient kind="live"/>);
         expect(faq).toContain("Erst verfügbare Beträge werden nach deinem Auszahlungstag");expect(faq).not.toMatch(/Testbetrieb|Simulation/);
         expect(renderToStaticMarkup(<PaymentQuestions recipient kind="sandbox"/>)).toContain("Im Testbetrieb wird kein echtes Geld bewegt");
+    });
+    it("groups utilities once, leaves future account details collapsed and keeps questions last",()=>{
+        const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
+        expect(html.match(/aria-label="Workfare Pay verwalten"/g)).toHaveLength(1);
+        const group=html.slice(html.indexOf('aria-label="Workfare Pay verwalten"'), html.indexOf("<footer"));
+        expect(group.indexOf("Gebühren &amp; Abo")).toBeLessThan(group.indexOf("Konto &amp; Karte"));
+        expect(group.indexOf("Konto &amp; Karte")).toBeLessThan(group.indexOf("Fragen zu Workfare Pay"));
+        expect(group).not.toMatch(/In Planung|Januar|2027|Der passende Plan/);
+        expect(group).toContain("Wir arbeiten an einem eigenen Zahlungskonto mit Workfare Pay Karte.");
+        expect(group).not.toContain("Dein nächster Schritt");
+        expect(group.match(/<details[^>]*>/g)?.every(tag=>!tag.includes("open="))).toBe(true);
+        expect(html).toContain('href="https://stripe.com/de"');
+    });
+    it.each(["job_seeker","guardian"]as const)("keeps account and help in the same ordered group for %s",role=>{
+        const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} recipientSnapshot={{...recipient,kind:"live"}} role={role} returnTo={null} result={null}/>);
+        expect(html.match(/aria-label="Workfare Pay verwalten"/g)).toHaveLength(1);
+        expect(html.indexOf("Konto &amp; Karte")).toBeLessThan(html.indexOf("Fragen zu Workfare Pay"));
+        expect(html).not.toContain("Gebühren &amp; Abo");
     });
     it("does not render a local setup session on a live buyer projection",()=>{
         const html=renderToStaticMarkup(<BuyerPaymentMethod initial={{...buyer,kind:"live"}} returnTo={null} resumeSetupId="11111111-1111-4111-8111-111111111111"/>);

@@ -78,9 +78,13 @@ describe("compact payment history and billing UI", () => {
         expect(html).not.toContain("Guthaben");
         expect(html).not.toContain("<input");
     });
-    it("puts an icon-only refresh beside the history heading and makes account linkage explicit", () => {
+    it("keeps icon-only refresh inside the closed history disclosure and makes account linkage explicit", () => {
         const html = render(sandbox);
         expect(html).toContain('aria-label="Zahlungsübersicht aktualisieren"');
+        const summaryEnd=html.indexOf("</summary>");
+        const refresh=html.indexOf('aria-label="Zahlungsübersicht aktualisieren"');
+        expect(refresh).toBeGreaterThan(summaryEnd);
+        expect(refresh).toBeLessThan(html.indexOf("</details>"));
         expect(html).not.toContain(">Aktualisieren<");
         expect(html).toContain("Mit deinem Workfare-Profil verknüpft.");
         expect(html).toContain("Mit deinem Workfare-Konto verknüpft.");
@@ -88,12 +92,12 @@ describe("compact payment history and billing UI", () => {
         expect(html).not.toContain('name="billing-email"');
     });
 
-    it("keeps billing collapsed and places the supplied FAQ inside the same utilities area", () => {
+    it("keeps utilities unframed and billing collapsed with supplied help after billing", () => {
         const html = render(sandbox, false, null, <details><summary>Fragen zu Workfare Pay</summary><p>Hilfe bei Bedarf.</p></details>);
         const details = html.match(/<details[^>]*>/g) ?? [];
         expect(details).toHaveLength(3);
         expect(details.every((tag) => !/\bopen(?:=|\s|>)/.test(tag))).toBe(true);
-        expect(html.match(/aria-label="Rechnungsdaten und Hilfe"/g)).toHaveLength(1);
+        expect(html.match(/aria-label="Zahlungen und Rechnungsdaten"/g)).toHaveLength(1);
         expect(html.indexOf("Rechnungsdaten</span>")).toBeLessThan(html.indexOf("Fragen zu Workfare Pay"));
         expect(html).toContain("Robin Muster");
         expect(html).not.toContain("<input");

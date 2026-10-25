@@ -23,17 +23,9 @@ export function validMembershipSnapshot(value: unknown, ownerId: string): value 
         && (!membership.entitled || membership.currentPeriodEnd !== null);
 }
 
-export function parseMembershipAmount(value: string): number | null {
-    const cleaned = value.trim().replace(",", ".");
-    if (!/^\d{1,6}(?:\.\d{1,2})?$/.test(cleaned)) return null;
-    const [whole, fraction = ""] = cleaned.split(".");
-    const amount = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-    return amount >= 100 && amount <= 99_999_999 ? amount : null;
-}
-
 /** Matches the tariff's independently rounded components for each example job. */
 export function membershipExample(earningsCents: number, jobs: number, offer: MembershipOffer) {
-    if (!cents(earningsCents) || earningsCents < 100 || !Number.isInteger(jobs) || jobs < 1 || jobs > 100
+    if (!cents(earningsCents) || earningsCents < 100 || !Number.isInteger(jobs) || jobs < 0 || jobs > 100
         || offer.memberRateBps >= offer.standardRateBps) return null;
     const base = grossFeeForRate(earningsCents, offer.memberRateBps) + offer.fixedFeeCents;
     const workfare = grossFeeForRate(earningsCents, offer.standardRateBps - offer.memberRateBps);
