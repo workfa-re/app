@@ -2,6 +2,8 @@
 
 Entscheidungsstand: 25.10.2026. Workfare Plan und der neue Tarif sind als Umsetzung vorgesehen; tatsächliche Freischaltungen und Tests stehen im zugehörigen Release-Nachweis. Geplante Vorteile werden nicht als bereits verkauft dargestellt.
 
+**Aktualisierte Freigabe:** Deutsche Regelbesteuerung mit 19 % wurde bestätigt. Abo und neuer Bruttotarif sind seit 25.10.2026, 15:13:03 MEZ live freigegeben. 5,90 € Monatsbeitrag enthalten 0,94 € Umsatzsteuer. Details und verbleibende Aussteller-/Gebührenbuchhaltungsaufgaben stehen im [Freigabenachweis](../releases/2026-10-25-workfare-plan-vat-release.md).
+
 ## Die konkrete Produktentscheidung
 
 **Workfare Plan kostet 5,90 € pro Monat als Endpreis**, ohne Testphase, Jahresbindung oder Einschränkung der normalen Plattform. Kündigung zum Ende des bezahlten Monats ist jederzeit möglich. Der Name beschreibt eine andere Abrechnungsform, keine bessere Klasse von Nutzern.

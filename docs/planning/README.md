@@ -4,6 +4,8 @@ Stand: **24.10.2026**. Aktiver Arbeitsbereich ist **Workfare Pay**. Die übrigen
 
 **Aktuelle Ergänzung vom 25.10.2026:** [Workfare Plan und Treueprogramm](workfare-plan-and-loyalty.md) hält den neuen optionalen Monatstarif, Gebühren, Preisbeispiele und priorisierte nächste Funktionen fest. [Der Release-Nachweis](../releases/2026-10-25-workfare-plan.md) trennt vorbereitete Funktionen von der tatsächlichen Freischaltung.
 
+**Spätere Freischaltung:** Nach bestätigter deutscher Regelbesteuerung sind Workfare Plan und der neue Bruttotarif seit 25.10.2026, 15:13:03 MEZ tatsächlich aktiv. Der [DE-19-%-Freigabenachweis](../releases/2026-10-25-workfare-plan-vat-release.md) ersetzt den früheren offenen Steuerstatus; bestehende Jobs behalten ihre Preise.
+
 **Bisherige Ergänzung vom 25.10.2026:** Der folgende Einführungsplan ist historischer Stand. Für den aktuellen Zahlungs-/Auszahlungsbetrieb gelten die [Betriebsbeschreibung](../operations/workfare-pay-completion-payouts.md) und die [Release-Nachweise](../releases/2026-10-25-pay-account-refinement.md). Die neue [Konten- und Kartenplanung](workfare-account-card.md) beschreibt ein optionales zukünftiges Produkt mit lizenziertem Partner; sie aktiviert weder Konto noch Karte. Ein höherer allgemeiner Gesamttarif wird [zunächst kalkuliert](payment-provider-comparison.md#7-neue-preisentscheidung-vom-25102026), nicht stillschweigend eingeführt.
 
 ## Verbindlich festgehaltene Produktentscheidungen

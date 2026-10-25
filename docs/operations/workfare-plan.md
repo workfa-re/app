@@ -2,6 +2,8 @@
 
 Stand: 25.10.2026. Workfare Plan ist ein monatliches Anbieter-Abo für 5,90 €. Es ist kein Bankkonto. Eine Veröffentlichung der Seite schaltet den Verkauf nicht frei. Maßgeblich sind die tatsächlich ausgerollte Migration, die private Angebotskonfiguration und bestätigte Stripe-Ergebnisse.
 
+**Aktuelle Freigabe:** Seit 25.10.2026, 15:13:03 MEZ ist der Live-Verkauf mit bestätigter deutscher Regelbesteuerung und inklusiver 19-%-Rate aktiv: 5,90 € = 4,96 € netto + 0,94 € Umsatzsteuer. Gleichzeitig wurde der neue Jobtarif aktiviert; bestehende Jobs und Preisstände bleiben geschützt. Die [Freigabe mit Prüfnachweisen](../releases/2026-10-25-workfare-plan-vat-release.md) dokumentiert die tatsächliche Konfiguration, den einmaligen Startzeitpunkt und die noch fehlende Standard-Aussteller-Steuer-ID. Die folgenden abgeschalteten Werte beschreiben den sicheren Erstzustand neuer Installationen, nicht den heutigen Live-Verkaufsstatus.
+
 ## Freigabe und Konfiguration
 
 `payment_private.membership_configuration` trennt `live` und `sandbox`. Neue Zeilen beginnen mit `enabled=false` und `tax_treatment='pending'`. In diesem Zustand darf kein Checkout entstehen. Produkt, monatlicher EUR-Preis, Steuerbehandlung und gegebenenfalls inklusive deutsche 19-%-Steuerrate müssen vor der gesonderten Freigabe übereinstimmen. Die steuerliche Einordnung `small_business` oder `vat19` entscheidet ein verantwortlicher Betreiber mit steuerlicher Beratung; `pending` wird nicht automatisch ersetzt. Eine vorhandene Stripe-Steuerregistrierung wird nicht angenommen und `automatic_tax` nicht ungeprüft aktiviert.
