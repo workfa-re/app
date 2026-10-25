@@ -51,7 +51,7 @@ describe("minor supplies their own bank after parent approval", () => {
     it("gives a concrete parent next step for an actually outstanding representative requirement", () => {
         const html = render({ hasPayoutMethod: true, requiresGuardianAction: true });
         expect(html).toContain("fehlen noch Angaben deines Elternteils bei Stripe");
-        expect(html).toContain("Auszahlung begleiten"); expect(html).toContain("Link für deine Eltern kopieren");
+        expect(html).toContain("Workfare Pay ansehen"); expect(html).toContain("Link für deine Eltern kopieren");
         expect(html).not.toContain("Bankfeld"); expect(html).not.toContain("Stripe prüft die Angaben");
         expect(render({ hasPayoutMethod: true, ready: true, reasonCode: null, requiresGuardianAction: true })).not.toContain("Link für deine Eltern kopieren");
         expect(render({ hasPayoutMethod: true, requiresGuardianAction: false })).not.toContain("Link für deine Eltern kopieren");

@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { ArrowDownToLine, ArrowRight, RefreshCw, Wallet } from "lucide-react";
 import type { RecipientPayoutOverview } from "@/lib/payments/recipient-types";
+import { validRecipientBankSummary } from "@/lib/payments/recipient-bank-summary";
 import { paymentErrorMessage, paymentRequest } from "./payment-client";
 import { isStripeSurfaceKind } from "./PaymentEnvironment";
 import styles from "./Payments.module.css";
@@ -17,6 +18,8 @@ export function validRecipientFunds(value: unknown): value is RecipientPayoutOve
         && row.canRequestPayout === false && row.canRetainBalance === false && row.maxHoldingDays === 90
         && ["retention_monitor_required", "recipient_setup_required", "currency_not_supported"].includes(row.disabledReason ?? "")
         && typeof row.stripePayoutsEnabled === "boolean" && typeof row.hasPayoutMethod === "boolean"
+        && (row.bank === undefined || row.bank === null || validRecipientBankSummary(row.bank))
+        && (row.pendingAvailableAt === undefined || row.pendingAvailableAt === null || typeof row.pendingAvailableAt === "string" && Number.isFinite(Date.parse(row.pendingAvailableAt)))
         && typeof row.checkedAt === "string" && Number.isFinite(Date.parse(row.checkedAt));
 }
 

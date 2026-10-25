@@ -10,13 +10,12 @@ import { assertStripeModeObject, paymentStripeSdk } from "./stripe-mode.server";
 import type { PaymentMode } from "./types";
 import type { PaymentsEnvironment } from "./config";
 import type { BuyerAccountSnapshot, BuyerBillingDetails, BuyerInvoiceEntry, BuyerPaymentEntry } from "./buyer-account-types";
+import { getBuyerProfileIdentity, syncBuyerCustomerIdentity, type BuyerProfileIdentity } from "./buyer-identity.server";
 
 const HISTORY_LIMIT = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const plainText = (minimum: number, maximum: number) => z.string().trim().min(minimum).max(maximum).refine((value) => !/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/.test(value));
 const billingSchema = z.object({
-    name: plainText(2, 150),
-    email: z.string().trim().email().max(254),
     address: z.object({
         line1: plainText(3, 200),
         line2: plainText(0, 200).optional().default(""),
@@ -80,9 +79,9 @@ function billingDetails(customer: Stripe.Customer): BuyerBillingDetails {
     };
 }
 
-function confirmsBilling(customer: Stripe.Customer, input: z.infer<typeof billingSchema>): boolean {
+function confirmsBilling(customer: Stripe.Customer, input: z.infer<typeof billingSchema>, identity: BuyerProfileIdentity): boolean {
     const stored = billingDetails(customer);
-    if (stored.name !== input.name || stored.email !== input.email) return false;
+    if (stored.name !== identity.name || stored.email !== identity.email) return false;
     // Contact-only edits leave even partial or foreign invoice addresses untouched.
     if (input.address === undefined) return true;
     if (input.address === null) return stored.address === null;
@@ -150,10 +149,10 @@ export function createBuyerAccountSandboxAdapter(environment: PaymentsEnvironmen
     const sdk = paymentStripeSdk(environment);
     const retrieveOwned = async (customerId: string, userId: string) => ownedCustomer(await (await sdk()).customers.retrieve(customerId), customerId, userId, mode);
     return Object.freeze({
-        async overview(customerId: string, userId: string) {
+        async overview(customerId: string, userId: string, identity: BuyerProfileIdentity) {
             if (!/^cus_[a-zA-Z0-9]+$/.test(customerId)) mismatch();
-            const customer = await retrieveOwned(customerId, userId);
             const stripe = await sdk();
+            const customer = await syncBuyerCustomerIdentity(stripe, customerId, userId, identity, mode);
             const [charges, invoices] = await Promise.all([
                 stripe.charges.list({ customer: customerId, limit: HISTORY_LIMIT, expand: ["data.payment_intent"] }),
                 stripe.invoices.list({ customer: customerId, limit: HISTORY_LIMIT }),
@@ -167,25 +166,25 @@ export function createBuyerAccountSandboxAdapter(environment: PaymentsEnvironmen
                 hasMore: { payments: charges.has_more, invoices: invoices.has_more },
             };
         },
-        async updateBilling(customerId: string, userId: string, input: unknown, operationId: string) {
+        async updateBilling(customerId: string, userId: string, input: unknown, operationId: string, identity: BuyerProfileIdentity) {
             if (!/^cus_[a-zA-Z0-9]+$/.test(customerId) || !UUID.test(operationId)) mismatch();
             const parsed = billingSchema.safeParse(input);
             if (!parsed.success) throw new PaymentFlowError("invalid_billing_details", 400);
             const details = parsed.data;
-            await retrieveOwned(customerId, userId);
+            const linkedCustomer = await syncBuyerCustomerIdentity(await sdk(), customerId, userId, identity, mode);
+            if (details.address === undefined) return billingDetails(linkedCustomer);
             const customer = ownedCustomer(await (await sdk()).customers.update(customerId, {
-                name: details.name, email: details.email,
                 ...(details.address === undefined ? {} : { address: details.address === null ? "" : {
                     line1: details.address.line1, line2: details.address.line2, postal_code: details.address.postalCode,
                     city: details.address.city, country: details.address.country, state: "",
                 } }),
             }, { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` }), customerId, userId, mode);
-            if (!confirmsBilling(customer, details)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
+            if (!confirmsBilling(customer, details, identity)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
             // A timeout or concurrent edit must never become a false "saved".
             // Repeating the same operation reuses Stripe's idempotent write and
             // checks the current customer again without touching Auth/profile.
             const current = await retrieveOwned(customerId, userId);
-            if (!confirmsBilling(current, details)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
+            if (!confirmsBilling(current, details, identity)) throw new PaymentFlowError("billing_sync_unconfirmed", 409);
             return billingDetails(current);
         },
     });
@@ -206,14 +205,15 @@ export async function getBuyerAccountOverview(expectedOwnerId?: string): Promise
     if (!customer) return emptySnapshot(runtime.mode, userId);
     if (customer.userId !== userId || customer.mode !== runtime.mode) mismatch();
     if (!customer.stripeCustomerId) return emptySnapshot(runtime.mode, userId);
-    const overview = await createBuyerAccountSandboxAdapter().overview(customer.stripeCustomerId, userId);
+    const identity = await getBuyerProfileIdentity(userId);
+    const overview = await createBuyerAccountSandboxAdapter().overview(customer.stripeCustomerId, userId, identity);
     return { kind: runtime.mode, ownerId: userId, customerExists: true, billing: { available: true, details: overview.billing }, history: {
         state: overview.payments.length || overview.invoices.length ? "available" : "empty",
         payments: overview.payments, invoices: overview.invoices, hasMore: overview.hasMore,
     } };
 }
 
-/** This changes billing contact data only, never profile, verified provider address or payment defaults. */
+/** Only the invoice address is editable; identity stays linked to Auth/profile. */
 export async function updateBuyerBillingDetails(input: unknown, operationId?: string, expectedOwnerId?: string) {
     const runtime = requirePaymentRuntime();
     const userId = await requirePaymentProvider();
@@ -224,7 +224,8 @@ export async function updateBuyerBillingDetails(input: unknown, operationId?: st
     const customer = await getPaymentCustomer(userId, runtime.mode);
     if (!customer || !customer.stripeCustomerId) throw new PaymentFlowError("payment_customer_required", 409);
     if (customer.userId !== userId || customer.mode !== runtime.mode) mismatch();
-    const details = await createBuyerAccountSandboxAdapter().updateBilling(customer.stripeCustomerId, userId, input, operationId ?? randomUUID());
+    const identity = await getBuyerProfileIdentity(userId);
+    const details = await createBuyerAccountSandboxAdapter().updateBilling(customer.stripeCustomerId, userId, input, operationId ?? randomUUID(), identity);
     return { ok: true as const, ownerId: userId, billing: details };
 }
 

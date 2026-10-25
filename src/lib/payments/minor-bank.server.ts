@@ -8,6 +8,7 @@ import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
 import { createRecipientStripeAdapter } from "./recipient-stripe.server";
 import { saveRecipientAccount, beginRecipientSync, applyRecipientSync } from "./recipient-repository.server";
 import { stripePublishableKey } from "./stripe-mode.server";
+import { recipientIdentityUnchanged } from "./recipient-identity";
 
 const uuid=z.string().uuid();
 const binding=z.object({guardianId:uuid,consentId:uuid,childBirthdate:z.iso.date(),guardianBirthdate:z.iso.date(),guardianEmail:z.email(),guardianName:z.string().min(1).max(200)}).strict();
@@ -61,14 +62,14 @@ export async function readMinorBankSetup(expectedOwnerId:string){
     const context=await minorSetupContext(userId,userId);
     let bankPresent:boolean|undefined;
     let identityUnconfirmed=false;
-    let checked:{accountRef:string;generation:number}|null=null;
+    let checked:z.infer<typeof recipient>|null=null;
     // Only consent-valid accounts may be reconciled. A stale account is handled
     // by the separate compare-and-swap restart, never silently reassigned.
     if(context.recipient?.accountRef&&context.bindingCurrent){
         const stored=context.recipient;
         const event=`minor-bank:${randomUUID()}`,sync=await beginRecipientSync(userId,event);
         if(sync.accountRef!==stored.accountRef)throw new PaymentFlowError("owner_mismatch",409);
-        checked={accountRef:sync.accountRef,generation:sync.generation};
+        checked=stored;
         try{
             if(!sync.duplicate)await applyRecipientSync(userId,event,sync.generation,sync.accountRef,await createRecipientStripeAdapter().inspect(userId,sync.accountRef,stored.minorBinding));
         }catch(error){
@@ -85,17 +86,19 @@ export async function readMinorBankSetup(expectedOwnerId:string){
         }
     }
     const state=await minorSetupContext(userId,userId);
-    if(checked&&(state.recipient?.accountRef!==checked.accountRef||state.recipient.generation!==checked.generation))throw new PaymentFlowError("recipient_setup_changed",409);
+    if(checked&&(!state.bindingCurrent||!recipientIdentityUnchanged(checked,state.recipient)))throw new PaymentFlowError("recipient_setup_changed",409);
     const guardians=state.bindingCurrent?state.guardians.filter(guardian=>guardian.guardianId===state.recipient?.minorBinding?.guardianId):state.guardians;
     const ready=!identityUnconfirmed&&state.ready;
     const preferredGuardianId=guardians.find(guardian=>guardian.guardianId===state.recipient?.minorBinding?.guardianId)?.guardianId
         ??(guardians.length===1?guardians[0].guardianId:null);
+    const bank=state.bindingCurrent&&state.hasPayoutMethod&&state.recipient?.accountRef
+        ? await createRecipientStripeAdapter().readBankSummary(userId,state.recipient.accountRef,state.recipient.minorBinding).catch(()=>null) : null;
     return {ownerId:userId,kind:"live" as const,publishableKey:stripePublishableKey(),holderName,guardians,
         preferredGuardianId,
         requiresGuardianAction:state.bindingCurrent&&!ready&&(identityUnconfirmed||["guardian_kyc_required","guardian_identity_mismatch","guardian_terms_required"].includes(state.recipient?.guardianReason??"")),
         hasPayoutMethod:state.bindingCurrent&&(bankPresent??state.hasPayoutMethod),ready,
         canStart:state.guardians.length>0&&(!state.recipient||state.bindingCurrent||state.canRestart),
-        needsRestart:state.canRestart,reasonCode:state.guardians.length===0 ? "guardian_consent_required" : state.recipient&&!state.bindingCurrent ? "recipient_guardian_binding_conflict" : null};
+        needsRestart:state.canRestart,bank,reasonCode:state.guardians.length===0 ? "guardian_consent_required" : state.recipient&&!state.bindingCurrent ? "recipient_guardian_binding_conflict" : null};
 }
 
 export async function startMinorBankSetup(input:{consent:unknown;bankToken?:unknown;guardianId?:unknown;restart?:unknown;operationId:unknown},expectedOwnerId:string){

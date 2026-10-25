@@ -1,8 +1,10 @@
 .overview { padding: 22px 26px 24px; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 40px; margin-bottom: 9px; }
 .heading h2 { margin: 0; font-size: 17px; font-weight: 550; line-height: 1.4; letter-spacing: -.025em; }
-.refresh { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 15px; flex: 0 0 auto; color: var(--app-muted); }
-.historyActions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.historySection { position: relative; }
+.billingSummary.historySummary { padding-right: 66px; }
+.historyTools { position: absolute; right: 14px; top: 16px; }
+.refresh { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; color: var(--app-muted); }
 .empty p { margin: 0 0 4px; font-size: 14px; line-height: 1.5; }
 .empty > span, .limited, .unavailable, .billingNote { color: var(--app-muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
 .empty > span { display: block; }
@@ -39,7 +41,20 @@
 .billingRead button { min-height: 40px; flex-shrink: 0; }
 .address { display: grid; gap: 2px; min-width: 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; font-style: normal; overflow-wrap: anywhere; }
 .address strong { color: var(--app-ink); font-weight: 500; }
-.billingEmail { margin-top: 7px; }
+.linkedIdentity { display: grid; gap: 16px; margin: 2px 0 24px; }
+.linkedField { display: grid; gap: 3px; min-width: 0; }
+.linkedField > span, .linkedFieldHeading > span { color: var(--app-muted); font-size: 12px; line-height: 1.5; }
+.linkedField strong { color: var(--app-ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.linkedField small, .identityFeedback { color: var(--app-muted); font-size: 12px; line-height: 1.6; }
+.linkedFieldHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.linkedFieldHeading button { min-height: 40px; font-size: 12px; margin-block: -10px; }
+.addressTitle { color: var(--app-muted); font-size: 13px; }
+.addressTitle small { font-size: 12px; margin-left: 5px; }
+.emailForm { padding: 16px; border-radius: 20px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); }
+.emailForm label { display: grid; gap: 7px; color: var(--app-ink); font-size: 12px; }
+.emailForm input { min-width: 0; width: 100%; min-height: 46px; padding: 11px 13px; color: var(--app-ink); background: var(--app-glass-fill); border: 1px solid var(--app-panel-rule); border-radius: 14px; font: inherit; font-size: 16px; }
+.emailForm input:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 2px; }
+.identityFeedback { margin: 0; }
 .form fieldset { display: grid; gap: 15px; min-width: 0; padding: 0; margin: 18px 0 0; border: 0; }
 .form label { display: block; min-width: 0; color: var(--app-ink); font-size: 12px; font-weight: 500; line-height: 1.5; }
 .form label > span { margin-left: 5px; color: var(--app-muted); font-weight: 400; }

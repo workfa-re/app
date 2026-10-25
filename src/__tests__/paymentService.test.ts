@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
     claimPaymentCustomer: vi.fn(), savePaymentCustomer: vi.fn(), getPaymentCustomer: vi.fn(), createPaymentSetup: vi.fn(),
     attachPaymentSetupSession: vi.fn(), getPaymentSetup: vi.fn(), completePaymentSetup: vi.fn(), removePaymentMethod: vi.fn(),
     removePaymentMethodByReference: vi.fn(), confirmPaymentMethodDetached: vi.fn(), cancelPaymentSetup: vi.fn(),
-    createCustomer: vi.fn(), createSetup: vi.fn(), createEmbeddedSetup: vi.fn(), inspectSetup: vi.fn(), detachMethod: vi.fn(), verifyWebhook: vi.fn(),
+    createCustomer: vi.fn(), syncCustomerIdentity: vi.fn(), createSetup: vi.fn(), createEmbeddedSetup: vi.fn(), inspectSetup: vi.fn(), detachMethod: vi.fn(), verifyWebhook: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getAuthState: mocks.auth }));
 vi.mock("@/lib/payments/repository.server", () => ({
@@ -16,7 +16,7 @@ vi.mock("@/lib/payments/repository.server", () => ({
     removePaymentMethodByReference: mocks.removePaymentMethodByReference, confirmPaymentMethodDetached: mocks.confirmPaymentMethodDetached, cancelPaymentSetup: mocks.cancelPaymentSetup,
 }));
 vi.mock("@/lib/payments/stripe-sandbox.server", () => ({ createStripeSandboxAdapter: () => ({
-    createCustomer: mocks.createCustomer, createSetup: mocks.createSetup, createEmbeddedSetup: mocks.createEmbeddedSetup, inspectSetup: mocks.inspectSetup,
+    createCustomer: mocks.createCustomer, syncCustomerIdentity: mocks.syncCustomerIdentity, createSetup: mocks.createSetup, createEmbeddedSetup: mocks.createEmbeddedSetup, inspectSetup: mocks.inspectSetup,
     detachMethod: mocks.detachMethod, verifyWebhook: mocks.verifyWebhook,
 }) }));
 import { finishLocalPaymentSetup, getPaymentSetupForUser, handlePaymentWebhook, removeBuyerPaymentMethod, retryBuyerPaymentMethodRemoval, startPaymentSetup, syncPaymentSetupReturn } from "@/lib/payments/service.server";
@@ -63,7 +63,7 @@ beforeEach(() => {
         WORKFARE_DEMO_MODE: "local", WORKFARE_DEMO_PROJECT_REF: "local-payment-tests", WORKFARE_DEMO_LOCAL_URL: "http://127.0.0.1:54321",
         NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_URL: "http://127.0.0.1:54321", APP_ORIGIN: "http://127.0.0.1:3000" };
     for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
-    mocks.auth.mockResolvedValue({ state: "ready", session: { user: confirmedUser() }, profile: { account_type: "job_provider" } });
+    mocks.auth.mockResolvedValue({ state: "ready", session: { user: confirmedUser() }, profile: { account_type: "job_provider", full_name: "Robin Muster" } });
     mocks.claimPaymentCustomer.mockResolvedValue({ claimed: true, customerRef: null });
     mocks.createPaymentSetup.mockResolvedValue(setup());
     mocks.getPaymentSetup.mockResolvedValue(setup());
@@ -216,22 +216,23 @@ describe("provider-owned payment setup service", () => {
         await startPaymentSetup({ consent: true, operationId });
         expect(mocks.createCustomer).not.toHaveBeenCalled();
         expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null);
+        expect(mocks.syncCustomerIdentity).toHaveBeenCalledWith("cus_fixture", userId, { name: "Robin Muster", email: confirmedEmail });
         expect(mocks.attachPaymentSetupSession).toHaveBeenCalledWith(setupId, "cs_test_fixture", "2035-01-01T00:00:00.000Z");
     });
 
     it("uses one stable Stripe customer idempotency key across retried claims", async () => {
         sandbox();
         await startPaymentSetup({ consent: true, operationId });
-        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail);
+        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail, "Robin Muster");
         expect(mocks.savePaymentCustomer).toHaveBeenCalledWith(userId, "sandbox", operationId, "cus_fixture");
     });
 
     it("prefills only the confirmed Auth address, ignoring an independently editable profile email", async () => {
         sandbox();
         mocks.auth.mockResolvedValue({ state: "ready", session: { user: confirmedUser() },
-            profile: { account_type: "job_provider", email: "someone-else@example.com" } });
+            profile: { account_type: "job_provider", full_name: "Robin Muster", email: "someone-else@example.com" } });
         await startPaymentSetup({ consent: true, operationId });
-        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail);
+        expect(mocks.createCustomer).toHaveBeenCalledWith(userId, `workfare-pay:customer:${userId}`, confirmedEmail, "Robin Muster");
         expect(mocks.createSetup).toHaveBeenCalledWith("cus_fixture", userId, setupId, null);
     });
 
@@ -241,7 +242,7 @@ describe("provider-owned payment setup service", () => {
     ])("rejects an unavailable/unconfirmed Auth email before any Stripe or setup write (%j)", async patch => {
         sandbox();
         mocks.auth.mockResolvedValue({ state: "ready", session: { user: { ...confirmedUser(), ...patch } },
-            profile: { account_type: "job_provider", email: confirmedEmail } });
+            profile: { account_type: "job_provider", full_name: "Robin Muster", email: confirmedEmail } });
         await expect(startPaymentSetup({ consent: true, operationId })).rejects.toMatchObject({ code: "confirmed_email_required" });
         for (const mutation of [mocks.claimPaymentCustomer, mocks.createCustomer, mocks.createPaymentSetup, mocks.createSetup, mocks.createEmbeddedSetup]) {
             expect(mutation).not.toHaveBeenCalled();

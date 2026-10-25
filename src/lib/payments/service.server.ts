@@ -9,6 +9,7 @@ import { PAYMENT_SETTINGS_PATH, sanitizePaymentReturnPath } from "./return-path"
 import type { PaymentMode, SetupRecord, StoredMethod } from "./types";
 import { assertStripeModeObject, stripePublishableKey } from "./stripe-mode.server";
 import { SEPA_UNAVAILABLE_REASON } from "./method-capabilities";
+import { getBuyerProfileIdentity } from "./buyer-identity.server";
 
 export const PAYMENT_SETUP_CONSENT_VERSION = "buyer-method-setup-v1";
 const MAX_METHOD_DETACHES_PER_REQUEST = 3;
@@ -41,12 +42,12 @@ export async function getPaymentSetupForUser(userId: string, sessionId: string) 
     return { id: setup.id, mode: setup.mode, status: setup.status, expiresAt: setup.expiresAt, returnTo: sanitizePaymentReturnPath(setup.returnTo) };
 }
 
-async function ensureCustomer(userId: string, mode: PaymentMode, operationId: string, email?: string) {
+async function ensureCustomer(userId: string, mode: PaymentMode, operationId: string, email?: string, name?: string) {
     const claim = await repository.claimPaymentCustomer(userId, mode, operationId);
     if (claim.customerRef) return claim.customerRef;
     if (!claim.claimed) throw new PaymentFlowError("setup_in_progress", 409);
     const customerRef = mode === "local_simulation" ? `local_cus_${userId}`
-        : await createStripeSandboxAdapter().createCustomer(userId, `workfare-pay:customer:${userId}`, email);
+        : await createStripeSandboxAdapter().createCustomer(userId, `workfare-pay:customer:${userId}`, email, name);
     await repository.savePaymentCustomer(userId, mode, operationId, customerRef);
     return customerRef;
 }
@@ -70,14 +71,16 @@ export async function startPaymentSetup(input: { consent: unknown; returnTo?: un
     const returnTo = input.returnTo === undefined || input.returnTo === null ? null : sanitizePaymentReturnPath(input.returnTo);
     if (input.returnTo != null && !returnTo) throw new PaymentFlowError("invalid_return_path");
     if (input.operationId && !UUID.test(input.operationId)) throw new PaymentFlowError("invalid_operation_id");
-    // Auth supplies only the initial Customer contact. Later Checkout sessions
-    // preserve the separately editable billing contact on the owned Customer.
+    // The confirmed Auth email and current profile name remain the single
+    // contact identity for setup and billing, including existing Customers.
     const email = runtime.mode === "local_simulation" ? undefined : user.email;
     if (runtime.mode !== "local_simulation" && (!user.email_confirmed_at || !z.email().max(254).safeParse(email).success)) {
         throw new PaymentFlowError("confirmed_email_required", 403);
     }
     const operationId = input.operationId ?? randomUUID();
-    const customerRef = await ensureCustomer(userId, runtime.mode, operationId, email);
+    const identity = runtime.mode === "local_simulation" ? null : await getBuyerProfileIdentity(userId);
+    const customerRef = await ensureCustomer(userId, runtime.mode, operationId, email, identity?.name);
+    if (identity) await createStripeSandboxAdapter().syncCustomerIdentity(customerRef, userId, identity);
     const setup = await repository.createPaymentSetup(userId, runtime.mode, operationId, returnTo, PAYMENT_SETUP_CONSENT_VERSION);
     if (setup.status === "complete") {
         if (embedded) return { kind: "complete" as const, sessionId: setup.id, returnTo: sanitizePaymentReturnPath(setup.returnTo) };

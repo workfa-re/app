@@ -1,7 +1,7 @@
 /** Technical bound for the initial EUR/Stripe scenario, not a published job limit. */
 export const MAX_QUOTE_CENTS = 99_999_999;
 /** Economic planning target after direct costs; never a default service-fee rate. */
-export const CONTRIBUTION_TARGET_BASIS_POINTS = 500;
+export const CONTRIBUTION_TARGET_BASIS_POINTS = 600;
 
 export type FeeTaxSnapshot = Readonly<{
     jurisdiction: "DE";

@@ -41,15 +41,15 @@ describe("recipient financial overview", () => {
         expect(html).not.toContain("Stand ");
     });
 
-    it("makes available funds prominent and keeps all four metrics consistent on Home", () => {
+    it("makes lifetime earnings prominent and keeps the payout metrics in a consistent order", () => {
         const html = render(summary, { compact: true });
         expect(html).toContain('href="/app-home/settings/payments"');
         expect(html).toContain("Workfare Pay öffnen");
-        expect(html).toContain("4 bezahlte Termine");
+        expect(html).not.toContain("bezahlte Termine");
         expect(html).toContain("Testbetrieb");
         expect(html).not.toContain("Letzte Vorgänge");
         const terms = [...html.matchAll(/<dt>(.*?)<\/dt>/g)].map(match => match[1]);
-        expect(terms).toEqual(["Für die Auszahlung verfügbar", "Insgesamt verdient", "Bereits ausgezahlt", "In Bearbeitung"]);
+        expect(terms).toEqual(["Insgesamt verdient", "Bereits ausgezahlt", "In Bearbeitung", "Für die Auszahlung verfügbar"]);
         expect(html).toContain("Für die Auszahlung verfügbar</dt><dd><span>12,50");
         expect(html).not.toContain("Stand ");
     });
@@ -111,23 +111,23 @@ describe("recipient financial overview", () => {
 
     it("offers payout controls only when the caller has a working Stripe action", () => {
         expect(render(summary)).not.toContain("Auszahlungen ansehen");
-        const html = render(summary, { onPayouts: vi.fn(), onFunds: vi.fn() });
-        expect(html).toContain("Auszahlungen ansehen"); expect(html).toContain("Guthaben ansehen");
+        const html = render(summary, { onPayouts: vi.fn() });
+        expect(html).toContain("Auszahlungen ansehen"); expect(html).toContain("Guthaben ansehen"); expect(html).toContain("<details"); expect(html).not.toContain("Auszahlungseinstellungen ändern");
         expect(html).not.toContain("Jetzt auszahlen"); expect(html).not.toContain("Geld behalten");
     });
     it("keeps Stripe controls in place but disabled while a financial action is running", () => {
-        const html = render(summary, { busy: true, onPayouts: vi.fn(), onFunds: vi.fn() });
+        const html = render(summary, { busy: true, onPayouts: vi.fn() });
         const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen", "Guthaben ansehen"]) {
+        for (const label of ["Auszahlungen ansehen"]) {
             const button = buttons.find(value => value.includes(label));
             expect(button).toBeDefined(); expect(button).toContain('disabled=""');
         }
         expect(buttons.find(value => value.includes('aria-label="Zahlungsübersicht aktualisieren"'))).toContain('disabled=""');
     });
     it.each([{ stripePayoutsEnabled: false }, { hasPayoutMethod: false }])("disables Stripe controls when the latest required payout readiness is absent (%j)", flags => {
-        const html = render({ ...summary, funds: { ...summary.funds!, ...flags } }, { onPayouts: vi.fn(), onFunds: vi.fn() });
+        const html = render({ ...summary, funds: { ...summary.funds!, ...flags } }, { onPayouts: vi.fn() });
         const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen", "Guthaben ansehen"]) expect(buttons.find(value => value.includes(label))).toContain('disabled=""');
+        for (const label of ["Auszahlungen ansehen"]) expect(buttons.find(value => value.includes(label))).toContain('disabled=""');
     });
     it("does not depict a proposed price as an incoming payment", () => {
         const html = render({ ...summary, payouts: null, recentPayments: [{ ...summary.recentPayments[0], state: "awaiting_confirmation" }] });
@@ -141,7 +141,7 @@ describe("recipient financial overview", () => {
     });
     it("keeps bank payouts in transit separate from unsettled payments and paid-out totals", () => {
         const html = render({ ...summary, payouts: { ...summary.payouts!, inTransitCents: 700 } });
-        expect(text(html)).toContain("7,00 € Auszahlung in Bearbeitung");
+        expect(text(html)).toContain("7,00 € auf dem Weg zu deinem Bankkonto");
         expect(html).toContain("In Bearbeitung</dt><dd><span>33,00");
         expect(html).not.toContain("40,00");
     });
@@ -179,4 +179,11 @@ describe("financial response validation", () => {
     ])("rejects malformed or unconfirmed financial data (%j)", patch => {
         expect(validRecipientPaymentSummary({ ...summary, ...patch }, ownerId)).toBe(false);
     });
+});
+
+describe("settlement information inside Workfare",()=>{
+ it("keeps a provider-confirmed availability date in a native disclosure rather than a Stripe settings flow",()=>{
+  const html=render({...summary,funds:{...summary.funds!,pendingAvailableAt:"2026-10-28T00:00:00Z"}});expect(html).toContain("<details");expect(html).toMatch(/datetime="2026-10-28T00:00:00Z"/i);expect(html).toContain("Voraussichtlich verfügbar");expect(html).not.toContain("Auszahlungseinstellungen ändern");expect(html).not.toContain("Melden Sie sich an");
+ });
+ it("does not accept an invented or malformed availability timestamp",()=>{expect(validRecipientPaymentSummary({...summary,funds:{...summary.funds!,pendingAvailableAt:"unknown"}},ownerId)).toBe(false);});
 });

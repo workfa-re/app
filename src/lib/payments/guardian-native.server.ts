@@ -7,6 +7,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createRecipientStripeAdapter } from "./recipient-stripe.server";
 import { syncGuardianRecipient } from "./guardian-recipient.server";
 import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
+import { recipientIdentityUnchanged } from "./recipient-identity";
 
 const uuid = z.string().uuid();
 const text = (max: number) => z.string().trim().min(1).max(max).refine(value => !/[\u0000-\u001f\u007f]/.test(value));
@@ -47,8 +48,15 @@ export type NativeGuardianSetup = NativeGuardianStripeSetup & Readonly<{
 
 type Rpc = { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message?: string } | null }> };
 const normalizedName = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("de-DE");
+export type GuardianRecipientRecord = z.infer<typeof recordSchema>;
 
-async function actor(expectedOwnerId: string) {
+function assertSameRecipientIdentity(record: GuardianRecipientRecord, current: GuardianRecipientRecord) {
+    if (!recipientIdentityUnchanged(record, current)) {
+        throw new PaymentFlowError("recipient_setup_changed", 409);
+    }
+}
+
+export async function requireGuardianPaymentUser(expectedOwnerId: string) {
     if (requirePaymentRuntime().mode !== "live") throw new PaymentFlowError("recipient_guardian_live_required", 409);
     const client = await supabaseServer();
     const { data: { user }, error } = await client.auth.getUser();
@@ -63,7 +71,8 @@ async function rpc(name: string, args: Record<string, unknown>) {
     return data;
 }
 
-async function currentRecipient(guardianId: string, childId: string) {
+/** Internal server lookup; the caller must authenticate this parent first. */
+export async function getBoundGuardianRecipient(guardianId: string, childId: string) {
     const context = z.object({ ownerId: uuid, kind: z.literal("live"), children: z.array(z.object({ childId: uuid, status: z.string() })).max(100) })
         .safeParse(await rpc("pay_guardian_recipient_context", { p_guardian_id: guardianId }));
     if (!context.success || context.data.ownerId !== guardianId) throw new PaymentFlowError("recipient_guardian_unavailable", 503);
@@ -93,21 +102,22 @@ function projection(record: z.infer<typeof recordSchema>, state: NativeGuardianS
 }
 
 export async function readNativeGuardianSetup(childIdInput: unknown, expectedOwnerId: string): Promise<NativeGuardianSetup> {
-    const guardianId = await actor(expectedOwnerId);
+    const guardianId = await requireGuardianPaymentUser(expectedOwnerId);
     const childId = uuid.safeParse(childIdInput);
     if (!childId.success) throw new PaymentFlowError("invalid_request");
-    const record = await currentRecipient(guardianId, childId.data);
+    const record = await getBoundGuardianRecipient(guardianId, childId.data);
     const state = verifiedSetup(await createRecipientStripeAdapter().readNativeGuardianSetup(record.userId, record.accountRef, record.minorBinding));
     // A revoked consent or concurrent account replacement must invalidate the projection.
-    const current = await currentRecipient(guardianId, childId.data);
-    if (current.accountRef !== record.accountRef || current.generation !== record.generation
-        || current.minorBinding.consentId !== record.minorBinding.consentId) throw new PaymentFlowError("recipient_setup_changed", 409);
+    const current = await getBoundGuardianRecipient(guardianId, childId.data);
+    // A status sync advances generation without replacing the recipient. Reject
+    // actual identity/consent changes, not a concurrent read of the same account.
+    assertSameRecipientIdentity(record, current);
     return projection(current, state, guardianId);
 }
 
 /** Only the explicitly consenting parent can supply actual representative data. */
 export async function saveNativeGuardianSetup(input: unknown, operationIdInput: unknown, expectedOwnerId: string, evidence: NativeGuardianEvidence): Promise<NativeGuardianSetup> {
-    const guardianId = await actor(expectedOwnerId);
+    const guardianId = await requireGuardianPaymentUser(expectedOwnerId);
     if (!input || typeof input !== "object" || !("consent" in input) || input.consent !== true) throw new PaymentFlowError("explicit_consent_required");
     const parsed = submission.safeParse(input), operation = uuid.safeParse(operationIdInput);
     if (!parsed.success || !operation.success) throw new PaymentFlowError("invalid_guardian_details");
@@ -115,7 +125,7 @@ export async function saveNativeGuardianSetup(input: unknown, operationIdInput: 
         || !Number.isFinite(Date.parse(evidence.date)) || Math.abs(Date.now() - Date.parse(evidence.date)) > 60_000) {
         throw new PaymentFlowError("recipient_acceptance_evidence_required", 400);
     }
-    const record = await currentRecipient(guardianId, parsed.data.childId);
+    const record = await getBoundGuardianRecipient(guardianId, parsed.data.childId);
     if (normalizedName(`${parsed.data.guardian.givenName} ${parsed.data.guardian.surname}`) !== normalizedName(record.minorBinding.guardianName)
         || normalizedName(`${parsed.data.child.givenName} ${parsed.data.child.surname}`) !== normalizedName(record.displayName)) {
         throw new PaymentFlowError("recipient_identity_mismatch", 409);
@@ -130,9 +140,8 @@ export async function saveNativeGuardianSetup(input: unknown, operationIdInput: 
     if (state.childAddressRequired && !parsed.data.child.address || state.guardianAddressRequired && !parsed.data.guardian.address) {
         throw new PaymentFlowError("recipient_address_required");
     }
-    const current = await currentRecipient(guardianId, record.userId);
-    if (current.accountRef !== record.accountRef || current.generation !== record.generation
-        || current.minorBinding.consentId !== record.minorBinding.consentId) throw new PaymentFlowError("recipient_setup_changed", 409);
+    let current = await getBoundGuardianRecipient(guardianId, record.userId);
+    assertSameRecipientIdentity(record, current);
     // Ignore addresses that Stripe does not currently request. Existing private
     // profile data is not silently sent merely because the app already has it.
     const details: NativeGuardianInput = {
@@ -144,10 +153,23 @@ export async function saveNativeGuardianSetup(input: unknown, operationIdInput: 
     const inputHash = createHash("sha256").update(JSON.stringify({ version: NATIVE_GUARDIAN_DECLARATION,
         childId: record.userId, guardianId, consentId: record.minorBinding.consentId,
         details: { guardian: parsed.data.guardian, child: parsed.data.child } })).digest("hex");
-    const acceptance = acceptanceSchema.safeParse(await rpc("pay_guardian_native_acceptance", {
-        p_guardian_id: guardianId, p_child_id: record.userId, p_account_ref: record.accountRef, p_generation: record.generation,
-        p_consent_id: record.minorBinding.consentId, p_operation_id: operation.data, p_input_hash: inputHash, p_ip: evidence.ip, p_user_agent: evidence.userAgent,
-    }));
+    const recordAcceptance = () => rpc("pay_guardian_native_acceptance", {
+        p_guardian_id: guardianId, p_child_id: current.userId, p_account_ref: current.accountRef, p_generation: current.generation,
+        p_consent_id: current.minorBinding.consentId, p_operation_id: operation.data, p_input_hash: inputHash, p_ip: evidence.ip, p_user_agent: evidence.userAgent,
+    });
+    let acceptedValue: unknown;
+    try { acceptedValue = await recordAcceptance(); }
+    catch (error) {
+        if (!(error instanceof PaymentFlowError) || error.code !== "RECIPIENT_ACCEPTANCE_CONFLICT") throw error;
+        const latest = await getBoundGuardianRecipient(guardianId, record.userId);
+        assertSameRecipientIdentity(record, latest);
+        if (latest.generation === current.generation) throw error;
+        // One concurrent sync may have won the strict RPC lock. Retry the same
+        // immutable acceptance once with its fresh version, never a new consent.
+        current = latest;
+        acceptedValue = await recordAcceptance();
+    }
+    const acceptance = acceptanceSchema.safeParse(acceptedValue);
     if (!acceptance.success || acceptance.data.ownerId !== guardianId || acceptance.data.childId !== record.userId
         || acceptance.data.accountRef !== record.accountRef || acceptance.data.consentId !== record.minorBinding.consentId
         || acceptance.data.inputHash !== inputHash || !isIP(acceptance.data.ip) || Date.parse(acceptance.data.date) > Date.now() + 30_000) {

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), record: vi.fn(), beginSync: vi.fn(), applySync: vi.fn(), inspect: vi.fn(), rpc: vi.fn(), sdk: vi.fn(), runtime: vi.fn(), retrieveAccount: vi.fn(), updateAccount: vi.fn(), settings: vi.fn(), updateSettings: vi.fn(), balance: vi.fn(), banks: vi.fn(), listPayouts: vi.fn(), retrievePayout: vi.fn(), createPayout: vi.fn(), event: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), record: vi.fn(), snapshot: vi.fn(), beginSync: vi.fn(), applySync: vi.fn(), inspect: vi.fn(), rpc: vi.fn(), sdk: vi.fn(), runtime: vi.fn(), retrieveAccount: vi.fn(), updateAccount: vi.fn(), settings: vi.fn(), updateSettings: vi.fn(), balance: vi.fn(), banks: vi.fn(), listPayouts: vi.fn(), retrievePayout: vi.fn(), createPayout: vi.fn(), event: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getAuthState: mocks.auth }));
 vi.mock("@/lib/supabase/admin", () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
-vi.mock("@/lib/payments/recipient-repository.server", () => ({ getRecipientAccount: mocks.record, beginRecipientSync: mocks.beginSync, applyRecipientSync: mocks.applySync }));
+vi.mock("@/lib/payments/recipient-repository.server", () => ({ getRecipientAccount: mocks.record, getRecipientSettingsSnapshot:mocks.snapshot, beginRecipientSync: mocks.beginSync, applyRecipientSync: mocks.applySync }));
 vi.mock("@/lib/payments/recipient-stripe.server", () => ({ createRecipientStripeAdapter: () => ({ inspect: mocks.inspect }) }));
 vi.mock("@/lib/payments/runtime.server", async original => ({ ...await original<typeof import("@/lib/payments/runtime.server")>(), requirePaymentRuntime: mocks.runtime }));
 vi.mock("@/lib/payments/stripe-mode.server", async original => ({ ...await original<typeof import("@/lib/payments/stripe-mode.server")>(), paymentStripeSdk: () => mocks.sdk }));
@@ -24,7 +24,8 @@ beforeEach(() => {
     vi.resetAllMocks(); schedule = { interval: "monthly", monthly_payout_days: [1] }; available = 1700; op = null; history = new Map();
     mocks.runtime.mockReturnValue({ mode: "sandbox", origin: "https://example.test" }); mocks.sdk.mockResolvedValue(stripe);
     mocks.auth.mockResolvedValue({ state: "ready", session: { user: { id: user, email_confirmed_at: new Date().toISOString() } }, profile: { account_type: "job_seeker" } });
-    mocks.record.mockResolvedValue({ userId: user, mode: "sandbox", accountRef, minorBinding: null }); mocks.beginSync.mockResolvedValue({ generation: 1, accountRef }); mocks.applySync.mockResolvedValue({ applied: true }); mocks.inspect.mockResolvedValue({ status: "ready", hasPayoutMethod: true, payoutsEnabled: true, transfersActive: true, detailsSubmitted: true });
+    mocks.snapshot.mockResolvedValue({status:"ready",hasPayoutMethod:true,payoutsEnabled:true,transfersActive:true,detailsSubmitted:true,requirementCount:0});
+    mocks.record.mockResolvedValue({ userId: user, mode: "sandbox", accountRef, minorBinding: null }); mocks.beginSync.mockResolvedValue({ generation: 1, accountRef }); mocks.applySync.mockResolvedValue({ applied: true }); mocks.inspect.mockResolvedValue({ status: "ready", requirementCount:0, hasPayoutMethod: true, payoutsEnabled: true, transfersActive: true, detailsSubmitted: true });
     mocks.retrieveAccount.mockImplementation(async () => account()); mocks.updateAccount.mockImplementation(async (_ref, body) => ({ ...account(), metadata: body.metadata }));
     mocks.settings.mockImplementation(async () => settings()); mocks.updateSettings.mockImplementation(async body => { schedule = body.payments.payouts.schedule; return settings(); });
     mocks.balance.mockImplementation(async () => ({ object: "balance", livemode: false, available: [{ currency: "eur", amount: available, source_types: { card: available } }], pending: [{ currency: "eur", amount: 2300 }] }));
@@ -65,8 +66,9 @@ describe("recipient payout schedule and balance", () => {
         if (cause === "wrong-country") mocks.retrieveAccount.mockResolvedValue({ ...account(), identity: { country: "US", entity_type: "individual" } });
         await expect(readRecipientPayoutSettings(user)).rejects.toThrow(); expect(mocks.createPayout).not.toHaveBeenCalled(); expect(mocks.updateSettings).not.toHaveBeenCalled();
     });
-    it("rejects a stale verification generation before a payout mutation", async () => {
+    it("rejects a changed recipient identity after a concurrent verification", async () => {
         mocks.applySync.mockResolvedValue({ applied: false });
+        mocks.record.mockResolvedValueOnce({ userId: user, mode: "sandbox", accountRef, minorBinding: null }).mockResolvedValue({ userId: user, mode: "sandbox", accountRef:"acct_changed", minorBinding: null });
         await expect(changeRecipientPayoutSettings(request, nonce, user)).rejects.toMatchObject({ code: "recipient_setup_changed" });
         expect(mocks.createPayout).not.toHaveBeenCalled(); expect(mocks.updateSettings).not.toHaveBeenCalled();
     });
@@ -202,4 +204,62 @@ describe("monthly default and read-only recovery", () => {
         mocks.event.mockReturnValue({ livemode: false, type: "payout.failed", account: accountRef, data: { object: payout({ status: "paid" }) } }); mocks.retrievePayout.mockResolvedValue(payout({ status: "failed" }));
         await handleRecipientPayoutSnapshot("signed-body", "fixture-signature"); expect(mocks.rpc).toHaveBeenCalledWith("pay_recipient_payout_find", { p_account_ref: accountRef, p_operation_id: id }); expect(op).toMatchObject({ payoutStatus: "failed" }); expect(mocks.updateSettings).not.toHaveBeenCalled(); expect(mocks.createPayout).not.toHaveBeenCalled();
     });
+});
+
+describe("concurrent harmless recipient observations", () => {
+    it("accepts the latest ready state for an unchanged identity after another read wins the generation", async () => {
+        mocks.applySync.mockResolvedValue({ applied: false });
+        expect((await changeRecipientPayoutSettings({action:"schedule",monthlyDay:17,consent:true},nonce,user)).schedule).toEqual({interval:"monthly",monthlyDays:[17]});
+        expect(mocks.createPayout).not.toHaveBeenCalled();
+    });
+    it("still refuses a newer genuinely restricted recipient state", async () => {
+        mocks.applySync.mockResolvedValue({ applied: false }); mocks.snapshot.mockResolvedValue({status:"restricted",hasPayoutMethod:true,payoutsEnabled:false,transfersActive:true,detailsSubmitted:true,requirementCount:1});
+        await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_required"});
+        expect(mocks.updateSettings).not.toHaveBeenCalled(); expect(mocks.createPayout).not.toHaveBeenCalled();
+    });
+});
+
+describe("one bounded renewal for an in-flight observation",()=>{
+ const ready={status:"ready",requirementCount:0,hasPayoutMethod:true,payoutsEnabled:true,transfersActive:true,detailsSubmitted:true};
+ function race(){
+  const original={id:"88888888-8888-4888-8888-888888888888",userId:user,mode:"sandbox",accountRef,generation:1,minorBinding:null};
+  mocks.record.mockResolvedValueOnce(original).mockResolvedValueOnce({...original,generation:3}).mockResolvedValue({...original,generation:4});
+  mocks.beginSync.mockResolvedValueOnce({generation:2,accountRef}).mockResolvedValue({generation:4,accountRef});
+  mocks.applySync.mockResolvedValueOnce({applied:false}).mockResolvedValue({applied:true});
+  mocks.snapshot.mockResolvedValue({...ready,status:"pending"});
+  return original;
+ }
+ function noFinancialCalls(){expect(mocks.createPayout).not.toHaveBeenCalled();expect(mocks.updateSettings).not.toHaveBeenCalled();}
+ it("saves the day on the first request after renewing and applying a second fresh Stripe inspection",async()=>{
+  race();const result=await changeRecipientPayoutSettings({action:"schedule",monthlyDay:17,consent:true},nonce,user);
+  expect(result.schedule).toEqual({interval:"monthly",monthlyDays:[17]});
+  expect(mocks.inspect).toHaveBeenCalledTimes(3); // two before the write, one for its returned current projection
+  expect(mocks.applySync.mock.invocationCallOrder[1]).toBeLessThan(mocks.updateSettings.mock.invocationCallOrder[0]);
+  expect(mocks.inspect.mock.invocationCallOrder[1]).toBeLessThan(mocks.applySync.mock.invocationCallOrder[1]);
+  expect(mocks.updateSettings).toHaveBeenCalledOnce();expect(mocks.createPayout).not.toHaveBeenCalled();
+ });
+ it("does not retry indefinitely if the second observation also loses its generation",async()=>{
+  race();mocks.applySync.mockResolvedValue({applied:false});await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_changed"});
+  expect(mocks.inspect).toHaveBeenCalledTimes(2);expect(mocks.beginSync).toHaveBeenCalledTimes(2);noFinancialCalls();
+ });
+ it("rejects a second fresh inspection that is no longer ready",async()=>{
+  race();mocks.inspect.mockResolvedValueOnce(ready).mockResolvedValue({...ready,status:"pending",requirementCount:1,payoutsEnabled:false});
+  await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_required"});noFinancialCalls();
+ });
+ it("requires zero current requirements even if a provider result incorrectly labels itself ready",async()=>{
+  mocks.inspect.mockResolvedValue({...ready,requirementCount:1});await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_required"});noFinancialCalls();
+ });
+ it("refuses a changed owner after the second inspection",async()=>{
+  const original=race();mocks.record.mockReset().mockResolvedValueOnce(original).mockResolvedValueOnce({...original,generation:3}).mockResolvedValue({...original,userId:other,generation:4});
+  await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_changed"});noFinancialCalls();
+ });
+ it("refuses a changed consent without starting a second inspection",async()=>{
+  const original=race();const binding={guardianId:other,consentId:nonce,childBirthdate:"2010-01-01",guardianBirthdate:"1980-01-01",guardianEmail:"parent@example.test",guardianName:"Parent Fixture"};
+  mocks.record.mockReset().mockResolvedValueOnce({...original,minorBinding:binding}).mockResolvedValue({...original,generation:3,minorBinding:{...binding,consentId:id}});
+  await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_changed"});expect(mocks.inspect).toHaveBeenCalledOnce();noFinancialCalls();
+ });
+ it("does not reinterpret a pending result at the same generation as a harmless concurrent begin",async()=>{
+  const original=race();mocks.record.mockReset().mockResolvedValueOnce(original).mockResolvedValue({...original,generation:2});
+  await expect(changeRecipientPayoutSettings(request,nonce,user)).rejects.toMatchObject({code:"recipient_setup_required"});expect(mocks.inspect).toHaveBeenCalledOnce();noFinancialCalls();
+ });
 });

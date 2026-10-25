@@ -182,16 +182,16 @@ describe("purpose-bound guardian access and consent UI", () => {
     it("keeps saved parental consent clear and payout troubleshooting behind an explicit disclosure", () => {
         const html=renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true}]} busy={false} onApprove={noop} onRevoke={noop}/>);
         expect(text(html)).toContain("Elternfreigabe hinterlegt");
-        expect(text(html)).toContain("Die Bankverbindung ergänzt dein Kind im eigenen Workfare Pay.");
-        expect(text(html)).toContain("Auszahlung begleiten");
+        expect(text(html)).toContain("Bankverbindung und Auszahlungen verwaltet dein Kind.");
+        expect(text(html)).toContain("Workfare Pay ansehen");
         expect(html).not.toMatch(/Stand prüfen|gesetzliche Vertretung konnte|Auszahlung einrichten|Stripe|<iframe|<input/);
         expect(html).not.toContain(' open=""');
     });
     it("reserves payout accompaniment for an adult with actual approval of a minor", () => {
         const render=(patch:Partial<GuardianConnection>)=>renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true,...patch}]} busy={false} onApprove={noop} onRevoke={noop}/>);
-        expect(render({actorRole:"child"})).not.toContain("Auszahlung begleiten");
-        expect(render({consentRequired:false})).not.toContain("Auszahlung begleiten");
-        expect(render({consented:false})).not.toContain("Auszahlung begleiten");
+        expect(render({actorRole:"child"})).not.toContain("Workfare Pay ansehen");
+        expect(render({consentRequired:false})).not.toContain("Workfare Pay ansehen");
+        expect(render({consented:false})).not.toContain("Workfare Pay ansehen");
     });
     it("lets the linked adult complete missing consent on an active legacy relationship without offering redundant approval", () => {
         const render = (patch: Partial<GuardianConnection>) => renderToStaticMarkup(<GuardianConnections relationships={[{ ...connection, status: "active", ...patch }]} busy={false} onApprove={noop} onRevoke={noop} />);

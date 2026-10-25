@@ -34,15 +34,16 @@ function Connection({ connection, busy, onApprove, onRevoke }: {
             <button type="button" className={styles.quiet} disabled={busy} onClick={() => setReview(false)}>Später entscheiden</button>
         </div> : null}
         {approvedMinor && <>
-            <p className={styles.permissionNote}>Die Bankverbindung ergänzt dein Kind im eigenen Workfare Pay.</p>
+            <p className={styles.permissionNote}>Bankverbindung und Auszahlungen verwaltet dein Kind. Du kannst die Zahlungsübersicht hier ansehen.</p>
             <details className={`${styles.details} ${styles.payoutDetails}`} onToggle={event => setPayoutOpen(event.currentTarget.open)}>
-                <summary><ChevronRight size={15} aria-hidden="true" />Auszahlung begleiten</summary>
+                <summary><ChevronRight size={15} aria-hidden="true" />Workfare Pay ansehen</summary>
                 {payoutOpen && <div className={styles.stack}>
                     <p>Falls Stripe Angaben der gesetzlichen Vertretung benötigt, ergänzt du sie hier.</p>
                     <GuardianPayoutAction childId={connection.childId} />
                 </div>}
             </details>
         </>}
+        {connection.actorRole === "child" && connection.status === "active" && connection.consentRequired && connection.consented && <p className={styles.permissionNote}>Dein Elternteil kann deine Zahlungsübersicht und die letzten Ziffern deiner Bankverbindung ansehen. Deine privaten Chats bleiben privat.</p>}
         <details className={styles.details}>
             <summary><ChevronRight size={15} aria-hidden="true" />Verbindung verwalten</summary>
             {confirmRevoke ? <div className={styles.stack}>

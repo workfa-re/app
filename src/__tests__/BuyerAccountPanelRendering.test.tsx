@@ -40,7 +40,7 @@ describe("compact payment history and billing UI", () => {
         expect(overviewResponse({ ...sandbox, ownerId: undefined }, ownerId)).toBe(false);
     });
     it("binds billing writes to the expected owner and requires the same owner in confirmation", async () => {
-        const input = { name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", postalCode: "53359", city: "Rheinbach", country: "DE" as const } };
+        const input = { address: { line1: "Musterweg 4", postalCode: "53359", city: "Rheinbach", country: "DE" as const } };
         const fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true, ownerId: anotherOwner, billing: sandbox.billing.details }) });
         vi.stubGlobal("fetch", fetch);
         await expect(saveBuyerAccountBilling(ownerId, input, "33333333-3333-4333-8333-333333333333")).rejects.toThrow("nicht bestätigt");
@@ -77,6 +77,15 @@ describe("compact payment history and billing UI", () => {
         expect(html).not.toContain("Jetzt bezahlen");
         expect(html).not.toContain("Guthaben");
         expect(html).not.toContain("<input");
+    });
+    it("puts an icon-only refresh beside the history heading and makes account linkage explicit", () => {
+        const html = render(sandbox);
+        expect(html).toContain('aria-label="Zahlungsübersicht aktualisieren"');
+        expect(html).not.toContain(">Aktualisieren<");
+        expect(html).toContain("Mit deinem Workfare-Profil verknüpft.");
+        expect(html).toContain("Mit deinem Workfare-Konto verknüpft.");
+        expect(html).not.toContain('name="billing-name"');
+        expect(html).not.toContain('name="billing-email"');
     });
 
     it("keeps billing collapsed and places the supplied FAQ inside the same utilities area", () => {

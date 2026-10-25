@@ -48,7 +48,7 @@ describe("private buyer account routes", () => {
     });
 
     it("forwards only explicit billing fields and the opaque operation key", async () => {
-        const input = { name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", city: "Rheinbach", postalCode: "53359", country: "DE" } };
+        const input = { address: { line1: "Musterweg 4", city: "Rheinbach", postalCode: "53359", country: "DE" } };
         const response = await POST(post(input, { "idempotency-key": "22222222-2222-4222-8222-222222222222" }));
         expect(response.status).toBe(200);
         expect(response.headers.get("cache-control")).toBe("no-store");
@@ -56,8 +56,8 @@ describe("private buyer account routes", () => {
     });
 
     it.each([
-        { name: "Robin Muster", email: "billing@example.test" },
-        { name: "Robin Muster", email: "billing@example.test", address: null },
+        {},
+        { address: null },
     ])("preserves the distinction between an omitted and explicitly removed invoice address (%j)", async input => {
         expect((await POST(post(input))).status).toBe(200);
         expect(service.updateBuyerBillingDetails).toHaveBeenCalledWith(input, undefined, "11111111-1111-4111-8111-111111111111");

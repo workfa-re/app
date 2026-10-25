@@ -14,6 +14,7 @@ import { getRecipientAccount } from "./recipient-repository.server";
 import { guardianEvidenceFromPersons, guardianEvidenceFromV2Persons, minorStripeBirthdate, minorProviderError, stripeBirthdate } from "./recipient-guardian-evidence.server";
 import { ageInBerlin } from "@/lib/age";
 import { createNativeGuardianStripeAdapter } from "./recipient-native-guardian.server";
+import { summarizeRecipientBank } from "./recipient-bank-summary";
 
 const accountId = (value: string | { id: string } | null | undefined) => typeof value === "string" ? value : value?.id;
 const reject = (): never => { throw new PaymentFlowError("recipient_object_mismatch", 409); };
@@ -153,7 +154,7 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             const guardianVerification = options?.guardianVerification === true;
             if (guardianVerification && (component !== "onboarding" || !account.metadata?.workfare_pay_minor_guardian
                 || account.defaults?.responsibilities?.requirements_collector !== "application")) reject();
-            if (component === "balances" || component === "payouts_list") {
+            if (component === "balances" || component === "payouts_list" || component === "bank_management") {
                 const guardian=await verifyGuardian(account,userId,undefined,true);
                 if (guardian && !guardian.evidence) throw new PaymentFlowError(guardian.reason ?? "guardian_kyc_required",409);
                 const balance = account.configuration?.recipient?.capabilities?.stripe_balance;
@@ -162,11 +163,14 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                     throw new PaymentFlowError("recipient_setup_required", 409);
                 }
             }
+            if (component === "bank_management" && account.defaults?.responsibilities?.requirements_collector !== "application") reject();
             const features = { external_account_collection: !guardianVerification, disable_stripe_user_authentication: guardianVerification };
             const components: Stripe.AccountSessionCreateParams.Components = component === "onboarding"
                 ? { account_onboarding: { enabled: true, features } }
                 : component === "management" ? { account_management: { enabled: true, features } }
-                : component === "balances" ? { balances: { enabled: true, features: { instant_payouts: false, standard_payouts: false, edit_payout_schedule: false } } }
+                : component === "bank_management" ? { payouts: { enabled: true, features: { external_account_collection: true,
+                    disable_stripe_user_authentication: true, instant_payouts: false, standard_payouts: false, edit_payout_schedule: false } } }
+                : component === "balances" ? { balances: { enabled: true, features: { external_account_collection: false, instant_payouts: false, standard_payouts: false, edit_payout_schedule: false } } }
                 : component === "notification_banner" ? { notification_banner: { enabled: true, features } }
                 : { payouts_list: { enabled: true } };
             const session = await (await sdk()).accountSessions.create({ account: accountRef, components });
@@ -175,6 +179,12 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             if (guardianVerification && (session.components?.account_onboarding?.enabled !== true
                 || session.components.account_onboarding.features.disable_stripe_user_authentication !== true
                 || session.components.account_onboarding.features.external_account_collection !== false)) reject();
+            if (component === "bank_management") {
+                const bank = session.components?.payouts;
+                if (!bank?.enabled || bank.features.external_account_collection !== true || bank.features.disable_stripe_user_authentication !== true
+                    || bank.features.instant_payouts !== false || bank.features.standard_payouts !== false || bank.features.edit_payout_schedule !== false
+                    || Object.entries(session.components).some(([name, value]) => name !== "payouts" && value.enabled)) reject();
+            }
             // A single-user client secret is returned only to the authenticated owner.
             return session.client_secret;
         },
@@ -216,6 +226,24 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
             if(banks.object!=="list"||banks.has_more!==false||banks.data.length>100)reject();
             return banks.data.some(bank=>bank.object==="bank_account"&&accountId(bank.account)===accountRef&&bank.currency==="eur"
                 &&bank.default_for_currency===true&&["new","validated","verified"].includes(bank.status??""));
+        },
+        async readBankSummary(userId: string, accountRef: string, minor?: RecipientMinorBinding | null) {
+            const account = await retrieve(userId, accountRef);
+            // A masked read also works while KYC is pending. It grants no bank
+            // editor or financial authority; its caller authenticates the child
+            // or the current linked parent before passing the stored binding.
+            if (account.metadata?.workfare_pay_minor_guardian) {
+                const binding = minor ?? (await getRecipientAccount(userId, mode))?.minorBinding;
+                if (!binding || account.metadata.workfare_pay_minor_guardian !== binding.guardianId
+                    || account.metadata.workfare_pay_minor_consent !== binding.consentId
+                    || account.metadata.workfare_pay_minor_birthdate !== binding.childBirthdate) reject();
+            }
+            const banks = await (await sdk()).accounts.listExternalAccounts(accountRef, { object: "bank_account", limit: 100 });
+            if (banks.object !== "list" || banks.has_more || !Array.isArray(banks.data) || banks.data.length > 100) reject();
+            const defaults = banks.data.filter(bank => bank.object === "bank_account" && accountId(bank.account) === accountRef
+                && bank.currency === "eur" && bank.default_for_currency === true && ["new", "validated", "verified"].includes(bank.status));
+            if (defaults.length > 1) reject();
+            return defaults.length === 1 ? summarizeRecipientBank(defaults[0], accountRef) : null;
         },
         async saveInitialBankMethod(userId:string,accountRef:string,binding:RecipientMinorBinding,bankToken:string,operationId:string):Promise<void>{
             if(mode!=="live"||!/^btok_[A-Za-z0-9]{1,200}$/.test(bankToken)
@@ -318,6 +346,19 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                 return amount;
             };
             const availableCents = sumEur(balance.available), pendingCents = sumEur(balance.pending);
+            let pendingAvailableAt: string | null = null;
+            if (pendingCents > 0) {
+                try {
+                    const transactions = await stripe.balanceTransactions.list({ currency: "eur", limit: 100 }, { stripeAccount: accountRef });
+                    if (transactions.object === "list" && !transactions.has_more && Array.isArray(transactions.data)) {
+                        const pending = transactions.data.filter(row => row.currency === "eur" && row.status === "pending");
+                        if (pending.length && pending.every(row => Number.isSafeInteger(row.net) && Number.isSafeInteger(row.available_on) && row.available_on > 0)
+                            && pending.reduce((sum, row) => sum + row.net, 0) === pendingCents) {
+                            pendingAvailableAt = new Date(Math.max(...pending.map(row => row.available_on)) * 1000).toISOString();
+                        }
+                    }
+                } catch { /* Availability is optional; never invent a date when the provider cannot prove it. */ }
+            }
             const hasOtherCurrency = [...balance.available, ...balance.pending].some(value => value.currency !== "eur" && value.amount !== 0);
             const hasPayoutMethod = external.data.some(value => value.object === "bank_account" && value.currency === "eur"
                 && value.default_for_currency === true && ["new", "validated", "verified"].includes(value.status)
@@ -332,7 +373,9 @@ export function createRecipientStripeAdapter(environment: PaymentsEnvironment = 
                 stripePayoutsEnabled, hasPayoutMethod, canRequestPayout: false, canRetainBalance: false,
                 disabledReason: !stripePayoutsEnabled || !hasPayoutMethod ? "recipient_setup_required"
                     : hasOtherCurrency ? "currency_not_supported" : "retention_monitor_required",
-                maxHoldingDays: 90, checkedAt: new Date().toISOString() };
+                maxHoldingDays: 90, checkedAt: new Date().toISOString(), pendingAvailableAt,
+                bank: external.data.filter(bank => bank.object === "bank_account" && bank.default_for_currency === true && bank.currency === "eur").length === 1
+                    ? summarizeRecipientBank(external.data.find(bank => bank.object === "bank_account" && bank.default_for_currency === true && bank.currency === "eur"), accountRef) : null };
         },
         inspect,
         async verifyWebhook(payload: string, signature: string) {

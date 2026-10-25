@@ -24,17 +24,17 @@ describe("offline Workfare Pay cent quote", () => {
         expect(result).toMatchObject({
             recipientEarningsCents: 5_000, buyerTotalCents: 5_500,
             serviceFeeGrossCents: 500, serviceFeeTaxCents: 80, serviceFeeNetCents: 420,
-            directCostsCents: 167, contributionCents: 253, targetContributionCents: 250, meetsContributionTarget: true,
+            directCostsCents: 167, contributionCents: 253, targetContributionCents: 300, meetsContributionTarget: false,
             mode: "offline_sandbox_quote", livePaymentsEnabled: false,
             feePolicyVersion: "approved-test-scenario-v1", directCostVersion: "sandbox-estimate-v1",
         });
     });
 
-    it("does not mistake a 5% gross fee for the 5% contribution target", () => {
+    it("does not mistake a 5% gross fee for the new 6% contribution target", () => {
         const input = quoteInput();
         const result = quoteSandboxPayment({ ...input, serviceFee: { ...input.serviceFee, grossCents: 250 } });
         expect(result).toMatchObject({ recipientEarningsCents: 5_000, buyerTotalCents: 5_250, serviceFeeGrossCents: 250,
-            serviceFeeTaxCents: 40, contributionCents: 43, targetContributionCents: 250, meetsContributionTarget: false });
+            serviceFeeTaxCents: 40, contributionCents: 43, targetContributionCents: 300, meetsContributionTarget: false });
     });
 
     it("accepts an explicitly approved zero fee without inventing a tariff or hiding losses", () => {
@@ -52,7 +52,7 @@ describe("offline Workfare Pay cent quote", () => {
                 tax: { ...input.serviceFee.tax, rateBasisPoints: 10_000 } } });
         expect(result.serviceFeeTaxCents).toBe(2);
         expect(result.serviceFeeNetCents).toBe(1);
-        expect(result.targetContributionCents).toBe(6);
+        expect(result.targetContributionCents).toBe(7);
     });
 
     it("accepts the technical total cap but rejects even one cent over it", () => {

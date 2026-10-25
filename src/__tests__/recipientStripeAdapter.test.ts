@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const monthlySchedule = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/payments/recipient-payout-settings.server", () => ({ initializeRecipientMonthlySchedule: monthlySchedule }));
-const api = vi.hoisted(() => ({ create: vi.fn(), update:vi.fn(),retrieve: vi.fn(), legacy: vi.fn(), external: vi.fn(), session: vi.fn(), link:vi.fn(),balance:vi.fn(),settings:vi.fn(),persons:vi.fn(),privateRecord:vi.fn(),payouts:vi.fn(),transfers:vi.fn(),charges:vi.fn(),token:vi.fn(),attach:vi.fn() }));
+const api = vi.hoisted(() => ({ create: vi.fn(), update:vi.fn(),retrieve: vi.fn(), legacy: vi.fn(), external: vi.fn(), session: vi.fn(), link:vi.fn(),balance:vi.fn(),settings:vi.fn(),persons:vi.fn(),privateRecord:vi.fn(),payouts:vi.fn(),transfers:vi.fn(),charges:vi.fn(),token:vi.fn(),attach:vi.fn(),balanceTransactions:vi.fn() }));
 vi.mock("@/lib/payments/recipient-repository.server",()=>({getRecipientAccount:api.privateRecord}));
 vi.mock("stripe", async (original) => {
     const { default: Actual } = await original<typeof import("stripe")>();
@@ -12,7 +12,7 @@ vi.mock("stripe", async (original) => {
             super(...args); this.v2.core.accounts.create = api.create; this.v2.core.accounts.update=api.update;this.v2.core.accounts.retrieve = api.retrieve;
             this.accounts.retrieve = api.legacy;this.tokens.retrieve=api.token;this.accounts.createExternalAccount=api.attach; this.accounts.listExternalAccounts = api.external; this.accountSessions.create = api.session;
             this.accounts.listPersons=api.persons; this.v2.core.accountLinks.create=api.link;
-            this.balance.retrieve=api.balance;this.balanceSettings.retrieve=api.settings;
+            this.balance.retrieve=api.balance;this.balanceSettings.retrieve=api.settings;this.balanceTransactions.list=api.balanceTransactions;
             this.payouts.list=api.payouts;this.transfers.list=api.transfers;this.charges.list=api.charges;
         }
     } };
@@ -36,12 +36,13 @@ beforeEach(() => {
     api.external.mockResolvedValue({ data: [bank()] }); api.session.mockResolvedValue({ account: accountRef, client_secret: "fixture_owner_secret", livemode: false, expires_at: 2_100_000_000 });
     api.link.mockResolvedValue({account:accountRef,livemode:false,url:"https://connect.stripe.com/setup/c/fixture",expires_at:new Date(Date.now()+300_000).toISOString(),use_case:{type:"account_onboarding"}});
     api.balance.mockResolvedValue({object:"balance",livemode:false,available:[{currency:"eur",amount:1200}],pending:[{currency:"eur",amount:3400}]});
+    api.balanceTransactions.mockResolvedValue({object:"list",data:[],has_more:false});
     api.settings.mockResolvedValue({object:"balance_settings",payments:{payouts:{status:"enabled",schedule:{interval:"daily"}}}});
 });
 describe("narrow Accounts v2 sandbox adapter", () => {
     it("creates a recipient configuration with explicit responsibilities and stable idempotency", async () => {
         const adapter = createRecipientStripeAdapter(env);
-        expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "readNativeGuardianSetup", "saveNativeGuardianSetup", "createHostedOnboarding", "readPayoutOverview", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
+        expect(Object.keys(adapter).sort()).toEqual(["createAccount", "createSession", "inspectUnusedSetup", "inspectBankSetup", "saveInitialBankMethod", "readNativeGuardianSetup", "saveNativeGuardianSetup", "createHostedOnboarding", "readPayoutOverview", "readBankSummary", "inspect", "verifyWebhook", "verifySnapshotWebhook"].sort());
         expect(await adapter.createAccount(user,{contactEmail:"recipient@example.test"})).toBe(accountRef);
         expect(monthlySchedule).toHaveBeenCalledWith(expect.any(Stripe),user,accountRef,"sandbox");
         const [params, opts] = api.create.mock.calls[0];
@@ -109,7 +110,7 @@ describe("narrow Accounts v2 sandbox adapter", () => {
     });
     it("makes balances and payout history read-only without manual or instant payouts", async () => {
         const adapter = createRecipientStripeAdapter(env); await adapter.createSession(user, accountRef, "balances");
-        expect(api.session.mock.calls[0][0].components).toEqual({ balances: { enabled: true, features: { instant_payouts: false, standard_payouts: false, edit_payout_schedule: false } } });
+        expect(api.session.mock.calls[0][0].components).toEqual({ balances: { enabled: true, features: { external_account_collection: false, instant_payouts: false, standard_payouts: false, edit_payout_schedule: false } } });
         await adapter.createSession(user, accountRef, "payouts_list");
         expect(api.session.mock.calls[1][0].components).toEqual({ payouts_list: { enabled: true } });
     });
@@ -457,4 +458,69 @@ describe("safe unused minor setup and bank-only capabilities",()=>{
         expect(api.update).not.toHaveBeenCalled();expect(api.session).not.toHaveBeenCalled();expect(api.persons).not.toHaveBeenCalled();
     });
 
+});
+
+describe("recipient bank-only management",()=>{
+ const features={external_account_collection:true,disable_stripe_user_authentication:true,instant_payouts:false,standard_payouts:false,edit_payout_schedule:false};
+ const bankAccount=()=>({...account(),defaults:{responsibilities:{...account().defaults.responsibilities,requirements_collector:"application"}}});
+ it("issues only bank collection with payout, schedule and identity authority excluded",async()=>{
+  api.retrieve.mockResolvedValue(bankAccount());api.session.mockImplementation(async(params)=>({...params,client_secret:"fixture_owner_secret",livemode:false,expires_at:2100000000}));
+  expect(await createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).toBe("fixture_owner_secret");
+  expect(api.session).toHaveBeenCalledExactlyOnceWith({account:accountRef,components:{payouts:{enabled:true,features}}});
+  expect(api.create).not.toHaveBeenCalled(); expect(api.attach).not.toHaveBeenCalled();
+ });
+ it("cannot disable Stripe authentication for a different requirement collector",async()=>{
+  await expect(createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).rejects.toMatchObject({code:"recipient_object_mismatch"});expect(api.session).not.toHaveBeenCalled();
+ });
+ it.each([{standard_payouts:true},{instant_payouts:true},{edit_payout_schedule:true},{disable_stripe_user_authentication:false},{external_account_collection:false}])("refuses a broadened or mismatched provider session %j",async patch=>{
+  api.retrieve.mockResolvedValue(bankAccount());api.session.mockResolvedValue({account:accountRef,client_secret:"fixture_owner_secret",livemode:false,expires_at:2100000000,components:{payouts:{enabled:true,features:{...features,...patch}}}});
+  await expect(createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).rejects.toMatchObject({code:"recipient_object_mismatch"});
+ });
+ it("returns only the bank label and final digits, never its IDs or full account data",async()=>{
+  api.external.mockResolvedValue({object:"list",has_more:false,data:[{...bank(),bank_name:"Fixture Bank",country:"de",last4:"6789",iban:"DE0012345678901234567890",routing_number:"private",account_holder_name:"Child Fixture"}]});
+  const result=await createRecipientStripeAdapter(env).readBankSummary(user,accountRef);
+  expect(result).toEqual({bankName:"Fixture Bank",last4:"6789",country:"DE",currency:"eur"}); expect(JSON.stringify(result)).not.toMatch(/acct_|ba_|DE0012|routing|holder/);
+ });
+ it("rejects an incomplete bank list before selecting a destination",async()=>{
+  api.external.mockResolvedValue({object:"list",has_more:true,data:[bank()]});await expect(createRecipientStripeAdapter(env).readBankSummary(user,accountRef)).rejects.toThrow();
+ });
+});
+
+describe("verified settlement dates",()=>{
+ it("shows a date only when actual pending transactions cover the entire displayed pending amount",async()=>{
+  api.balanceTransactions.mockResolvedValue({object:"list",has_more:false,data:[{currency:"eur",status:"pending",net:1000,available_on:1900000000},{currency:"eur",status:"pending",net:2400,available_on:1900100000}]});
+  const result=await createRecipientStripeAdapter(env).readPayoutOverview(user,accountRef);expect(result.pendingAvailableAt).toBe(new Date(1900100000000).toISOString());
+  expect(api.balanceTransactions).toHaveBeenCalledWith({currency:"eur",limit:100},{stripeAccount:accountRef});
+ });
+ it.each([{object:"list",has_more:true,data:[]},{object:"list",has_more:false,data:[{currency:"eur",status:"pending",net:1,available_on:1900000000}]},{object:"list",has_more:false,data:[{currency:"eur",status:"pending",net:3400,available_on:null}]}])("does not guess a date from partial or malformed evidence",async transactions=>{
+  api.balanceTransactions.mockResolvedValue(transactions);expect((await createRecipientStripeAdapter(env).readPayoutOverview(user,accountRef)).pendingAvailableAt).toBeNull();
+ });
+ it("keeps proven balances available when the optional date lookup fails",async()=>{
+  api.balanceTransactions.mockRejectedValue(new Error("provider not available"));expect(await createRecipientStripeAdapter(env).readPayoutOverview(user,accountRef)).toMatchObject({pendingCents:3400,pendingAvailableAt:null});
+ });
+});
+
+describe("bank editor isolation",()=>{
+ it("refuses an otherwise valid response that grants an unrelated identity editor",async()=>{
+  const row=account();api.retrieve.mockResolvedValue({...row,defaults:{responsibilities:{...row.defaults.responsibilities,requirements_collector:"application"}}});
+  api.session.mockResolvedValue({account:accountRef,client_secret:"fixture_owner_secret",livemode:false,expires_at:2100000000,components:{payouts:{enabled:true,features:{external_account_collection:true,disable_stripe_user_authentication:true,instant_payouts:false,standard_payouts:false,edit_payout_schedule:false}},account_management:{enabled:true,features:{}}}});
+  await expect(createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).rejects.toMatchObject({code:"recipient_object_mismatch"});
+ });
+});
+
+describe("bank session model and owner guards",()=>{
+ it.each(["express","collector-stripe","missing-collector","foreign-owner","live-object"])("never grants bank collection under an unverified %s setup",async cause=>{
+  const row={...account(),defaults:{responsibilities:{...account().defaults.responsibilities,requirements_collector:"application"}}};
+  if(cause==="express")row.dashboard="express";
+  if(cause==="collector-stripe")row.defaults.responsibilities.requirements_collector="stripe";
+  if(cause==="missing-collector")delete (row.defaults.responsibilities as Record<string,unknown>).requirements_collector;
+  if(cause==="foreign-owner")row.metadata={...metadata,workfare_pay_user:"other"};
+  if(cause==="live-object")row.livemode=true;
+  api.retrieve.mockResolvedValue(row);
+  await expect(createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).rejects.toThrow();expect(api.session).not.toHaveBeenCalled();
+ });
+ it("does not hand a minor a bank editor without matching stored guardian consent binding",async()=>{
+  const row={...account(),metadata:{...metadata,workfare_pay_minor_guardian:"parent",workfare_pay_minor_consent:"consent",workfare_pay_minor_birthdate:"2010-01-01"},identity:{country:"de",entity_type:"individual",individual:{date_of_birth:{year:2010,month:1,day:1}}},defaults:{responsibilities:{...account().defaults.responsibilities,requirements_collector:"application"}}};api.retrieve.mockResolvedValue(row);
+  await expect(createRecipientStripeAdapter(env).createSession(user,accountRef,"bank_management")).rejects.toMatchObject({code:"guardian_identity_mismatch"});expect(api.session).not.toHaveBeenCalled();
+ });
 });

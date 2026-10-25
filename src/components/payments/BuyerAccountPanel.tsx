@@ -18,6 +18,46 @@ const object = (value: unknown): value is Record<string, unknown> => Boolean(val
 const nullableText = (value: unknown) => value === null || typeof value === "string";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export async function changeBuyerAccountEmail(ownerId: string, email: string) {
+    if (!UUID.test(ownerId)) throw new Error("Bitte melde dich erneut an.");
+    const response = await fetch("/api/payments/account/email", { method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-Workfare-Owner": ownerId }, body: JSON.stringify({ email }) });
+    const value: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+        if (object(value) && value.code === "email_change_rate_limited") throw new Error("Bitte warte kurz, bevor du eine weitere Bestätigung anforderst.");
+        if (object(value) && value.code === "account_email_family_review_required") throw new Error("Deine E-Mail ist mit einer Familienfreigabe verknüpft. Schließe zuerst die Auszahlungsfreigabe ab oder kontaktiere uns für eine sichere Änderung.");
+        throw new Error("Die Änderung konnte nicht angefordert werden. Bitte versuche es später erneut.");
+    }
+    if (!object(value) || value.ownerId !== ownerId || !["unchanged", "pending", "changed"].includes(String(value.status))) throw new Error("Die Änderung konnte nicht bestätigt werden.");
+    return value.status as "unchanged" | "pending" | "changed";
+}
+
+function BillingIdentity({ details, ownerId, disabled, isOwnerCurrent }: { details: BuyerBillingDetails | null; ownerId: string; disabled: boolean; isOwnerCurrent: () => boolean }) {
+    const id = useId();
+    const [editing, setEditing] = useState(false), [email, setEmail] = useState(""), [pending, setPending] = useState(false);
+    const [feedback, setFeedback] = useState<string | null>(null), [error, setError] = useState<string | null>(null);
+    const locked = useRef(false), mounted = useRef(false);
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+    async function submit(event: React.FormEvent) {
+        event.preventDefault();
+        if (locked.current || disabled || !isOwnerCurrent()) return;
+        locked.current = true; setPending(true); setError(null); setFeedback(null);
+        try {
+            const result = await changeBuyerAccountEmail(ownerId, email);
+            if (!mounted.current || !isOwnerCurrent()) return;
+            if (result === "changed") { window.location.reload(); return; }
+            setEditing(false); setFeedback(result === "pending" ? "Bestätige die Änderung über die E-Mails von Workfare. Bis dahin bleibt deine bisherige Adresse gültig." : "Diese E-Mail-Adresse ist bereits mit deinem Konto verknüpft.");
+        } catch (failure) { if (mounted.current && isOwnerCurrent()) setError(failure instanceof Error ? failure.message : "Bitte versuche es erneut."); }
+        finally { locked.current = false; if (mounted.current) setPending(false); }
+    }
+    return <div className={account.linkedIdentity}>
+        <div className={account.linkedField}><span>Name</span><strong>{details?.name || "Dein Profilname"}</strong><small>Mit deinem Workfare-Profil verknüpft.</small></div>
+        <div className={account.linkedField}><div className={account.linkedFieldHeading}><span>E-Mail</span><button type="button" className={styles.textAction} disabled={disabled || pending} onClick={() => { setEmail(details?.email ?? ""); setEditing(value => !value); setFeedback(null); setError(null); }}>Ändern</button></div><strong>{details?.email || "Deine Konto-E-Mail"}</strong><small>Mit deinem Workfare-Konto verknüpft. Nach Bestätigung wird sie auch für Zahlungen übernommen.</small></div>
+        {editing && <form className={account.emailForm} onSubmit={submit}><label htmlFor={`${id}-email`}>Neue E-Mail-Adresse<input id={`${id}-email`} type="email" autoComplete="email" required maxLength={254} value={email} disabled={pending || disabled} onChange={event => setEmail(event.target.value)} /></label><div className={account.formActions}><button type="button" className={styles.textAction} disabled={pending} onClick={() => setEditing(false)}>Abbrechen</button><button type="submit" className={`app-glass-control ${styles.action}`} disabled={pending || disabled}>{pending ? <Loader2 size={16} className={account.spinner} /> : null}Bestätigung anfordern</button></div></form>}
+        {feedback && <p role="status" className={account.identityFeedback}>{feedback}</p>}{error && <p role="alert" className={styles.error}>{error}</p>}
+    </div>;
+}
+
 function billingResponse(value: unknown): value is BuyerBillingDetails {
     return object(value) && nullableText(value.name) && nullableText(value.email)
         && (value.address === null || (object(value.address) && ["line1", "line2", "postalCode", "city", "country"].every((key) => nullableText((value.address as Record<string, unknown>)[key]))));
@@ -126,9 +166,9 @@ function History({ snapshot }: { snapshot: BuyerAccountSnapshot }) {
     </div>;
 }
 
-type BillingForm = { name: string; email: string; address: NonNullable<BuyerBillingInput["address"]> };
+type BillingForm = { address: NonNullable<BuyerBillingInput["address"]> };
 function initialBilling(details: BuyerBillingDetails | null): BillingForm {
-    return { name: details?.name ?? "", email: details?.email ?? "", address: {
+    return { address: {
         line1: details?.address?.line1 ?? "", line2: details?.address?.line2 ?? "", postalCode: details?.address?.postalCode ?? "",
         city: details?.address?.city ?? "", country: "DE",
     } };
@@ -156,7 +196,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
         if (editing) firstField.current?.focus();
         else if (wasEditing.current) editRef.current?.focus();
         wasEditing.current = editing;
-    }, [editing]);
+    }, [editing, addressAction]);
 
     async function save(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -165,7 +205,7 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
         onSavingChange(true);
         setSaving(true); setError(null); setSaved(false);
         try {
-            const payload: BuyerBillingInput = { name: input.name, email: input.email,
+            const payload: BuyerBillingInput = {
                 ...(addressAction === "edit" ? { address: input.address } : addressAction === "remove" ? { address: null } : {}) };
             const serialized = JSON.stringify(payload);
             if (saveOperation.current?.input !== serialized) saveOperation.current = { input: serialized, id: crypto.randomUUID() };
@@ -183,29 +223,24 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
     const details = snapshot.billing.details;
     const address = details?.address;
     const hasAddress = Boolean(address && [address.line1, address.line2, address.postalCode, address.city, address.country].some(Boolean));
-    const hasDetails = Boolean(details?.name || details?.email || address?.line1);
     return <details className={account.billing}>
         <summary className={account.billingSummary}><span className={account.billingLabel}>
             <span className={`app-glass-control ${account.billingIcon}`} aria-hidden="true"><UserRound size={19} strokeWidth={1.5} /></span>
             <span>Rechnungsdaten</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
         <div className={account.billingBody}>
+            {snapshot.billing.available && <BillingIdentity details={details} ownerId={snapshot.ownerId} disabled={saving || editing} isOwnerCurrent={isOwnerCurrent} />}
             {!snapshot.billing.available ? <p className={account.unavailable}>{snapshot.kind === "local"
                 ? "Rechnungsdaten werden in der lokalen Vorschau nicht gespeichert."
                 : "Hinterlege zuerst ein Zahlungsmittel. Danach kannst du deine Rechnungsdaten ergänzen."}</p>
                 : editing ? <form onSubmit={save} className={account.form}>
-                    <p className={account.billingNote}>Für Rechnungen und Zahlungsbelege. Deine Anmeldung bleibt unverändert.</p>
                     <fieldset disabled={saving} aria-busy={saving}>
-                        <label htmlFor={`${fieldId}-name`}>Name oder Unternehmen<input ref={firstField} id={`${fieldId}-name`} name="billing-name" autoComplete="billing name" value={input.name}
-                            required minLength={2} maxLength={150} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
-                        <label htmlFor={`${fieldId}-email`}>E-Mail für Rechnungen<input id={`${fieldId}-email`} name="billing-email" type="email" autoComplete="billing email" value={input.email}
-                            required maxLength={254} onChange={(event) => setInput({ ...input, email: event.target.value })} /></label>
                         <section className={account.optionalAddress} aria-label="Optionale Rechnungsadresse">
                             <div className={account.addressHeading}><span>Rechnungsadresse <small>optional</small></span><button type="button" className={styles.textAction} aria-expanded={addressAction === "edit"} aria-controls={`${fieldId}-address`} onClick={() => {
                                 if (addressAction === "edit") setAddressAction("preserve");
                                 else { if (address?.country !== "DE") setInput(current => ({ ...current, address: { line1: "", line2: "", postalCode: "", city: "", country: "DE" } })); setAddressAction("edit"); }
                             }}>{addressAction === "edit" ? hasAddress ? "Beibehalten" : "Nicht ergänzen" : hasAddress ? "Bearbeiten" : "Ergänzen"}</button></div>
                             {addressAction === "edit" ? <div id={`${fieldId}-address`} className={account.addressFields}>
-                        <label htmlFor={`${fieldId}-line1`}>Straße und Hausnummer<input id={`${fieldId}-line1`} name="billing-address-line1" autoComplete="billing address-line1" value={input.address.line1}
+                        <label htmlFor={`${fieldId}-line1`}>Straße und Hausnummer<input ref={firstField} id={`${fieldId}-line1`} name="billing-address-line1" autoComplete="billing address-line1" value={input.address.line1}
                             required minLength={3} maxLength={200} onChange={(event) => setInput({ ...input, address: { ...input.address, line1: event.target.value } })} /></label>
                         <label htmlFor={`${fieldId}-line2`}>Adresszusatz <span>optional</span><input id={`${fieldId}-line2`} name="billing-address-line2" autoComplete="billing address-line2" value={input.address.line2}
                             maxLength={200} onChange={(event) => setInput({ ...input, address: { ...input.address, line2: event.target.value } })} /></label>
@@ -229,17 +264,15 @@ function Billing({ snapshot, onSaved, onSavingChange, onEditingChange, isOwnerCu
                         </div>
                     </fieldset>
                     {error && <p className={styles.error} role="alert">{error}</p>}
-                </form> : <><p className={account.billingNote}>Mit Stripe synchronisierte Angaben für Rechnungen und Belege.</p><div className={account.billingRead}>
-                    {hasDetails ? <address className={account.address}>
-                        {details?.name && <strong>{details.name}</strong>}
+                </form> : <><div className={account.addressTitle}><span>Rechnungsadresse <small>optional</small></span></div><div className={account.billingRead}>
+                    {hasAddress ? <address className={account.address}>
                         {address?.line1 && <span>{address.line1}</span>}{address?.line2 && <span>{address.line2}</span>}
                         {(address?.postalCode || address?.city) && <span>{[address?.postalCode, address?.city].filter(Boolean).join(" ")}</span>}
                         {address?.country && <span>{address.country === "DE" ? "Deutschland" : address.country}</span>}
-                        {details?.email && <span className={account.billingEmail}>{details.email}</span>}
-                    </address> : <p className={account.unavailable}>Noch keine Rechnungsdaten hinterlegt.</p>}
+                    </address> : <p className={account.unavailable}>Keine Rechnungsadresse hinterlegt.</p>}
                     <button type="button" ref={editRef} className={`app-glass-control ${styles.quietButton}`} onClick={() => {
                         setInput(initialBilling(details)); setAddressAction("preserve"); setError(null); setSaved(false); setEditing(true);
-                    }}>Bearbeiten</button>
+                    }}>{hasAddress ? "Bearbeiten" : "Ergänzen"}</button>
                 </div></>}
             {saved && <p className={`${styles.feedback} ${account.saved}`}><Check size={15} aria-hidden="true" />Rechnungsdaten gespeichert.</p>}
         </div>
@@ -255,16 +288,15 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
     const [savingBilling, setSavingBilling] = useState(false);
     const [editingBilling, setEditingBilling] = useState(false);
     return <section className={`${styles.surface} ${account.utilities}`} aria-label="Rechnungsdaten und Hilfe">
-        <details className={account.billing}>
-            <summary className={account.billingSummary}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
+        <div className={account.historySection}><details className={account.billing} open={error ? true : undefined}>
+            <summary className={`${account.billingSummary} ${account.historySummary}`}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
             <div className={account.billingBody} aria-labelledby={titleId} aria-busy={loading}>
             <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
             {loading ? <p className={`${styles.loading} ${account.notice}`} role="status"><Loader2 size={16} className={account.spinner} aria-hidden="true" />Übersicht wird geladen …</p>
                 : error ? <div className={account.failure}><p className={styles.error} role="alert">{error}</p><button type="button" className={`app-glass-control ${styles.quietButton}`} onClick={onRetry}>Erneut versuchen</button></div>
                     : snapshot && <History snapshot={snapshot} />}
-            {!loading && !error && <div className={account.historyActions}><button type="button" className={`app-glass-control ${styles.quietButton} ${account.refresh}`} disabled={savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={16} aria-hidden="true" /><span>Aktualisieren</span></button></div>}
             </div>
-        </details>
+        </details><div className={account.historyTools}><button type="button" className={`app-glass-control ${account.refresh}`} disabled={loading || savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={17} className={loading ? account.spinner : undefined} aria-hidden="true" /></button></div></div>
         {!loading && !error && snapshot && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
         {children}
     </section>;
@@ -285,6 +317,7 @@ export default function BuyerAccountPanel({ ownerId, kind, version = 0, children
         const ticket = ++generation.current;
         const isCurrent = () => active && generation.current === ticket && invalidatedOwner.current !== ownerId;
         const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
+            if (event === "USER_UPDATED" && session?.user.id === ownerId) { setAttempt(value => value + 1); return; }
             if (event !== "SIGNED_OUT" && (!session?.user.id || session.user.id === ownerId)) return;
             invalidatedOwner.current = ownerId ?? null; ++generation.current; controller.abort(); setAnnouncement("");
             setState({ key, snapshot: null, error: "Bitte öffne die Übersicht nach deiner Anmeldung erneut." });

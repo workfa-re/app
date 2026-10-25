@@ -42,11 +42,24 @@ describe("parent-led recipient setup", () => {
         const html = renderToStaticMarkup(<GuardianPayoutsProvider ownerId={ownerId} returnChildId={childId}><span>Deine Familie</span></GuardianPayoutsProvider>);
         expect(text(html)).toBe("Deine Familie"); expect(fetch).not.toHaveBeenCalled();
     });
-    it("offers one clear setup action without collecting bank, DOB or document data", () => {
+    it("guides the parent to the child's bank step before offering verification", () => {
         const onStart = vi.fn();
         const html = renderToStaticMarkup(<GuardianPayoutActionView entry={child} pending={false} onStart={onStart} onRefresh={vi.fn()} />);
-        expect(text(html)).toBe("Auszahlung einrichten");
+        expect(text(html)).toContain("Dein Kind hinterlegt zuerst seine Bankverbindung im eigenen Workfare Pay.");
+        expect(text(html)).toContain("Stand aktualisieren");
+        expect(text(html)).not.toMatch(/Auszahlung (?:freigeben|einrichten)|Einrichtung fortsetzen/);
         expect(html).not.toMatch(/<input|<iframe|Einrichtung abgeschlossen/); expect(onStart).not.toHaveBeenCalled();
+    });
+    it("keeps the not-started guidance readable while blocking overlapping refreshes", () => {
+        const html = renderToStaticMarkup(<GuardianPayoutActionView entry={{ ...child, canStartPayout: false }} pending onStart={vi.fn()} onRefresh={vi.fn()} />);
+        expect(text(html)).toContain("Danach kannst du die erforderlichen Angaben bestätigen.");
+        expect(html).toMatch(/<button[^>]*disabled=""/);
+        expect(html).not.toMatch(/<input|<iframe|Auszahlung freigegeben/);
+    });
+    it("offers continuation once the child has begun the recipient setup", () => {
+        const html = renderToStaticMarkup(<GuardianPayoutActionView entry={{ ...child, status: "onboarding" }} pending={false} onStart={vi.fn()} onRefresh={vi.fn()} />);
+        expect(text(html)).toContain("Einrichtung fortsetzen");
+        expect(text(html)).not.toContain("Dein Kind hinterlegt zuerst");
     });
     it("requires a separate unchecked setup choice while reserving Stripe TOS acceptance for Stripe", () => {
         const onStart = vi.fn();

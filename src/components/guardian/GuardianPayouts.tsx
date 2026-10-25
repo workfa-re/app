@@ -14,6 +14,7 @@ import { PaymentEmbedBoundary } from "@/components/payments/PaymentEmbedBoundary
 import { StripeReloadButton, type StripeEmbedControls } from "@/components/payments/StripeEmbedControls";
 import { logoutRecipientConnectSessions } from "@/components/payments/recipient-connect-lifecycle";
 import { GuardianVerificationForm } from "./GuardianVerificationForm";
+import { GuardianFinanceOverview } from "./GuardianFinanceOverview";
 
 const EmbeddedRecipient=dynamic(()=>import("@/components/payments/EmbeddedRecipient"),{ssr:false,loading:()=><p className={styles.fieldHint}>Auszahlungseinrichtung wird geladen …</p>});
 
@@ -188,8 +189,9 @@ export function GuardianPayoutAction({ childId }: { childId: string }) {
         : <p>{context.loaded ? "Die Auszahlungseinrichtung ist gerade nicht verfügbar. Deine Elternfreigabe bleibt gespeichert." : "Auszahlungsangaben werden geladen …"}</p>;
     if(context.session?.childId===childId) return null;
     if (nativeOpen && context.overview) return <GuardianVerificationForm key={`${context.overview.ownerId}:${childId}`} ownerId={context.overview.ownerId} childId={childId} onClose={() => setNativeOpen(false)} onUpdated={() => context.reload()} onAdditionalVerification={() => void context.start(childId)} />;
-    if (entry.canStartPayout && entry.status !== "ready") return <div className={styles.payoutSetup}><p className={styles.fieldHint}>Bestätige die nötigen Angaben direkt in Workfare. Ein eigener Stripe-Zugang ist nicht nötig.</p><div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={context.pendingChild !== null} onClick={() => setNativeOpen(true)}>Auszahlung freigeben<ArrowUpRight size={16} aria-hidden="true" /></button></div></div>;
-    return <>{context.error && <p role="alert">{context.error}</p>}<GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => setNativeOpen(true)} onRestart={() => context.start(childId,{restart:true})} onRefresh={() => context.refresh(childId)} /></>;
+    const finance = entry.status !== "not_started" && context.overview ? <GuardianFinanceOverview key={`${context.overview.ownerId}:${childId}`} ownerId={context.overview.ownerId} childId={childId} /> : null;
+    if (entry.canStartPayout && !["ready", "not_started"].includes(entry.status)) return <><div className={styles.payoutSetup}><p className={styles.fieldHint}>Bestätige die nötigen Angaben direkt in Workfare. Ein eigener Stripe-Zugang ist nicht nötig.</p><div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={context.pendingChild !== null} onClick={() => setNativeOpen(true)}>Auszahlung freigeben<ArrowUpRight size={16} aria-hidden="true" /></button></div></div>{finance}</>;
+    return <>{context.error && <p role="alert">{context.error}</p>}<GuardianPayoutActionView key={childId} entry={entry} pending={context.pendingChild !== null} onStart={() => setNativeOpen(true)} onRestart={() => context.start(childId,{restart:true})} onRefresh={() => entry.status === "not_started" ? context.reload() : context.refresh(childId)} />{finance}</>;
 }
 
 function GuardianEmbeddedSetup() {
@@ -215,12 +217,16 @@ export function GuardianPayoutActionView({ entry, pending, onStart, onRestart, o
     const [expanded, setExpanded] = useState(false);
     const [accepted, setAccepted] = useState(false);
     if (entry.status === "ready") return <p className={styles.fieldHint}>Auszahlung eingerichtet.</p>;
+    if (entry.status === "not_started") return <div className={styles.payoutSetup}>
+        <p className={styles.fieldHint}>Dein Kind hinterlegt zuerst seine Bankverbindung im eigenen Workfare Pay. Danach kannst du die erforderlichen Angaben bestätigen.</p>
+        <button type="button" className={styles.quiet} disabled={pending} onClick={onRefresh}><RefreshCw size={15} aria-hidden="true" />Stand aktualisieren</button>
+    </div>;
     const hint = guardianPayoutHint(entry);
     const restart = !entry.canStartPayout && entry.canRestartPayout === true && Boolean(onRestart);
     const canOpen = entry.canStartPayout || restart;
     return <div className={styles.payoutSetup}>
         {hint && <p className={styles.fieldHint}>{hint}</p>}
-        {expanded && canOpen ? <GuardianPayoutConsent name={entry.name} accepted={accepted} pending={pending} restart={restart} onAccepted={setAccepted} onStart={restart ? onRestart! : onStart} onCancel={() => { setExpanded(false); setAccepted(false); }} /> : canOpen && <div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={pending} onClick={() => { setExpanded(true); setAccepted(false); }}>{restart ? "Einrichtung neu beginnen" : entry.status === "not_started" ? "Auszahlung einrichten" : "Einrichtung fortsetzen"}<ArrowUpRight size={16} aria-hidden="true" /></button>{entry.canStartPayout && entry.status !== "not_started" && <button type="button" className={styles.quiet} disabled={pending} onClick={onRefresh}><RefreshCw size={15} aria-hidden="true" />Stand prüfen</button>}</div>}
+        {expanded && canOpen ? <GuardianPayoutConsent name={entry.name} accepted={accepted} pending={pending} restart={restart} onAccepted={setAccepted} onStart={restart ? onRestart! : onStart} onCancel={() => { setExpanded(false); setAccepted(false); }} /> : canOpen && <div className={styles.actions}><button type="button" className={`${styles.action} ${styles.glass}`} disabled={pending} onClick={() => { setExpanded(true); setAccepted(false); }}>{restart ? "Einrichtung neu beginnen" : "Einrichtung fortsetzen"}<ArrowUpRight size={16} aria-hidden="true" /></button>{entry.canStartPayout && <button type="button" className={styles.quiet} disabled={pending} onClick={onRefresh}><RefreshCw size={15} aria-hidden="true" />Stand prüfen</button>}</div>}
     </div>;
 }
 

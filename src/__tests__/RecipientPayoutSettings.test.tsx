@@ -9,9 +9,9 @@ const render = (patch: Partial<Parameters<typeof RecipientPayoutSettingsView>[0]
 describe("recipient payout settings presentation", () => {
     it("shows the actual monthly payout day with one available-money action", () => { const html = render(); expect(html).toContain("Am 1. jedes Monats"); expect(html).toMatch(/17,00.+jetzt auszahlen/); expect(html).not.toMatch(/Wallet|Bankkonto eröffnen|Sofortauszahlung|Kontostand/); });
     it("shows existing daily automation as daily rather than silently promising monthly", () => { expect(render({ snapshot: snapshot({ schedule: { interval: "daily" } }) })).toContain("An jedem Bankarbeitstag"); });
-    it("uses explicit unchecked consent before saving the monthly day", () => { const html = render({ editing: true, day: 17 }); expect(html).toContain("monatlich am 17."); expect(html).toContain("Bankarbeitstag"); expect(html).toMatch(/type="submit"[^>]*disabled/); expect(html).not.toContain("checked="); expect(html.match(/<option /g)).toHaveLength(31); });
+    it("uses the named save action for the selected monthly day without an extra checkbox", () => { const html = render({ editing: true, day: 17 }); expect(html).toContain('value="17" selected=""'); expect(html).toContain("Bankarbeitstag"); expect(html).not.toContain('type="checkbox"'); expect(html).not.toMatch(/type="submit"[^>]*disabled/); expect(html.match(/<option /g)).toHaveLength(31); });
     it("requests explicit consent to transfer the displayed amount to the existing bank", () => { const html = render({ paying: true }); expect(html).toMatch(/17,00.+auf deine hinterlegte Bankverbindung/); expect(html).toContain("automatischer Auszahlungstag bleibt bestehen"); expect(html).toMatch(/type="submit"[^>]*disabled/); });
-    it("does not offer a zero-balance payout", () => { const html = render({ snapshot: snapshot({ availableCents: 0, canRequestPayout: false, reasonCode: "balance_not_available" }) }); expect(html).toContain("Sobald deine Vergütung verfügbar ist"); expect(html).toMatch(/disabled="">(?:<svg[\s\S]*?<\/svg>)?Jetzt auszahlen/); });
+    it("does not offer a zero-balance payout", () => { const html = render({ snapshot: snapshot({ availableCents: 0, canRequestPayout: false, reasonCode: "balance_not_available" }) }); expect(html).toContain("Deine Zahlung wird noch verarbeitet"); expect(html).toMatch(/disabled="">(?:<svg[\s\S]*?<\/svg>)?Jetzt auszahlen/); });
     it("reopens an unresolved schedule operation as a date check, not as a money transfer", () => { const html = render({ snapshot: snapshot({ canRequestPayout: false, reasonCode: "operation_pending", operation: { id: "44444444-4444-4444-8444-444444444444", operationId: "33333333-3333-4333-8333-333333333333", kind: "schedule", state: "pending", amountCents: null, monthlyDay: 15, payoutStatus: null, arrivalAt: null, finished: false } }) }); expect(html).toContain("Auszahlungstag prüfen"); expect(html).not.toContain("Auszahlung prüfen"); });
     it("exposes a refresh action and accessible failure without raw provider errors", () => { const html = render({ snapshot: null, error: "Bitte lade den aktuellen Stand." }); expect(html).toContain('role="alert"'); expect(html).toContain("Aktuellen Stand laden"); expect(html).toContain('aria-label="Auszahlungsstand aktualisieren"'); });
     it("validates real funds, owner, operation and schedule before rendering actions", () => {
@@ -20,4 +20,11 @@ describe("recipient payout settings presentation", () => {
         expect(validPayoutSettings(snapshot({ availableCents: -100, canRequestPayout: false, reasonCode: "balance_not_available" }), ownerId)).toBe(true);
         expect(validPayoutSettings(snapshot({ operation: { id: "44444444-4444-4444-8444-444444444444", operationId: "33333333-3333-4333-8333-333333333333", kind: "payout", state: "pending", amountCents: null, monthlyDay: null, payoutStatus: null, arrivalAt: null, finished: false } }), ownerId)).toBe(false);
     });
+});
+
+describe("masked recipient bank card",()=>{
+ it("shows the bank name and last digits with an owned management action",()=>{
+  const html=render({snapshot:snapshot({bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur"}}),onManageBank:vi.fn()});expect(html).toContain("Testbank");expect(html).toContain("•••• 6789");expect(html).not.toMatch(/IBAN|acct_|ba_/);
+ });
+ it.each([{bankName:"Bank",last4:"12345678",country:"DE",currency:"eur"},{bankName:"Bank",last4:"6789",country:"DE",currency:"usd"},{bankName:"Bad\nBank",last4:"6789",country:"DE",currency:"eur"}])("does not render malformed bank summaries",bank=>{expect(validPayoutSettings({...snapshot(),bank},ownerId)).toBe(false);});
 });

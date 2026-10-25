@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 import { loadConnectAndInitialize } from "@stripe/connect-js/pure";
-import { ConnectAccountManagement, ConnectAccountOnboarding, ConnectBalances, ConnectComponentsProvider, ConnectNotificationBanner, ConnectPayoutsList } from "@stripe/react-connect-js";
+import { ConnectAccountManagement, ConnectAccountOnboarding, ConnectBalances, ConnectComponentsProvider, ConnectNotificationBanner, ConnectPayouts, ConnectPayoutsList } from "@stripe/react-connect-js";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import type { RecipientComponent } from "@/lib/payments/recipient-types";
 import { paymentRequest } from "./payment-client";
@@ -73,7 +73,8 @@ function RecipientConnectFrame({ kind, publishableKey, clientSecret, component, 
         {!failed && <ConnectComponentsProvider connectInstance={instance}>
             {component === "onboarding" ? <ConnectAccountOnboarding collectionOptions={{fields:"currently_due",futureRequirements:"omit"}} onExit={onExit} onLoadError={loadFailed} onLoaderStart={loaderStarted} />
                 : component === "management" ? <ConnectAccountManagement collectionOptions={{fields:"currently_due",futureRequirements:"omit"}} onLoadError={loadFailed} onLoaderStart={loaderStarted} />
-                    : component === "balances" ? <ConnectBalances onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : component === "notification_banner" ? <ConnectNotificationBanner onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : <ConnectPayoutsList onLoadError={loadFailed} onLoaderStart={loaderStarted} />}
+                    : component === "bank_management" ? <ConnectPayouts onLoadError={loadFailed} onLoaderStart={loaderStarted} />
+                        : component === "balances" ? <ConnectBalances onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : component === "notification_banner" ? <ConnectNotificationBanner onLoadError={loadFailed} onLoaderStart={loaderStarted} /> : <ConnectPayoutsList onLoadError={loadFailed} onLoaderStart={loaderStarted} />}
         </ConnectComponentsProvider>}
         <StripeEmbedHelp failed={failed} slow={slow} onRetry={retry} onClose={onExit} headerControls={Boolean(controlsRef)} />
     </div>;

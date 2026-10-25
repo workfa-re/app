@@ -7,6 +7,7 @@ import { inspectPaymentsConfiguration, type PaymentsEnvironment } from "./config
 import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
 import { PAYMENT_SETTINGS_PATH, sanitizePaymentReturnPath } from "./return-path";
 import type { StoredMethod } from "./types";
+import { syncBuyerCustomerIdentity, type BuyerProfileIdentity } from "./buyer-identity.server";
 
 const referenceId = (value: string | { id: string } | null): string | null => typeof value === "string" ? value : value?.id ?? null;
 function reject(): never { throw new PaymentFlowError("sandbox_object_mismatch", 409); }
@@ -60,30 +61,43 @@ export function createStripeSandboxAdapter(environment: PaymentsEnvironment = pr
         const customer = await stripe.customers.retrieve(customerId);
         assertCustomer(customer, userId, mode);
         if (customer.id !== customerId) reject();
-        // Existing Customer contact details belong to billing. Setup never
-        // writes an Auth default over an owner's current or concurrent choice.
+        // Contact synchronization happens before creating the setup; this check
+        // additionally prevents a swapped Customer from reaching Checkout.
     };
 
     return Object.freeze({
-        async createCustomer(userId: string, idempotencyKey: string, email?: string) {
+        async createCustomer(userId: string, idempotencyKey: string, email?: string, name?: string) {
             if (email !== undefined && !z.email().max(254).safeParse(email).success) throw new PaymentFlowError("confirmed_email_required", 403);
+            if (name !== undefined && (name.trim().length < 2 || name.length > 150 || /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/.test(name))) throw new PaymentFlowError("profile_name_required", 409);
             const stripe = await sdk();
             const metadata = { workfare_pay_user: userId };
             let customer: Stripe.Customer;
             try {
-                customer = await stripe.customers.create({ metadata, ...(email === undefined ? {} : { email }) }, { idempotencyKey });
+                customer = await stripe.customers.create({ metadata, ...(email === undefined ? {} : { email }), ...(name === undefined ? {} : { name }) }, { idempotencyKey });
             } catch (failure) {
                 // Older claims used metadata-only parameters with this same key.
                 // Recover that exact result, never mint another Customer/key or
                 // turn a timeout/concurrent request into an additional write.
                 if (email === undefined || !(failure instanceof Stripe.errors.StripeIdempotencyError) || failure.statusCode !== 400) throw failure;
-                customer = await stripe.customers.create({ metadata }, { idempotencyKey });
+                // Recover the exact earlier shape (email-only or metadata-only).
+                // The caller then synchronizes the owned Customer from Auth/profile.
+                if (name !== undefined) {
+                    try { customer = await stripe.customers.create({ metadata, ...(email === undefined ? {} : { email }) }, { idempotencyKey }); }
+                    catch (legacyFailure) {
+                        if (!(legacyFailure instanceof Stripe.errors.StripeIdempotencyError) || legacyFailure.statusCode !== 400) throw legacyFailure;
+                        customer = await stripe.customers.create({ metadata }, { idempotencyKey });
+                    }
+                } else customer = await stripe.customers.create({ metadata }, { idempotencyKey });
                 assertCustomer(customer, userId, mode);
                 return customer.id;
             }
             assertCustomer(customer, userId, mode);
             if (email !== undefined && customer.email !== email) reject();
+            if (name !== undefined && customer.name !== name) reject();
             return customer.id;
+        },
+        async syncCustomerIdentity(customerId: string, userId: string, identity: BuyerProfileIdentity) {
+            return syncBuyerCustomerIdentity(await sdk(), customerId, userId, identity, mode);
         },
         async createSetup(customerId: string, userId: string, setupId: string, returnTo: string | null) {
             if (returnTo !== null && !sanitizePaymentReturnPath(returnTo)) throw new PaymentFlowError("invalid_return_path");

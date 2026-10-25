@@ -144,8 +144,11 @@
 .rowIcon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; color: var(--app-ink); }
 .rowArrow { flex-shrink: 0; margin-left: auto; color: var(--app-muted); transition: rotate 180ms ease; }
 .questions[open] > summary > .rowArrow { rotate: 90deg; }
-.questions > .settingsRow { min-height: 72px; padding: 12px 14px; border-radius: 22px; }
-.answers { padding: 0 16px 18px 73px; }
+.helpSummary { display: flex; align-items: center; gap: 9px; min-height: 48px; padding: 7px 14px; border-radius: 18px; color: var(--app-muted); font-size: 13px; list-style: none; cursor: pointer; }
+.helpSummary::-webkit-details-marker { display: none; }
+.helpSummary .rowArrow { margin-left: auto; }
+.helpSummary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
+.answers { padding: 0 16px 18px; }
 .answers h3 { margin: 16px 0 5px; font-size: 14px; font-weight: 500; line-height: 1.5; }
 .answers p { margin: 0; color: var(--app-muted); font-size: 13px; line-height: 1.75; text-wrap: pretty; }
 .answers a { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; margin-top: 12px; color: var(--app-accent-ink); font-size: 13px; text-decoration: none; }

@@ -1,5 +1,7 @@
 # Zahlungen: verständliches Modell und Anbietervergleich
 
+**Aktuelle Preisentscheidung vom 25.10.2026:** zuerst einen allgemeinen Gesamttarif für ein 6-%-Beitragsziel kalkulieren, noch nicht aktivieren. Die neue Centrechnung und der konkrete Vorschlag stehen in Abschnitt 7. Frühere 5-%-Ziele und Anbieterempfehlungen unten sind historischer Planungsstand.
+
 Stand und Quellenabruf: **24.10.2026**. Planung, keine eingerichtete Zahlungsanbindung und kein freigegebener Tarif.
 
 ## 1. Was wir erreichen wollen
@@ -148,3 +150,43 @@ Erst danach einen **allgemeinen Gebührentarif mit ca. 5 % Zielbeitrag** festleg
 Revolut zunächst als mögliches Konto für eigene Plattformerlöse und Ausgaben behalten. Keine Kombination „normaler Merchant-Einzug plus freie Business-Überweisung“ als schon zugelassenen Marktplatz implementieren. Das eigene Revolut-Konto wurde nicht eingesehen, Anbieter wurden nicht angeschrieben und keine Verträge angenommen. Für die erste technische Vorbereitung wurde inzwischen Stripe gewählt; die vorhandene Connect-Konfiguration wurde read-only geprüft und im [Umsetzungskonzept](workfare-pay-implementation.md) berücksichtigt.
 
 Für Nutzer bleibt der Ablauf einfach: **Termin und Vergütung bestätigen → Gesamtpreis bezahlen/bestätigen → Arbeit abschließen → Auszahlung verfolgen**. Der Prüf-, Journal- und Webhookaufwand liegt im Hintergrund. Die [technische Pay-Planung](workfare-pay.md) beschreibt diese Anforderungen; die [Feature-Übersicht](feature-overview.md) ordnet Zahlungen, Elternansicht und SMS im Produkt ein.
+
+## 7. Neue Preisentscheidung vom 25.10.2026
+
+Die neue Zielgröße ist **6 % Beitrag auf die Vergütung nach direkten Zahlungs- und Auszahlungskosten**, vor weiteren Betriebskosten und Gewinnsteuern. Der Betreiber möchte zuerst einen höheren allgemeinen Gesamttarif kalkulieren. Ein neuer Live-Tarif ist damit noch nicht genehmigt; bestehende 5-%-Vertragsstände bleiben unverändert.
+
+Eine separate verpflichtende Gebühr für SEPA oder die üblichen regulierten Verbraucher-Kartenzahlungen wird nicht eingeführt. Zahlungsabwicklung gehört in einen transparenten allgemeinen Plattformpreis. Die konkrete Vertragsgestaltung benötigt Prüfung; eine bloße Umbenennung eines Zahlungsaufschlags wäre keine Lösung. [§ 270a BGB](https://www.gesetze-im-internet.de/bgb/__270a.html).
+
+### Annahmen der Modellrechnung
+
+- Öffentliche DE-Listenpreise, am 25.10.2026 erneut geprüft: EWR-Standardkarte 1,5 % + 0,25 €, Premiumkarte 2,8 % + 0,25 €. Das ist kein bestätigter individueller Vertragstarif. [Stripe Payments](https://stripe.com/de/pricing).
+- Eigene Connect-Preisgestaltung: 2 € je aktivem Empfängerkonto und Monat, 0,25 % + 0,10 € je Bankauszahlung. Einmal monatlich auszahlen; die monatlichen Fixkosten auf die Zahl der bezahlten Jobs dieses Empfängers verteilen. Die uneindeutige zusätzliche Routingposition wird wie in Abschnitt 5 nicht doppelt angenommen, kann im Rechner aber separat zugeschaltet werden. [Stripe Connect](https://stripe.com/de/connect/pricing).
+- Beispielszenario mit 19 % Umsatzsteuer innerhalb der Plattformgebühr. Der tatsächliche Steuerstatus ist offen; der Rechner unterstützt auch 0 %. Keine Steuerfeststellung, kein Erlösversprechen und keine Rückbuchungs-/Betrugs-/Supportreserve.
+- Kartenkosten werden auf den **gesamten Anbieterbetrag einschließlich Gebühr** berechnet. Die Jugendlichen behalten ihre volle Vergütung. Alle Kosten und Rundungen werden in ganzen Cent berechnet.
+
+### Erforderliche Mindest-Gesamtgebühr im 19-%-Szenario
+
+| Vergütung | Jobs je aktivem Empfänger/Monat | Karte | Modellgebühr | Anbieter insgesamt | Beitrag nach angenommenen direkten Kosten und Gebühren-USt. |
+| --- | ---: | --- | ---: | ---: | ---: |
+| 10,00 € | 10 | EWR Standard | 1,50 € | 11,50 € | 0,60 € |
+| 17,00 € | 10 | EWR Standard | 2,15 € | 19,15 € | 1,02 € |
+| 17,00 € | 10 | EWR Premium | 2,45 € | 19,45 € | 1,02 € |
+| 30,00 € | 10 | EWR Standard | 3,38 € | 33,38 € | 1,80 € |
+| 17,00 € | 1 | EWR Standard | 4,44 € | 21,44 € | 1,02 € |
+
+Diese Beträge sind eine interne Kostensimulation, keine nach Zahlungsmittel gestaffelte Kundenpreisliste. Ein öffentlicher Gesamttarif muss vor der Zahlungswahl feststehen. Die Zahlen zeigen insbesondere: Ein einzelner kleiner Job pro aktivem Empfängermonat trägt die Connect-Fixkosten kaum. Die 6 % einfach als 1,02 € auf einen 17-Euro-Job aufzuschlagen erfüllt das gewünschte Beitragsziel nicht.
+
+### Konkreter Vorschlag zur Entscheidung
+
+**12 % + 0,49 € allgemeine Plattformgebühr pro abgeschlossenem Job** als zu prüfender Tarif, mit einem klaren Gesamtpreis vor Bestätigung. Bei 17 € Vergütung wären das 2,53 € Gebühr und 19,53 € Anbieterbetrag. Im obigen Premiumkarten-/10-Jobs-/19-%-Szenario blieben 1,08 € Beitrag. Das ist ausdrücklich noch keine Aktivierungsempfehlung für eine Plattform mit überwiegend einzelnen Jobs: Bei nur einem 17-Euro-Job pro Empfängermonat entsteht damit im Modell ein negativer Beitrag. Internationale Karten, zusätzliche Routingkosten, weitere manuelle Auszahlungen und Rückbuchungen verschlechtern ihn.
+
+Vor der Freigabe: tatsächlichen Stripe-Vertrag und Umsatzsteuerstatus feststellen; erwartete Jobs je aktivem Empfänger und Auszahlungen messen; eine zeitlich begrenzte Quersubvention seltener Nutzer oder ein günstigeres Connect-Angebot bewusst budgetieren. Ohne diese Entscheidung wird keine unbelegte Gewinnmarge versprochen und kein höherer Live-Betrag eingezogen. Auf der Abrechnung stehen „Vergütung“, aufklappbar „Gebühren“, danach „Gesamt“; keine behauptete Banklizenzgebühr.
+
+Reproduzierbar ohne Netzwerk, Kontenzugriff oder Tarifänderung:
+
+```sh
+node scripts/payments/price-model.mjs
+node --test scripts/payments/price-model.test.mjs
+```
+
+`minimumBundle` findet die erste tatsächlich ausreichende Centgebühr einschließlich Rundungsgrenzen. `evaluateBundle` prüft vorgeschlagene Pauschaltarife. Der Rechner verändert keine Konfiguration, Verträge, Steuern oder Stripe-Objekte.

@@ -26,19 +26,19 @@ describe("truthful payment setup states",()=>{
         expect(setupPosition).toBeGreaterThan(-1);expect(overviewPosition).toBeGreaterThan(setupPosition);
         expect(html.match(/aria-label="Deine Zahlungsübersicht"/g)).toHaveLength(1);
     });
-    it.each(["adult","minor_review_required"] as const)("places the single overview before setup after confirmed readiness, independently of management permission (%s)",eligibility=>{
+    it.each(["adult","minor_review_required"] as const)("places the single overview before payout controls without a duplicate ready setup card (%s)",eligibility=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"live",status:"ready",eligibility,canStart:eligibility==="adult",
-            checkedAt:"2026-10-24T04:00:00Z",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}}
+            checkedAt:new Date().toISOString(),hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}}
             returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
-        expect(html.indexOf('aria-label="Deine Zahlungsübersicht"')).toBeLessThan(html.indexOf(eligibility === "adult" ? 'id="recipient-heading"' : 'id="minor-bank-heading"'));
+        expect(html.indexOf('aria-label="Deine Zahlungsübersicht"')).toBeLessThan(html.indexOf('id="payout-settings-heading"'));
         expect(html.match(/aria-label="Deine Zahlungsübersicht"/g)).toHaveLength(1);
-        expect(html).toContain(eligibility === "adult" ? "Auszahlung eingerichtet" : "Deine Bankverbindung");
+        expect(html).toContain('id="payout-settings-heading"');expect(html).not.toContain('id="recipient-heading"');expect(html).not.toContain('id="minor-bank-heading"');
     });
     it("renders live payment settings without a test banner and keeps payment identity honest",()=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
         expect(html).toContain("Zahlungsabwicklung durch Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);
         const faq=renderToStaticMarkup(<PaymentQuestions recipient kind="live"/>);
-        expect(faq).toContain("Ein abgeschlossener Job ist noch keine Bankauszahlung");expect(faq).not.toMatch(/Testbetrieb|Simulation/);
+        expect(faq).toContain("Erst verfügbare Beträge werden nach deinem Auszahlungstag");expect(faq).not.toMatch(/Testbetrieb|Simulation/);
         expect(renderToStaticMarkup(<PaymentQuestions recipient kind="sandbox"/>)).toContain("Im Testbetrieb wird kein echtes Geld bewegt");
     });
     it("does not render a local setup session on a live buyer projection",()=>{
@@ -121,6 +121,8 @@ describe("truthful payment setup states",()=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={{...recipient,kind:"local",eligibility:"local_demo",status:"ready",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true}} returnTo={null} ownerId="11111111-1111-4111-8111-111111111111"/>);
         expect(html).toContain("Test-Auszahlung eingerichtet");expect(html).toContain("Keine echten Bankdaten");
         expect(html).toContain('aria-label="Deine Zahlungsübersicht"');expect(html).not.toMatch(/\d+[,.]\d{2}\s*€|Bankauszahlung abgeschlossen/);
+        expect(html).not.toContain('id="payout-settings-heading"');
+        expect(recipientFinancialActionsEnabled({...recipient,kind:"local",eligibility:"local_demo",status:"ready",hasPayoutMethod:true,detailsSubmitted:true,transfersActive:true,payoutsEnabled:true})).toBe(false);
     });
     it("keeps unavailable owner status from being shown as verified",()=>{
         const html=renderToStaticMarkup(<RecipientPayments initial={null} returnTo={null}/>);

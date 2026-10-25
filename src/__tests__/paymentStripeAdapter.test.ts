@@ -52,7 +52,7 @@ describe("restricted Stripe sandbox setup adapter", () => {
 
     it("creates only a test customer/setup session with server metadata, approved return URL and idempotency", async () => {
         const adapter = createStripeSandboxAdapter(environment);
-        expect(Object.keys(adapter)).toEqual(["createCustomer", "createSetup", "createEmbeddedSetup", "inspectSetup", "detachMethod", "verifyWebhook"]);
+        expect(Object.keys(adapter)).toEqual(["createCustomer", "syncCustomerIdentity", "createSetup", "createEmbeddedSetup", "inspectSetup", "detachMethod", "verifyWebhook"]);
         await adapter.createCustomer(userId, "stable-customer-operation");
         expect(api.customerCreate).toHaveBeenCalledWith({ metadata: { workfare_pay_user: userId } }, { idempotencyKey: "stable-customer-operation" });
         await adapter.createSetup(customerId, userId, setupId, "/app-home/offers/new?resume=payment");
@@ -93,6 +93,18 @@ describe("restricted Stripe sandbox setup adapter", () => {
         await createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", email);
         expect(api.customerCreate).toHaveBeenCalledExactlyOnceWith({ metadata: { workfare_pay_user: userId }, email }, { idempotencyKey: "stable-customer-operation" });
         expect(api.customerUpdate).not.toHaveBeenCalled();
+    });
+    it("includes the profile display name in the initial Customer creation", async () => {
+        await createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", "provider@example.com", "Robin Muster");
+        expect(api.customerCreate).toHaveBeenCalledExactlyOnceWith({ metadata: { workfare_pay_user: userId }, email: "provider@example.com", name: "Robin Muster" }, { idempotencyKey: "stable-customer-operation" });
+    });
+    it.each([1, 2])("recovers the exact legacy customer creation without allocating another key (%i old shapes)", async count => {
+        for (let index = 0; index < count; index++) api.customerCreate.mockRejectedValueOnce(new Stripe.errors.StripeIdempotencyError({ statusCode: 400 }));
+        expect(await createStripeSandboxAdapter(environment).createCustomer(userId, "stable-customer-operation", "provider@example.com", "Robin Muster")).toBe(customerId);
+        expect(api.customerCreate).toHaveBeenCalledTimes(count + 1);
+        expect(api.customerCreate.mock.calls.every(call => call[1].idempotencyKey === "stable-customer-operation")).toBe(true);
+        expect(api.customerCreate.mock.calls[1][0]).toEqual({ metadata: { workfare_pay_user: userId }, email: "provider@example.com" });
+        if (count === 2) expect(api.customerCreate.mock.calls[2][0]).toEqual({ metadata: { workfare_pay_user: userId } });
     });
 
     it("recovers a legacy metadata-only creation under exactly the same key", async () => {

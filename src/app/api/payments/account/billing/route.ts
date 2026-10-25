@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
     try {
-        const input = await readPaymentJson(request, ["name", "email", "address"]);
+        const input = await readPaymentJson(request, ["address"]);
         return paymentJson(await updateBuyerBillingDetails(input, request.headers.get("idempotency-key") ?? undefined, paymentExpectedOwner(request)));
     } catch (error) { return paymentError(error); }
 }

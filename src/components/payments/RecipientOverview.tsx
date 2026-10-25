@@ -93,12 +93,12 @@ function useRecipientSummary(ownerId: string, view: "full" | "home" = "full", ki
     return { ...resource, summary: resource.summary?.ownerId === ownerId ? resource.summary : null, refresh };
 }
 
-type ViewProps = Resource & { onRetry: () => void; compact?: boolean; busy?: boolean; onPayouts?: () => void; onFunds?: () => void };
+type ViewProps = Resource & { onRetry: () => void; compact?: boolean; busy?: boolean; onPayouts?: () => void };
 function Amount({ value, className }: { value: number | null | undefined; className?: string }) {
     return <span className={className}>{value === null || value === undefined ? "—" : money.format(value / 100)}</span>;
 }
 
-export function RecipientOverviewView({ summary, loading, error, onRetry, compact = false, busy = false, onPayouts, onFunds }: ViewProps) {
+export function RecipientOverviewView({ summary, loading, error, onRetry, compact = false, busy = false, onPayouts }: ViewProps) {
     const funds = summary?.funds;
     return <section className={`${styles.surface}${compact ? ` ${styles.compact}` : ""}`} aria-label={compact ? "Deine Vergütung mit Workfare Pay" : "Deine Zahlungsübersicht"} aria-busy={loading} onPointerMove={followGlassPointer}>
         <div className={styles.heading}>
@@ -111,15 +111,12 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
             : error ? <div className={styles.failure}><p role="alert">{error}</p><button type="button" className={styles.textAction} onClick={onRetry} disabled={busy}>Erneut versuchen<ArrowRight size={15} aria-hidden="true" /></button></div>
             : summary ? <>
                 <dl className={styles.numbers}>
-                    <div className={styles.primary}><dt>Für die Auszahlung verfügbar</dt><dd><Amount value={funds?.availableCents} /></dd></div>
-                    <div><dt>Insgesamt verdient</dt><dd><Amount value={summary.earnings.confirmedCents} /></dd></div>
+                    <div className={styles.primary}><dt>Insgesamt verdient</dt><dd><Amount value={summary.earnings.confirmedCents} /></dd></div>
                     <div><dt>Bereits ausgezahlt</dt><dd><Amount value={summary.payouts?.paidOutCents} /></dd></div>
                     <div><dt>In Bearbeitung</dt><dd><Amount value={funds?.pendingCents} /></dd></div>
+                    <div><dt>Für die Auszahlung verfügbar</dt><dd><Amount value={funds?.availableCents} /></dd></div>
                 </dl>
-                <div className={styles.caption}>
-                    <span>{summary.earnings.paidJobs === 1 ? "1 bezahlter Termin" : `${summary.earnings.paidJobs} bezahlte Termine`}</span>
-                    {summary.payouts?.inTransitCents !== null && summary.payouts?.inTransitCents !== undefined && summary.payouts.inTransitCents > 0 && <span><Amount value={summary.payouts.inTransitCents} /> Auszahlung in Bearbeitung</span>}
-                </div>
+                {summary.payouts?.inTransitCents !== null && summary.payouts?.inTransitCents !== undefined && summary.payouts.inTransitCents > 0 && <p className={styles.caption}><Amount value={summary.payouts.inTransitCents} /> auf dem Weg zu deinem Bankkonto</p>}
                 {summary.earnings.underReviewCount > 0 && <p className={styles.notice}>{summary.earnings.underReviewCount === 1 ? "Ein Zahlungsvorgang wird" : `${summary.earnings.underReviewCount} Zahlungsvorgänge werden`} geprüft und {summary.earnings.underReviewCount === 1 ? "ist" : "sind"} im bestätigten Verdienst noch nicht enthalten.</p>}
                 {!funds && <p className={styles.note}>{summary.fundsUnavailableReason === "minor_review_required" ? "Bankauszahlungen für Minderjährige sind noch nicht freigegeben."
                     : summary.fundsUnavailableReason === "local_simulation" ? "Diese Vorschau enthält kein Bankguthaben."
@@ -129,7 +126,7 @@ export function RecipientOverviewView({ summary, loading, error, onRetry, compac
                 {!compact && <>
                     <div className={styles.actions}>
                         {onPayouts && funds && <button type="button" className={`app-glass-control ${styles.action}`} onClick={onPayouts} disabled={busy || !funds.stripePayoutsEnabled || !funds.hasPayoutMethod}><ArrowDownToLine size={17} aria-hidden="true" />Auszahlungen ansehen</button>}
-                        {onFunds && funds && <button type="button" className={`app-glass-control ${styles.action}`} onClick={onFunds} disabled={busy || !funds.stripePayoutsEnabled || !funds.hasPayoutMethod}>Guthaben ansehen<ArrowUpRight size={15} aria-hidden="true" /></button>}
+                        {funds && <details className={styles.availability}><summary className={`app-glass-control ${styles.action}`}>Guthaben ansehen<ArrowRight size={15} aria-hidden="true" /></summary><div><p>Eine bestätigte Zahlung ist zuerst in Bearbeitung. Erst nach der Zahlungsabwicklung wird sie für deine Bankauszahlung verfügbar.</p>{funds.pendingCents > 0 && <p>{funds.pendingAvailableAt ? <>Voraussichtlich verfügbar ab <time dateTime={funds.pendingAvailableAt}>{date.format(new Date(funds.pendingAvailableAt))}</time>.</> : "Für die Beträge in Bearbeitung liegt aktuell noch kein bestätigtes Freigabedatum vor."}</p>}<p>Deinen Auszahlungstag und deine Bankverbindung verwaltest du hier unter „Auszahlungen“.</p></div></details>}
                         {funds && <span className={styles.schedule}>Auszahlungsplan: {schedules[funds.schedule]}</span>}
                     </div>
                     <PaymentHistory summary={summary} />
@@ -154,9 +151,9 @@ function PaymentHistory({ summary }: { summary: RecipientPaymentSummary }) {
     </div>;
 }
 
-export function RecipientOverview({ ownerId, kind, onPayouts, onFunds, busy = false }: { ownerId: string; kind?: PaymentSurfaceKind; onPayouts?: () => void; onFunds?: () => void; busy?: boolean }) {
+export function RecipientOverview({ ownerId, kind, onPayouts, busy = false }: { ownerId: string; kind?: PaymentSurfaceKind; onPayouts?: () => void; busy?: boolean }) {
     const resource = useRecipientSummary(ownerId, "full", kind);
-    return <RecipientOverviewView {...resource} onRetry={() => void resource.refresh()} onPayouts={onPayouts} onFunds={onFunds} busy={busy} />;
+    return <RecipientOverviewView {...resource} onRetry={() => void resource.refresh()} onPayouts={onPayouts} busy={busy} />;
 }
 
 export function RecipientPayHome({ ownerId }: { ownerId: string }) {

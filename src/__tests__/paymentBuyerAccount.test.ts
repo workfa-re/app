@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const api = vi.hoisted(() => ({ platformRetrieve: vi.fn(), customerRetrieve: vi.fn(), customerUpdate: vi.fn(), chargesList: vi.fn(), invoicesList: vi.fn() }));
 const repository = vi.hoisted(() => ({ getPaymentCustomer: vi.fn() }));
-const auth = vi.hoisted(() => ({ requirePaymentProvider: vi.fn() }));
+const auth = vi.hoisted(() => ({ requirePaymentProvider: vi.fn(), state: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ getAuthState: auth.state }));
+vi.mock("@/lib/supabaseServer", () => ({ supabaseServer: vi.fn() }));
 vi.mock("@/lib/payments/repository.server", () => repository);
 vi.mock("@/lib/payments/service.server", () => auth);
 vi.mock("stripe", async (importOriginal) => {
@@ -32,9 +34,10 @@ const environment = {
     WORKFARE_DEMO_LOCAL_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
     SUPABASE_URL: "http://127.0.0.1:54321", APP_ORIGIN: "http://127.0.0.1:3000", STRIPE_SECRET_KEY: "sk_test_offlineFixtureOnly",
 };
-const billingInput = { name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", line2: "", postalCode: "53359", city: "Rheinbach", country: "DE" } };
-const customer = () => ({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId }, name: billingInput.name,
-    email: billingInput.email, address: { line1: "Musterweg 4", line2: null, postal_code: "53359", city: "Rheinbach", country: "DE", state: null } });
+const identity = { name: "Robin Muster", email: "billing@example.test" };
+const billingInput = { address: { line1: "Musterweg 4", line2: "", postalCode: "53359", city: "Rheinbach", country: "DE" } };
+const customer = () => ({ id: customerId, livemode: false, metadata: { workfare_pay_user: userId }, name: identity.name,
+    email: identity.email, address: { line1: "Musterweg 4", line2: null, postal_code: "53359", city: "Rheinbach", country: "DE", state: null } });
 const charge = (patch: Record<string, unknown> = {}) => ({ id: "ch_fixture", customer: customerId, livemode: false, created: 1_790_000_000,
     status: "succeeded", amount: 3_000, amount_captured: 3_000, amount_refunded: 0, currency: "eur", paid: true, captured: true,
     payment_intent: null, description: "Gartenhilfe", receipt_url: "https://pay.stripe.com/receipts/payment/fixture", ...patch });
@@ -48,11 +51,12 @@ beforeEach(() => {
     vi.clearAllMocks();
     for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
     auth.requirePaymentProvider.mockResolvedValue(userId);
+    auth.state.mockResolvedValue({ state: "ready", session: { user: { id: userId, email: identity.email, email_confirmed_at: "2026-10-24T00:00:00.000Z" } }, profile: { account_type: "job_provider", full_name: identity.name } });
     api.platformRetrieve.mockResolvedValue({ id: "acct_fixture", country: "DE" });
     repository.getPaymentCustomer.mockResolvedValue({ id: "internal-customer", userId, mode: "sandbox", stripeCustomerId: customerId, method: null });
     api.customerRetrieve.mockResolvedValue(customer());
     api.customerUpdate.mockImplementation(async (id, input) => {
-        const updated = { ...customer(), id, name: input.name, email: input.email,
+        const updated = { ...customer(), id, name: input.name ?? identity.name, email: input.email ?? identity.email,
             address: input.address === "" ? null : input.address ?? customer().address,
             metadata: { ...customer().metadata, ...input.metadata } };
         api.customerRetrieve.mockResolvedValue(updated);
@@ -216,11 +220,11 @@ describe("owner-bound Workfare Pay account overview", () => {
     });
 });
 
-describe("separate billing contact updates", () => {
-    it("updates only billing name, contact email and postal address on the authenticated buyer's Stripe customer", async () => {
+describe("profile-linked billing address updates", () => {
+    it("updates only the postal address and preserves linked account identity on the authenticated buyer's Stripe customer", async () => {
         const result = await updateBuyerBillingDetails(billingInput, operationId);
         expect(api.customerUpdate).toHaveBeenCalledWith(customerId, {
-            name: "Robin Muster", email: "billing@example.test", address: { line1: "Musterweg 4", line2: "", postal_code: "53359", city: "Rheinbach", country: "DE", state: "" },
+            address: { line1: "Musterweg 4", line2: "", postal_code: "53359", city: "Rheinbach", country: "DE", state: "" },
         }, { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
         expect(result).toMatchObject({ ok: true, billing: { name: "Robin Muster", address: { postalCode: "53359" } } });
         expect(repository.getPaymentCustomer).toHaveBeenCalledOnce();
@@ -229,29 +233,19 @@ describe("separate billing contact updates", () => {
     });
 
     it.each([null, { line1: null, line2: null, postal_code: "10001", city: null, country: "US", state: "NY" }])
-    ("updates the contact without requiring or replacing the existing optional address (%j)", async address => {
-        const current = { ...customer(), address };
-        api.customerRetrieve.mockResolvedValue(current);
-        api.customerUpdate.mockImplementation(async (id, input) => {
-            const updated = { ...current, id, name: input.name, email: input.email };
-            api.customerRetrieve.mockResolvedValue(updated);
-            return updated;
-        });
-        const contact = { name: "Robin Muster", email: "invoices@example.test" };
-        const result = await updateBuyerBillingDetails(contact, operationId);
-        expect(api.customerUpdate).toHaveBeenCalledWith(customerId, contact,
-            { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
-        expect(result.billing.address).toEqual(address === null ? null : {
-            line1: null, line2: null, postalCode: "10001", city: null, country: "US",
-        });
-        expect(api.customerRetrieve).toHaveBeenCalledTimes(2);
+    ("preserves an omitted optional address without a redundant Stripe write (%j)", async address => {
+        api.customerRetrieve.mockResolvedValue({ ...customer(), address });
+        const result = await updateBuyerBillingDetails({}, operationId);
+        expect(api.customerUpdate).not.toHaveBeenCalled();
+        expect(result.billing.address).toEqual(address === null ? null : { line1: null, line2: null, postalCode: "10001", city: null, country: "US" });
+        expect(api.customerRetrieve).toHaveBeenCalledOnce();
     });
 
     it("clears a foreign administrative region when explicitly replacing an address with a German invoice address", async () => {
         const current = { ...customer(), address: { ...customer().address, city: "New York", postal_code: "10001", country: "US", state: "NY" } };
         api.customerRetrieve.mockResolvedValue(current);
         api.customerUpdate.mockImplementationOnce(async (id, input) => {
-            const updated = { ...current, id, name: input.name, email: input.email, address: { ...current.address, ...input.address } };
+            const updated = { ...current, id, name: input.name ?? identity.name, email: input.email ?? identity.email, address: { ...current.address, ...input.address } };
             api.customerRetrieve.mockResolvedValue(updated);
             return updated;
         });
@@ -262,7 +256,7 @@ describe("separate billing contact updates", () => {
     });
 
     it("removes an invoice address only when the owner explicitly submits null", async () => {
-        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        const input = { address: null };
         const result = await updateBuyerBillingDetails(input, operationId);
         expect(api.customerUpdate).toHaveBeenCalledWith(customerId, { ...input, address: "" },
             { idempotencyKey: `workfare-pay:billing:${userId}:${operationId}` });
@@ -271,7 +265,7 @@ describe("separate billing contact updates", () => {
     });
 
     it("does not report address removal when the current Stripe address remains present", async () => {
-        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        const input = { address: null };
         api.customerUpdate.mockImplementationOnce(async () => {
             api.customerRetrieve.mockResolvedValue(customer());
             return { ...customer(), address: null };
@@ -281,7 +275,7 @@ describe("separate billing contact updates", () => {
     });
 
     it("keeps an explicit address removal idempotent after an uncertain confirmation", async () => {
-        const input = { name: "Robin Muster", email: "billing@example.test", address: null };
+        const input = { address: null };
         api.customerUpdate.mockImplementationOnce(async () => {
             const updated = { ...customer(), address: null };
             api.customerRetrieve.mockRejectedValueOnce(new Error("read temporarily unavailable")).mockResolvedValue(updated);
@@ -314,12 +308,11 @@ describe("separate billing contact updates", () => {
         expect(api.customerUpdate).not.toHaveBeenCalled();
     });
 
-    it("updates the billing contact without changing other Customer metadata", async () => {
-        const next = { ...billingInput, email: "new-invoices@example.test" };
-        api.customerRetrieve.mockResolvedValue({ ...customer(), metadata: { ...customer().metadata,
-            internal_note: "keep" } });
-        const result = await updateBuyerBillingDetails(next, operationId);
-        expect(result.billing.email).toBe(next.email);
+    it("repairs a stale Customer contact from the current profile and confirmed Auth email without changing metadata or payment defaults", async () => {
+        api.customerRetrieve.mockResolvedValue({ ...customer(), name: null, email: "old@example.test", metadata: { ...customer().metadata, internal_note: "keep" } });
+        const result = await updateBuyerBillingDetails({}, operationId);
+        expect(result.billing).toMatchObject(identity);
+        expect(api.customerUpdate).toHaveBeenCalledWith(customerId, identity, { idempotencyKey: expect.stringMatching(/^workfare-pay:profile-contact:/) });
         const input = api.customerUpdate.mock.calls[0][1];
         expect(input).not.toHaveProperty("metadata");
         expect(input).not.toHaveProperty("invoice_settings");
@@ -335,7 +328,7 @@ describe("separate billing contact updates", () => {
         let current = { ...customer(), livemode: true };
         api.customerRetrieve.mockImplementation(async () => current);
         api.customerUpdate.mockImplementation(async (id, input) => {
-            current = { ...current, id, name: input.name, email: input.email, address: input.address,
+            current = { ...current, id, name: input.name ?? identity.name, email: input.email ?? identity.email, address: input.address,
                 metadata: { ...current.metadata, ...input.metadata } };
             return current;
         });
@@ -365,7 +358,7 @@ describe("separate billing contact updates", () => {
 
     it.each(["name", "email", "address"])("does not report success when Stripe did not confirm the saved %s", async field => {
         api.customerUpdate.mockImplementationOnce(async (id, input) => ({ ...customer(), id,
-            name: field === "name" ? "Other Name" : input.name, email: field === "email" ? "other@example.test" : input.email,
+            name: field === "name" ? "Other Name" : identity.name, email: field === "email" ? "other@example.test" : identity.email,
             address: field === "address" ? { ...input.address, city: "Bonn" } : input.address,
             metadata: customer().metadata }));
         await expect(updateBuyerBillingDetails(billingInput, operationId)).rejects.toMatchObject({ code: "billing_sync_unconfirmed", status: 409 });
@@ -374,7 +367,7 @@ describe("separate billing contact updates", () => {
 
     it("detects a concurrent billing change on the fresh post-write read", async () => {
         api.customerUpdate.mockImplementationOnce(async (id, input) => {
-            const updated = { ...customer(), id, name: input.name, email: input.email, address: input.address,
+            const updated = { ...customer(), id, name: input.name ?? identity.name, email: input.email ?? identity.email, address: input.address,
                 metadata: { ...customer().metadata, ...input.metadata } };
             api.customerRetrieve.mockResolvedValue({ ...updated, address: { ...updated.address, city: "Bonn" } });
             return updated;
@@ -385,13 +378,13 @@ describe("separate billing contact updates", () => {
 
     it("retries an uncertain post-write read with the same Stripe operation key and current data", async () => {
         api.customerUpdate.mockImplementationOnce(async (id, input) => {
-            const updated = { ...customer(), id, name: input.name, email: input.email, address: input.address,
+            const updated = { ...customer(), id, name: input.name ?? identity.name, email: input.email ?? identity.email, address: input.address,
                 metadata: { ...customer().metadata, ...input.metadata } };
             api.customerRetrieve.mockRejectedValueOnce(new Error("read temporarily unavailable")).mockResolvedValue(updated);
             return updated;
         });
         await expect(updateBuyerBillingDetails(billingInput, operationId)).rejects.toThrow("read temporarily unavailable");
-        await expect(updateBuyerBillingDetails(billingInput, operationId)).resolves.toMatchObject({ ok: true, billing: { email: billingInput.email } });
+        await expect(updateBuyerBillingDetails(billingInput, operationId)).resolves.toMatchObject({ ok: true, billing: { email: identity.email } });
         expect(api.customerUpdate.mock.calls.map(call => call[2].idempotencyKey)).toEqual([
             `workfare-pay:billing:${userId}:${operationId}`, `workfare-pay:billing:${userId}:${operationId}`,
         ]);
@@ -399,7 +392,7 @@ describe("separate billing contact updates", () => {
 
     it.each([{ metadata: { workfare_pay_user: "foreign" } }, { id: "cus_foreign" }, { livemode: true }])("rejects a changed binding on the post-write read (%j)", async patch => {
         api.customerUpdate.mockImplementationOnce(async (id, input) => {
-            const updated = { ...customer(), id, name: input.name, email: input.email, address: input.address,
+            const updated = { ...customer(), id, name: input.name ?? identity.name, email: input.email ?? identity.email, address: input.address,
                 metadata: { ...customer().metadata, ...input.metadata } };
             api.customerRetrieve.mockResolvedValue({ ...updated, ...patch });
             return updated;

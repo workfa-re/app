@@ -195,3 +195,12 @@ describe("recipient setup service", () => {
         expect(mocks.applyRecipientSync).toHaveBeenCalledWith(user,"evt_bank_removed",7,"acct_recipientFixture",expect.objectContaining({hasPayoutMethod:false,payoutsEnabled:false}));
     });
 });
+
+describe("bank-only management entry",()=>{
+ it("uses an existing verified recipient and explicit consent without claiming an account",async()=>{
+  sandbox();expect(await startRecipientSession({component:"bank_management",consent:true})).toMatchObject({component:"bank_management"});
+  expect(mocks.claimRecipientAccount).not.toHaveBeenCalled();expect(mocks.createAccount).not.toHaveBeenCalled();expect(mocks.inspect).toHaveBeenCalled();expect(mocks.createSession).toHaveBeenCalledWith(user,"acct_recipientFixture","bank_management");
+ });
+ it("does not issue a bank editor without explicit consent",async()=>{sandbox();await expect(startRecipientSession({component:"bank_management",consent:false})).rejects.toMatchObject({code:"explicit_consent_required"});expect(mocks.createSession).not.toHaveBeenCalled();});
+ it("does not issue a bank editor after a real fresh readiness loss",async()=>{sandbox();mocks.getRecipientSettingsSnapshot.mockResolvedValueOnce({...verified,kind:"sandbox"}).mockResolvedValueOnce({...verified,status:"restricted",payoutsEnabled:false});await expect(startRecipientSession({component:"bank_management",consent:true})).rejects.toMatchObject({code:"recipient_setup_required"});expect(mocks.createSession).not.toHaveBeenCalled();});
+});

@@ -38,7 +38,7 @@ try {
     await execute(await readFile(new URL(file, directory), "utf8"));
   }
   assert.equal(await json("SELECT to_json(to_regnamespace('demo_private') IS NULL)"), true);
-  const files = (await readdir(directory)).filter(name => /^20261024\d+_[a-z_]+\.sql$/.test(name)).sort();
+  const files = (await readdir(directory)).filter(name => /^\d{14}_[a-z0-9_]+\.sql$/.test(name) && name >= "20261024000000").sort();
   assert.ok(files.includes("20261024105853_workfare_pay_live_runtime.sql"));
   const source = (await Promise.all(files.map(async name => insideTransaction(await readFile(new URL(name, directory), "utf8"))))).join("\n");
   await execute(`BEGIN; ${source}\nROLLBACK;`);

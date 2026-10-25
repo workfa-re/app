@@ -6,10 +6,13 @@ import { getAuthState } from "@/lib/auth";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
 import { assertStripeModeObject, paymentStripeSdk } from "./stripe-mode.server";
-import { getRecipientAccount, beginRecipientSync, applyRecipientSync } from "./recipient-repository.server";
+import { getRecipientAccount, getRecipientSettingsSnapshot, beginRecipientSync, applyRecipientSync } from "./recipient-repository.server";
+import { recipientIdentityUnchanged } from "./recipient-identity";
+import { summarizeRecipientBank } from "./recipient-bank-summary";
 import { createRecipientStripeAdapter } from "./recipient-stripe.server";
 import type { PaymentMode } from "./types";
 import type { AutomaticPayoutSchedule, RecipientPayoutSettings } from "./recipient-payout-types";
+import type { RecipientSettingsSnapshot, VerifiedRecipientState } from "./recipient-types";
 
 const weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 const uuid = z.string().uuid();
@@ -44,6 +47,8 @@ function params(schedule: AutomaticPayoutSchedule | { interval: "manual" }): Str
     return { payments: { payouts: { schedule: schedule.interval === "monthly" ? { interval: "monthly", monthly_payout_days: schedule.monthlyDays } : schedule.interval === "weekly" ? { interval: "weekly", weekly_payout_days: schedule.weeklyDays } : { interval: schedule.interval } } } };
 }
 const equalSchedule = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+const verifiedReady = (state: RecipientSettingsSnapshot | VerifiedRecipientState) => state.status === "ready" && state.hasPayoutMethod
+    && state.payoutsEnabled && state.transfersActive && state.detailsSubmitted && state.requirementCount === 0;
 async function owned(stripe: Stripe, userId: string, accountRef: string, mode: PaymentMode) {
     const account = await stripe.v2.core.accounts.retrieve(accountRef, { include: ["identity", "defaults", "configuration.recipient", "requirements"] });
     assertStripeModeObject(account, mode);
@@ -76,10 +81,29 @@ async function actor(ownerId: string) {
     const eventId = `payout-settings:${randomUUID()}`;
     const sync = await beginRecipientSync(ownerId, eventId);
     if (sync.accountRef !== record.accountRef) throw new PaymentFlowError("owner_mismatch", 409);
-    const state = await createRecipientStripeAdapter().inspect(ownerId, record.accountRef, record.minorBinding);
+    let state = await createRecipientStripeAdapter().inspect(ownerId, record.accountRef, record.minorBinding);
     const applied = await applyRecipientSync(ownerId, eventId, sync.generation, record.accountRef, state);
-    if (!applied.applied) throw new PaymentFlowError("recipient_setup_changed", 409);
-    if (state.status !== "ready" || !state.hasPayoutMethod || !state.payoutsEnabled || !state.transfersActive || !state.detailsSubmitted) throw new PaymentFlowError("recipient_setup_required", 409);
+    if (!applied.applied) {
+        // Another read may already have stored an equally fresh observation.
+        // Accept only its ready result for exactly the same identity/consent.
+        const [current, latest] = await Promise.all([getRecipientAccount(ownerId, runtime.mode), getRecipientSettingsSnapshot(ownerId)]);
+        if (!recipientIdentityUnchanged(record, current)) throw new PaymentFlowError("recipient_setup_changed", 409);
+        if (!verifiedReady(latest)) {
+            if (latest.status !== "pending" || !current || !Number.isSafeInteger(current.generation)
+                || current.generation <= sync.generation || !verifiedReady(state)) throw new PaymentFlowError("recipient_setup_required", 409);
+            // A concurrent begin marks its observation pending. Renew our full
+            // provider verification once instead of asking for a second click.
+            const retryEventId = `payout-settings:${randomUUID()}`;
+            const retry = await beginRecipientSync(ownerId, retryEventId);
+            if (retry.accountRef !== record.accountRef) throw new PaymentFlowError("recipient_setup_changed", 409);
+            state = await createRecipientStripeAdapter().inspect(ownerId, record.accountRef, record.minorBinding);
+            const retryApplied = await applyRecipientSync(ownerId, retryEventId, retry.generation, record.accountRef, state);
+            if (!retryApplied.applied || !recipientIdentityUnchanged(record, await getRecipientAccount(ownerId, runtime.mode))) {
+                throw new PaymentFlowError("recipient_setup_changed", 409);
+            }
+        }
+    }
+    if (!verifiedReady(state)) throw new PaymentFlowError("recipient_setup_required", 409);
     return { userId: ownerId, accountRef: record.accountRef, mode: runtime.mode, stripe: await paymentStripeSdk()() };
 }
 async function facts(stripe: Stripe, userId: string, accountRef: string, mode: PaymentMode) {
@@ -106,7 +130,7 @@ async function facts(stripe: Stripe, userId: string, accountRef: string, mode: P
     }
     const positive = [...sources].filter(([, amount]) => amount > 0);
     const sourceType = positive.length === 1 && ["card", "bank_account", "fpx"].includes(positive[0][0]) && positive[0][1] >= availableCents ? positive[0][0] as "card" | "bank_account" | "fpx" : null;
-    return { schedule, availableCents, pendingCents, bankRef, sourceType };
+    return { schedule, availableCents, pendingCents, bankRef, sourceType, bank: summarizeRecipientBank(matching[0], accountRef) };
 }
 async function mark(op: Operation, state: Operation["state"], restored: boolean, payout?: Stripe.Payout) {
     await rpc("pay_recipient_payout_mark", { p_id: op.id, p_user_id: op.userId, p_account_ref: op.accountRef, p_state: state, p_restored: restored,
@@ -194,7 +218,7 @@ function projection(ownerId: string, mode: "live" | "sandbox", current: Awaited<
     const active = !!op && !op.finished;
     const reason = active ? "operation_pending" : current.schedule.interval === "manual" ? "automatic_schedule_required" : current.availableCents <= 0 ? "balance_not_available" : !current.sourceType ? "multiple_payment_sources" : null;
     return { ownerId, kind: mode, currency: "eur", availableCents: current.availableCents, pendingCents: current.pendingCents, schedule: current.schedule, ready: true, canRequestPayout: reason === null, reasonCode: reason,
-        operation: operationProjection(op), checkedAt: new Date().toISOString() };
+        operation: operationProjection(op), checkedAt: new Date().toISOString(), bank: current.bank };
 }
 export async function readRecipientPayoutSettings(expectedOwnerId: string) {
     const ctx = await actor(expectedOwnerId);

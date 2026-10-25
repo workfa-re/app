@@ -8,4 +8,9 @@
 .editor select:focus-visible { outline:2px solid var(--app-accent-ink); outline-offset:3px; }
 .actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:15px; }
 .notice { padding:15px 17px; margin-top:17px; border-radius:18px; background:var(--app-glass-fill); box-shadow:var(--app-glass-shadow); color:var(--app-muted); font-size:13px; line-height:1.65; }
+.bank { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:24px; padding:18px; border-radius:22px; background:var(--app-glass-fill); box-shadow:var(--app-glass-inner-shadow); }
+.bank > div { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.bank span { color:var(--app-muted); font-size:12px; }
+.bank strong { color:var(--app-ink); font-size:15px; font-weight:500; overflow-wrap:anywhere; }
+.bank small { color:var(--app-muted); font-size:13px; font-variant-numeric:tabular-nums; letter-spacing:.025em; }
 @media(max-width:480px) { .actions > button { width:100%; justify-content:center; } }

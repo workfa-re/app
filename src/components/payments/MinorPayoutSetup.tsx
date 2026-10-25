@@ -8,6 +8,7 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 import { paymentErrorMessage, paymentRequest } from "./payment-client";
 import { stripeKeyMatchesKind } from "./PaymentEnvironment";
 import { PAYMENT_OWNER_CHANGED, usePaymentOwner } from "./usePaymentOwner";
+import { validRecipientBankSummary, type RecipientBankSummary } from "@/lib/payments/recipient-bank-summary";
 import styles from "./Payments.module.css";
 import bankStyles from "./MinorPayoutSetup.module.css";
 
@@ -21,6 +22,7 @@ export type MinorBankContext = {
     requiresGuardianAction?: boolean;
     publishableKey: string; holderName: string;
     reasonCode: "guardian_consent_required" | "recipient_setup_required" | "recipient_guardian_binding_conflict" | null;
+    bank?: RecipientBankSummary | null;
 };
 type BankOperation = { id: string; guardianId: string; restart: boolean };
 
@@ -30,7 +32,8 @@ export function validMinorBankContext(value: unknown, ownerId: string): value is
     if (row.ownerId !== ownerId || row.kind !== "live" || ![row.hasPayoutMethod, row.ready, row.canStart, row.needsRestart].every(item => typeof item === "boolean")
         || (row.reasonCode !== null && !reasons.includes(row.reasonCode as string)) || !Array.isArray(row.guardians) || row.guardians.length > 100
         || !stripeKeyMatchesKind("live", row.publishableKey) || typeof row.holderName !== "string" || !row.holderName.trim() || row.holderName.length > 200 || /[\u0000-\u001f\u007f]/.test(row.holderName)
-        || row.requiresGuardianAction !== undefined && typeof row.requiresGuardianAction !== "boolean") return false;
+        || row.requiresGuardianAction !== undefined && typeof row.requiresGuardianAction !== "boolean"
+        || row.bank!==undefined&&row.bank!==null&&!validRecipientBankSummary(row.bank)) return false;
     if (row.ready && (!row.hasPayoutMethod || row.needsRestart || row.reasonCode !== null || row.guardians.length === 0 || row.requiresGuardianAction === true)) return false;
     if (row.needsRestart && row.hasPayoutMethod || row.canStart && row.reasonCode === "guardian_consent_required") return false;
     if (row.canStart && row.guardians.length === 0) return false;
@@ -124,6 +127,7 @@ export function MinorPayoutSetupView({ context, guardianId, busy, onGuardianChan
     return <div className={bankStyles.body}>
         <div className={bankStyles.identity}><span className={bankStyles.icon} aria-hidden="true">{context.hasPayoutMethod ? <Check size={22} /> : <Landmark size={23} />}</span><div><strong>{context.ready ? "Auszahlung bereit" : context.hasPayoutMethod ? "Bankverbindung hinterlegt" : "Deine Vergütung auf dein Konto"}</strong><p>{context.hasPayoutMethod ? context.ready ? "Deinen Auszahlungsstand siehst du in der Übersicht." : context.requiresGuardianAction ? "Für die Auszahlung fehlen noch Angaben deines Elternteils bei Stripe." : "Die Auszahlung ist bereit, sobald alle erforderlichen Angaben bestätigt sind." : "Ergänze hier selbst deine Bankverbindung für Auszahlungen."}</p></div></div>
         {context.guardians.length > 0 && <p className={bankStyles.approval}><Check size={15} aria-hidden="true" />Elternfreigabe hinterlegt{selected ? ` · ${selected.name}` : ""}</p>}
+        {context.bank&&<p className={bankStyles.bankSummary}><strong>{context.bank.bankName??"Bankkonto"}</strong><span>{context.bank.country} · •••• {context.bank.last4}</span></p>}
         {context.hasPayoutMethod && !context.ready && context.requiresGuardianAction && <ParentPayoutNextStep />}
         {!context.canStart && !context.ready && !context.hasPayoutMethod && context.reasonCode !== null ? <div className={styles.editorActions}><p className={styles.smallCopy}>{context.reasonCode === "guardian_consent_required" ? "Bitte lass deine Elternfreigabe zuerst bestätigen." : context.reasonCode === "recipient_guardian_binding_conflict" ? "Die aktuelle Freigabe und die Auszahlungseinrichtung müssen zuerst zusammenpassen." : "Die Einrichtung ist gerade nicht verfügbar. Bitte prüfe den aktuellen Stand später erneut."}</p>{familyAction && <Link href="/guardian/access" className={`app-glass-control ${styles.action}`}><ArrowRight size={17} />{context.reasonCode === "guardian_consent_required" ? "Elternfreigabe anfordern" : "Familie ansehen"}</Link>}</div> : context.canStart && !context.hasPayoutMethod ? <div className={bankStyles.form}>
             {context.guardians.length > 1 && <label className={bankStyles.field} htmlFor={`${id}-guardian`}>Elternfreigabe<select id={`${id}-guardian`} value={guardianId} disabled={busy} onChange={event => onGuardianChange(event.target.value)}><option value="" disabled>Elternfreigabe wählen</option>{context.guardians.map(guardian => <option key={guardian.guardianId} value={guardian.guardianId}>{guardian.name}</option>)}</select></label>}
@@ -139,5 +143,5 @@ function ParentPayoutNextStep() {
         try { await navigator.clipboard.writeText(new URL("/guardian/access", window.location.origin).href); setStatus("copied"); }
         catch { setStatus("failed"); }
     }
-    return <div className={bankStyles.parentStep}><p>Bitte dein Elternteil, im Familienbereich „Auszahlung begleiten“ zu öffnen und die erforderlichen Angaben zu ergänzen.</p><button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void copy()}>{status === "copied" ? "Link kopiert" : "Link für deine Eltern kopieren"}</button>{status === "copied" && <span role="status">Du kannst den Link jetzt an dein Elternteil weitergeben.</span>}{status === "failed" && <p role="status">Der Link konnte nicht kopiert werden. <Link href="/guardian/access">Familienbereich öffnen</Link></p>}</div>;
+    return <div className={bankStyles.parentStep}><p>Bitte dein Elternteil, im Familienbereich „Workfare Pay ansehen“ zu öffnen und die noch erforderlichen Angaben zu ergänzen.</p><button type="button" className={`app-glass-control ${styles.action}`} onClick={() => void copy()}>{status === "copied" ? "Link kopiert" : "Link für deine Eltern kopieren"}</button>{status === "copied" && <span role="status">Du kannst den Link jetzt an dein Elternteil weitergeben.</span>}{status === "failed" && <p role="status">Der Link konnte nicht kopiert werden. <Link href="/guardian/access">Familienbereich öffnen</Link></p>}</div>;
 }

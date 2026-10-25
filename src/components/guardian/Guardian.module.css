@@ -189,3 +189,22 @@
 .verificationAddress legend { margin: 0 0 12px; padding: 0; font-size: 14px; line-height: 1.5; font-weight: 500; }
 .nativeVerification .consent a { color: var(--guardian-accent); text-underline-offset: 3px; }
 @media (max-width:380px) { .verificationGrid { grid-template-columns: minmax(0,1fr); } }
+.finance { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 20px; border-radius: 26px; }
+.financeHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.financeHeading h3 { margin: 0; font-size: 16px; font-weight: 550; line-height: 1.5; }
+.financeAmounts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 14px; margin: 0; }
+.financeAmounts > div { min-width: 0; }
+.financeAmounts dt { color: var(--guardian-muted); font-size: 12px; line-height: 1.6; text-wrap: pretty; }
+.financeAmounts dd { margin: 5px 0 0; color: var(--guardian-ink); font-size: 18px; font-weight: 500; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.financeAmounts .financePrimary { grid-column: 1/-1; }
+.financeAmounts .financePrimary dd { font-size: 30px; letter-spacing: -.035em; }
+.financeBank { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--guardian-muted); }
+.financeBank > div { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+.financeBank strong { color: var(--guardian-ink); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.financeBank span { font-size: 13px; font-variant-numeric: tabular-nums; }
+.financeHistoryTitle { margin: 0 0 8px; color: var(--guardian-muted); font-size: 12px; font-weight: 500; }
+.financeHistory { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.financeHistory li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-width: 0; font-size: 13px; }
+.financeHistory li > span { display: flex; flex-direction: column; gap: 3px; color: var(--guardian-ink); }
+.financeHistory small { color: var(--guardian-muted); font-size: 11px; }
+.financeHistory strong { font-weight: 500; font-variant-numeric: tabular-nums; }

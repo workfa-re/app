@@ -54,20 +54,21 @@ async function recipientPrefill(userId: string): Promise<RecipientAccountPrefill
 
 export async function startRecipientSession(input: { component: unknown; consent: unknown; operationId?: string }): Promise<RecipientSessionResult> {
     const runtime = requirePaymentRuntime();
-    const userId = await requireRecipientUser(undefined,input.component==="balances" || input.component==="payouts_list");
-    if (typeof input.component !== "string" || !["onboarding", "management", "balances", "payouts_list", "notification_banner"].includes(input.component)) throw new PaymentFlowError("invalid_recipient_component");
+    const userId = await requireRecipientUser(undefined,input.component==="balances" || input.component==="payouts_list" || input.component==="bank_management");
+    if (typeof input.component !== "string" || !["onboarding", "management", "bank_management", "balances", "payouts_list", "notification_banner"].includes(input.component)) throw new PaymentFlowError("invalid_recipient_component");
+    if (input.component === "bank_management" && runtime.mode === "local_simulation") throw new PaymentFlowError("recipient_bank_requires_stripe", 409);
     if (input.component === "notification_banner" && runtime.mode === "local_simulation") throw new PaymentFlowError("recipient_banner_requires_sandbox", 409);
-    if ((input.component === "onboarding" || input.component === "management") && input.consent !== true) throw new PaymentFlowError("explicit_consent_required");
+    if ((input.component === "onboarding" || input.component === "management" || input.component === "bank_management") && input.consent !== true) throw new PaymentFlowError("explicit_consent_required");
     if (input.operationId && !UUID.test(input.operationId)) throw new PaymentFlowError("invalid_operation_id");
     const operationId = input.operationId ?? randomUUID();
     const component = input.component as RecipientComponent;
     const publishableKey = runtime.mode === "local_simulation" ? null : stripePublishableKey();
-    const readOnly = component === "balances" || component === "payouts_list";
+    const existingFinancial = component === "balances" || component === "payouts_list" || component === "bank_management";
     let accountRef: string | null;
-    if (readOnly || component === "notification_banner") {
+    if (existingFinancial || component === "notification_banner") {
         const snapshot = await repository.getRecipientSettingsSnapshot(userId);
         const stored = await repository.getRecipientAccount(userId, runtime.mode);
-        if ((readOnly && snapshot.status !== "ready") || !stored?.accountRef) throw new PaymentFlowError("recipient_setup_required", 409);
+        if ((existingFinancial && snapshot.status !== "ready") || !stored?.accountRef) throw new PaymentFlowError("recipient_setup_required", 409);
         if (component === "notification_banner" && !snapshot.detailsSubmitted) throw new PaymentFlowError("recipient_onboarding_required", 409);
         accountRef = stored.accountRef;
         if (runtime.mode !== "local_simulation") {
@@ -75,7 +76,7 @@ export async function startRecipientSession(input: { component: unknown; consent
             // Persist the fresh capability and payout-destination verification.
             await reconcile(userId,`account-session:${randomUUID()}`);
             const fresh = await repository.getRecipientSettingsSnapshot(userId);
-            if (readOnly && fresh.status !== "ready") throw new PaymentFlowError("recipient_setup_required",409);
+            if (existingFinancial && fresh.status !== "ready") throw new PaymentFlowError("recipient_setup_required",409);
             if (component === "notification_banner" && !fresh.detailsSubmitted) throw new PaymentFlowError("recipient_onboarding_required",409);
         }
     } else {

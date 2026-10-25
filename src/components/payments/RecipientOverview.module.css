@@ -27,6 +27,14 @@
 .textAction { display: inline-flex; align-items: center; justify-content: flex-start; min-height: 44px; padding: 8px 0; gap: 7px; background: none; border: 0; color: var(--app-accent-ink); font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
 .action:disabled, .textAction:disabled { opacity: .45; cursor: default; }
 .schedule { margin-left: auto; color: var(--app-muted); font-size: 12px; line-height: 1.5; }
+.availability { min-width: 0; }
+.availability > summary { list-style: none; }
+.availability > summary::-webkit-details-marker { display: none; }
+.availability > summary svg { transition: transform .2s ease; }
+.availability[open] > summary svg { transform: rotate(90deg); }
+.availability > div { max-width: 54ch; padding-top: 10px; color: var(--app-muted); font-size: 13px; line-height: 1.7; }
+.availability p { margin: 9px 0; text-wrap: pretty; }
+.availability time { color: var(--app-ink); font-variant-numeric: tabular-nums; }
 .history { margin-top: 12px; }
 .history h3 { margin: 16px 0 6px; font-size: 14px; font-weight: 500; letter-spacing: -.015em; }
 .history ul { padding: 0; margin: 0; list-style: none; }
@@ -44,8 +52,8 @@
 .failure p { margin: 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
 .home { margin-bottom: 28px; }
 .compact .heading { margin-bottom: 14px; }
-.compact .numbers { grid-template-columns: minmax(0,1.6fr) repeat(3,minmax(0,1fr)); gap: 18px 24px; align-items: end; }
-.compact .numbers .primary { grid-column: auto; }
+.compact .numbers { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 24px; align-items: end; }
+.compact .numbers .primary { grid-column: 1 / -1; }
 .compact .numbers dd { font-size: clamp(22px,2.1vw,28px); }
 .compact .primary dd { font-size: clamp(37px,4vw,52px); }
 .compact .caption { margin-top: 20px; }

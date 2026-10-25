@@ -47,6 +47,7 @@ const schemaNames = [
   "../../database/migrations/20261024223958_payment_price_chat_notices.sql",
   "../../database/migrations/20261024224259_recipient_payout_settings_and_recovery.sql",
   "../../database/migrations/20261024225056_recipient_payout_attempt_replay.sql",
+  "../../database/migrations/20261025105410_guardian_contact_and_finance_visibility.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"

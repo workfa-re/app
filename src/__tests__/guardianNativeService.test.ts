@@ -135,12 +135,69 @@ describe("native guardian authorization and concurrency", () => {
         api.rpc.mockImplementation(async name => ({ error: null, data: name === "pay_guardian_recipient_context" ? context() : record(patch) }));
         await expect(readNativeGuardianSetup(child, parent)).rejects.toMatchObject({ code: "recipient_guardian_unavailable" }); expect(api.read).not.toHaveBeenCalled();
     });
-    it.each([{ generation: 6 }, { accountRef: "acct_replaced" }, { minorBinding: { ...binding, consentId: other } }])("invalidates reads and writes when a concurrent change occurs %j", async patch => {
+    it.each([{ id: operation }, { accountRef: "acct_replaced" }, { displayName: "Different Child" },
+        { minorBinding: { ...binding, consentId: other } }, { minorBinding: { ...binding, guardianName: "Different Parent" } },
+        { minorBinding: { ...binding, guardianEmail: "new@fixture.invalid" } }, { minorBinding: { ...binding, guardianBirthdate: "1981-01-01" } },
+    ])("invalidates reads and writes when the bound identity changes %j", async patch => {
         let reads = 0;
         api.rpc.mockImplementation(async name => ({ error: null, data: name === "pay_guardian_recipient_context" ? context() : ++reads === 1 ? record() : record(patch) }));
         await expect(readNativeGuardianSetup(child, parent)).rejects.toMatchObject({ code: "recipient_setup_changed" });
         reads = 0;
         await expect(saveNativeGuardianSetup(input(), operation, parent, evidence())).rejects.toMatchObject({ code: "recipient_setup_changed" }); expect(api.save).not.toHaveBeenCalled();
+    });
+    it("accepts a concurrent status sync without treating it as a different child account", async () => {
+        let reads = 0;
+        api.rpc.mockImplementation(async (name, args) => ({ error: null, data: name === "pay_guardian_recipient_context" ? context()
+            : name === "pay_guardian_native_acceptance" ? acceptance(args) : record({ generation: ++reads === 1 ? 5 : 6 }) }));
+        expect(await readNativeGuardianSetup(child, parent)).toMatchObject({ childId: child, ready: false });
+        reads = 0;
+        await saveNativeGuardianSetup(input(), operation, parent, evidence());
+        expect(api.rpc).toHaveBeenCalledWith("pay_guardian_native_acceptance", expect.objectContaining({ p_generation: 6, p_account_ref: accountRef, p_consent_id: consent, p_operation_id: operation }));
+        expect(api.save).toHaveBeenCalledOnce();
+    });
+    it("retries one strict acceptance conflict only after a same-identity sync advanced its version", async () => {
+        let reads = 0, submissions = 0;
+        api.rpc.mockImplementation(async (name, args) => {
+            if (name === "pay_guardian_recipient_context") return { error: null, data: context() };
+            if (name === "pay_guardian_native_acceptance") {
+                if (++submissions === 1) return { error: { message: "RECIPIENT_ACCEPTANCE_CONFLICT" }, data: null };
+                return { error: null, data: acceptance(args) };
+            }
+            return { error: null, data: record({ generation: ++reads <= 2 ? 5 : 6 }) };
+        });
+        await saveNativeGuardianSetup(input(), operation, parent, evidence());
+        const submitted = api.rpc.mock.calls.filter(([name]) => name === "pay_guardian_native_acceptance").map(([, args]) => args);
+        expect(submitted).toHaveLength(2);
+        expect(submitted[0]).toMatchObject({ p_generation: 5 });
+        expect(submitted[1]).toEqual({ ...submitted[0], p_generation: 6 });
+        expect(api.save).toHaveBeenCalledOnce();
+    });
+    it.each([false, true])("does not retry a persistent or same-version acceptance conflict (%j)", async newerVersion => {
+        let reads = 0;
+        api.rpc.mockImplementation(async name => name === "pay_guardian_recipient_context" ? { error: null, data: context() }
+            : name === "pay_guardian_native_acceptance" ? { error: { message: "RECIPIENT_ACCEPTANCE_CONFLICT" }, data: null }
+                : { error: null, data: record({ generation: ++reads <= 2 || !newerVersion ? 5 : 6 }) });
+        await expect(saveNativeGuardianSetup(input(), operation, parent, evidence())).rejects.toMatchObject({ code: "RECIPIENT_ACCEPTANCE_CONFLICT" });
+        expect(api.rpc.mock.calls.filter(([name]) => name === "pay_guardian_native_acceptance")).toHaveLength(newerVersion ? 2 : 1);
+        expect(api.save).not.toHaveBeenCalled(); expect(api.sync).not.toHaveBeenCalled();
+    });
+    it("rechecks a revoked parent relationship before retrying a competing status sync", async () => {
+        let contexts = 0;
+        api.rpc.mockImplementation(async name => name === "pay_guardian_recipient_context" ? { error: null, data: ++contexts <= 2 ? context() : { ...context(), children: [] } }
+            : name === "pay_guardian_native_acceptance" ? { error: { message: "RECIPIENT_ACCEPTANCE_CONFLICT" }, data: null }
+                : { error: null, data: record() });
+        await expect(saveNativeGuardianSetup(input(), operation, parent, evidence())).rejects.toMatchObject({ code: "guardian_consent_required" });
+        expect(api.rpc.mock.calls.filter(([name]) => name === "pay_guardian_native_acceptance")).toHaveLength(1);
+        expect(api.save).not.toHaveBeenCalled();
+    });
+    it("rejects a replaced account instead of retrying the acceptance against it", async () => {
+        let reads = 0;
+        api.rpc.mockImplementation(async name => name === "pay_guardian_recipient_context" ? { error: null, data: context() }
+            : name === "pay_guardian_native_acceptance" ? { error: { message: "RECIPIENT_ACCEPTANCE_CONFLICT" }, data: null }
+                : { error: null, data: record({ accountRef: ++reads <= 2 ? accountRef : "acct_replaced" }) });
+        await expect(saveNativeGuardianSetup(input(), operation, parent, evidence())).rejects.toMatchObject({ code: "recipient_setup_changed" });
+        expect(api.rpc.mock.calls.filter(([name]) => name === "pay_guardian_native_acceptance")).toHaveLength(1);
+        expect(api.save).not.toHaveBeenCalled();
     });
     it("honors a parent revocation between provider read and submission", async () => {
         let reads = 0;

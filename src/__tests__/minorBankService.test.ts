@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only",()=>({}));
-const mock=vi.hoisted(()=>({auth:vi.fn(),rpc:vi.fn(),create:vi.fn(),session:vi.fn(),saveBank:vi.fn(),inspect:vi.fn(),bank:vi.fn(),unused:vi.fn(),save:vi.fn(),begin:vi.fn(),apply:vi.fn()}));
+const mock=vi.hoisted(()=>({auth:vi.fn(),rpc:vi.fn(),create:vi.fn(),session:vi.fn(),saveBank:vi.fn(),inspect:vi.fn(),bank:vi.fn(),unused:vi.fn(),save:vi.fn(),begin:vi.fn(),apply:vi.fn(),bankSummary:vi.fn()}));
 vi.mock("@/lib/auth",()=>({getAuthState:mock.auth}));
 vi.mock("@/lib/supabase/admin",()=>({getSupabaseAdminClient:()=>({rpc:mock.rpc})}));
-vi.mock("@/lib/payments/recipient-stripe.server",()=>({createRecipientStripeAdapter:()=>({createAccount:mock.create,createSession:mock.session,saveInitialBankMethod:mock.saveBank,inspect:mock.inspect,inspectBankSetup:mock.bank,inspectUnusedSetup:mock.unused})}));
+vi.mock("@/lib/payments/recipient-stripe.server",()=>({createRecipientStripeAdapter:()=>({createAccount:mock.create,createSession:mock.session,saveInitialBankMethod:mock.saveBank,inspect:mock.inspect,inspectBankSetup:mock.bank,inspectUnusedSetup:mock.unused,readBankSummary:mock.bankSummary})}));
 vi.mock("@/lib/payments/recipient-repository.server",()=>({saveRecipientAccount:mock.save,beginRecipientSync:mock.begin,applyRecipientSync:mock.apply}));
 import {minorSetupContext,readMinorBankSetup,restartUnusedMinorSetup,startMinorBankSetup} from "@/lib/payments/minor-bank.server";
 import {PaymentFlowError} from "@/lib/payments/runtime.server";
@@ -30,7 +30,7 @@ beforeEach(()=>{
     mock.create.mockResolvedValue(accountRef);
     mock.begin.mockResolvedValue({duplicate:false,generation:4,accountRef});
     mock.inspect.mockResolvedValue({status:"pending",requirementCount:1,hasPayoutMethod:true,detailsSubmitted:false,transfersActive:false,payoutsEnabled:false});
-    mock.bank.mockResolvedValue(true);
+    mock.bank.mockResolvedValue(true);mock.bankSummary.mockResolvedValue(null);
     mock.unused.mockResolvedValue(undefined);
 });
 afterEach(()=>vi.unstubAllEnvs());
@@ -154,7 +154,7 @@ describe("youth-owned bank setup authorization",()=>{
         expect(await readMinorBankSetup(child)).toMatchObject({hasPayoutMethod:true,ready:false});
         expect(mock.apply).toHaveBeenCalledWith(child,expect.any(String),4,accountRef,expect.objectContaining({status:"pending",transfersActive:false,payoutsEnabled:false}));
     });
-    it.each([{accountRef:"acct_replacedRecipient"},{generation:5},null])("does not reuse an old bank read after concurrent account or generation change %j",async patch=>{
+    it.each([{accountRef:"acct_replacedRecipient"},{minorBinding:{...binding,consentId:operation}},null])("does not reuse an old bank read after concurrent account or consent change %j",async patch=>{
         mock.rpc.mockResolvedValueOnce({data:context({recipient:record(),bindingCurrent:true}),error:null})
             .mockResolvedValueOnce({data:context({recipient:patch===null?null:record(patch),bindingCurrent:true}),error:null});
         mock.inspect.mockRejectedValue(new PaymentFlowError("recipient_identity_unconfirmed",409));
@@ -268,4 +268,11 @@ describe("minor bank HTTP boundaries",()=>{
         mock.saveBank.mockRejectedValue(new Error("private bank or parent identity"));
         const response=await POST(request());expect(response.status).toBe(503);expect(JSON.stringify(await response.json())).not.toMatch(/private bank|parent identity/);
     });
+});
+
+describe("bank setup observations",()=>{
+ it("does not ask the child to retry solely because another read advanced the observation generation",async()=>{
+  let calls=0;mock.rpc.mockImplementation(async()=>({error:null,data:context({recipient:record({generation:++calls===1?4:5}),bindingCurrent:true,hasPayoutMethod:true,ready:false})}));
+  expect(await readMinorBankSetup(child)).toMatchObject({ownerId:child,hasPayoutMethod:true});
+ });
 });

@@ -24,10 +24,19 @@
 .editorHeading h5 { flex: 1; margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; text-wrap: balance; }
 .editorHeading .refresh { margin-block: -8px; }
 .amounts { display: grid; gap: 11px; margin: 15px 0 0; padding: 16px; border-radius: 19px; background: var(--app-glass-fill); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); font-size: 14px; line-height: 1.5; }
-.amounts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.amountLine { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; }
 .amounts dt { margin: 0; color: var(--app-muted); }
 .amounts dt > span { font-size: 12px; white-space: nowrap; }
 .amounts dd { margin: 0; color: var(--app-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.feeDetails { min-width: 0; }
+.feeDetails > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-block: -8px; color: var(--app-muted); list-style: none; cursor: pointer; border-radius: 8px; }
+.feeDetails > summary::-webkit-details-marker { display: none; }
+.feeDetails > summary > span:last-child { display: flex; align-items: center; gap: 7px; color: var(--app-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.feeDetails > summary svg { color: var(--app-muted); transition: rotate 160ms ease; }
+.feeDetails[open] > summary svg { rotate: 180deg; }
+.feeDetails > summary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
+.feeBreakdown { padding-top: 14px; font-size: 12px; }
+.feeBreakdown p { margin: 7px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.6; text-wrap: pretty; }
 .amounts .total { margin-top: 3px; padding-top: 12px; box-shadow: 0 -1px 0 var(--app-panel-rule); }
 .total dt,.total dd { color: var(--app-ink); font-size: 19px; font-weight: 500; }
 .minutes { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; color: var(--app-muted); font-size: 14px; }

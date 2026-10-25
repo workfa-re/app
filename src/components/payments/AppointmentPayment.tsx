@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, CreditCard, LoaderCircle, RefreshCw, WalletCards, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, CreditCard, LoaderCircle, RefreshCw, WalletCards, X } from "lucide-react";
 import type { PaymentOrder, PaymentOrderAction } from "@/lib/payments/order-types";
 import { LIVE_SERVICE_FEE_POLICY, quoteLiveServiceFee, quoteTestServiceFee, TEST_SERVICE_FEE_POLICY, validPaymentOrderFee, type PaymentFeePolicy } from "@/lib/payments/tariff";
 import { getPaymentConversationReturnPath, getPaymentSettingsHref } from "@/lib/payments/return-path";
@@ -269,7 +269,19 @@ export function AppointmentCompletionReview({ appointments, job, pending, error,
 }
 
 export function AppointmentPaymentAmounts({ earnings, fee = 0, provider, feePolicy = TEST_SERVICE_FEE_POLICY }: { earnings: number; fee?: number; provider: boolean; feePolicy?: PaymentFeePolicy }) {
-    return <dl className={styles.amounts}><div><dt>Vergütung</dt><dd>{formatAppointmentMoney(earnings)}</dd></div>{provider && <><div><dt>Servicegebühr{feePolicy === LIVE_SERVICE_FEE_POLICY ? <span> · 5 %</span> : <span> (Testtarif)</span>}</dt><dd>{formatAppointmentMoney(fee)}</dd></div><div className={styles.total}><dt>Gesamt</dt><dd>{formatAppointmentMoney(earnings + fee)}</dd></div></>}</dl>;
+    return <div className={styles.amounts}>
+        <dl className={styles.amountLine}><dt>Vergütung</dt><dd>{formatAppointmentMoney(earnings)}</dd></dl>
+        {provider && <>
+            <details className={styles.feeDetails}>
+                <summary><span>Gebühren</span><span>{formatAppointmentMoney(fee)}<ChevronDown size={14} aria-hidden="true" /></span></summary>
+                <div className={styles.feeBreakdown}>
+                    <dl className={styles.amountLine}><dt>Workfare-Servicegebühr{feePolicy === LIVE_SERVICE_FEE_POLICY ? <span> · 5 %</span> : <span> (Testtarif)</span>}</dt><dd>{formatAppointmentMoney(fee)}</dd></dl>
+                    <p>Die Zahlungsabwicklung ist in dieser Gebühr enthalten.</p>
+                </div>
+            </details>
+            <dl className={`${styles.amountLine} ${styles.total}`}><dt>Gesamt</dt><dd>{formatAppointmentMoney(earnings + fee)}</dd></dl>
+        </>}
+    </div>;
 }
 
 function estimatedFee(earnings: number | null, policy: PaymentFeePolicy | null) {
