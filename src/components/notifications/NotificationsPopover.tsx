@@ -2,7 +2,7 @@
 
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Bell, BriefcaseBusiness, CalendarDays, ChevronRight, MessageCircle, Settings2, ShieldCheck, X } from "lucide-react";
+import { Bell, BriefcaseBusiness, CalendarDays, ChevronRight, CreditCard, MessageCircle, Settings2, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import styles from "./NotificationsPopover.module.css";
 
 const CATEGORY_ICONS = { message: MessageCircle, appointment: CalendarDays, application: BriefcaseBusiness,
-    job: BriefcaseBusiness, account: ShieldCheck, system: Bell } satisfies Record<NotificationCategory, typeof Bell>;
+    job: BriefcaseBusiness, account: ShieldCheck, payment: CreditCard, system: Bell } satisfies Record<NotificationCategory, typeof Bell>;
 
 /** One entry point for the inbox and its live, recipient-owned updates. */
 export function NotificationsPopover({ currentUserId, initialUnreadCount, initialNotifications }: {

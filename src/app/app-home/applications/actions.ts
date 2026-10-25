@@ -286,7 +286,7 @@ export async function reportActivityItem(input: Omit<ActivityReportInput, "scope
 
 const paymentMessageUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Resolve a persisted price notice to the exact appointment; no PSP IDs escape. */
+/** Resolve a persisted payment notice to its exact appointment and quote. */
 export async function getPaymentOrderForMessage(applicationId: string, messageId: string) {
     const unavailable = { available: false, appointmentId: null, orderId: null } as const;
     if (!paymentMessageUuid.test(applicationId) || !paymentMessageUuid.test(messageId)) return unavailable;
@@ -300,7 +300,7 @@ export async function getPaymentOrderForMessage(applicationId: string, messageId
         const result = data as Record<string, unknown>;
         if (result.applicationId !== applicationId || typeof result.appointmentId !== "string" || !paymentMessageUuid.test(result.appointmentId)
             || typeof result.orderId !== "string" || !paymentMessageUuid.test(result.orderId)
-            || !["payment_price_proposed", "payment_price_confirmed"].includes(String(result.event))) return unavailable;
+            || !["payment_price_proposed", "payment_price_confirmed", "payment_paid", "payment_failed", "payment_canceled", "payment_refund_pending", "payment_refunded", "payment_review_required"].includes(String(result.event))) return unavailable;
         return { available: true, appointmentId: result.appointmentId, orderId: result.orderId } as const;
     } catch { return unavailable; }
 }

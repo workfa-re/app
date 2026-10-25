@@ -53,10 +53,13 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
     const stripeControls = useRef<StripeEmbedControls | null>(null);
     const headingRef = useRef<HTMLHeadingElement>(null);
     const editButtonRef = useRef<HTMLButtonElement>(null);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const menuItemRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const keepButtonRef = useRef<HTMLButtonElement>(null);
     const consentId = useId();
     const menuId = useId();
+    const menuButtonId = useId();
     const removeTitleId = useId();
     const ready = snapshot.buyerReady && snapshot.method !== null && !unknown;
     const setupAvailable = snapshot.featureEnabled || snapshot.setupEnabled === true;
@@ -72,11 +75,12 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
 
     useEffect(() => {
         if (!menu) return;
+        const frame = requestAnimationFrame(() => menuItemRef.current?.focus({preventScroll:true}));
         const outside = (event: PointerEvent) => { if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setMenu(false); };
-        const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setMenu(false); editButtonRef.current?.focus({preventScroll:true}); } };
+        const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setMenu(false); menuButtonRef.current?.focus({preventScroll:true}); } };
         document.addEventListener("pointerdown", outside);
         document.addEventListener("keydown", escape);
-        return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+        return () => { cancelAnimationFrame(frame); document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
     }, [menu]);
 
     const confirmed = useCallback(async (sessionId: string) => {
@@ -102,8 +106,8 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
     useEffect(() => { confirmedRef.current = confirmed; }, [confirmed]);
     const onStripeComplete = useCallback(() => { if (setupSessionId) void confirmedRef.current(setupSessionId); }, [setupSessionId]);
 
-    function restoreFocus() {
-        requestAnimationFrame(() => (editButtonRef.current ?? headingRef.current)?.focus({preventScroll:true}));
+    function restoreFocus(target: "edit" | "menu" = "edit") {
+        requestAnimationFrame(() => ((target === "menu" ? menuButtonRef.current : null) ?? editButtonRef.current ?? headingRef.current)?.focus({preventScroll:true}));
     }
 
     async function start(event: React.FormEvent) {
@@ -152,12 +156,12 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
         try {
             const result = await paymentRequest<{ ok: boolean; pendingRemoval: boolean }>("/api/payments/method/remove", {}, undefined, ownerId ?? "");
             if (result.ok !== true || typeof result.pendingRemoval !== "boolean") throw new Error("unconfirmed");
-            if (!isCurrentSource() || !isCurrentOwner()) { setRemoving(false); router.refresh(); restoreFocus(); return; }
+            if (!isCurrentSource() || !isCurrentOwner()) { setRemoving(false); router.refresh(); restoreFocus("menu"); return; }
             setSnapshot({ ...snapshot, buyerReady: false, method: null, pendingRemoval: result.pendingRemoval });
             onChanged?.();
             setRemoving(false); setEditing(false); setConsent(false); setFeedback("Zahlungsmittel entfernt.");
-            restoreFocus();
-        } catch (failure) { setUnknown(true); setRemoving(false); setError(paymentErrorMessage(failure)); restoreFocus(); }
+            restoreFocus("menu");
+        } catch (failure) { setUnknown(true); setRemoving(false); setError(paymentErrorMessage(failure)); restoreFocus("menu"); }
         finally { setBusy(null); inFlight.current = false; }
     }
 
@@ -183,7 +187,7 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
 
     const method = snapshot.method;
     if (ownerChanged) return <section className={styles.surface}><p className={styles.error} role="alert">{PAYMENT_OWNER_CHANGED}</p><a className={`app-glass-control ${styles.action}`} href="/app-home/settings/payments">Workfare Pay neu öffnen</a></section>;
-    return <section className={`${styles.surface} ${styles.methodSurface}`} data-state={editing ? "editing" : ready ? "ready" : unknown ? "unknown" : "empty"} data-embedded={setup?.kind === "embedded" && !unknown || undefined} aria-labelledby="payment-method-title" aria-busy={Boolean(busy)}>
+    return <section className={`${styles.surface} ${styles.methodSurface}`} data-state={editing ? "editing" : ready ? "ready" : unknown ? "unknown" : "empty"} data-menu-open={menu || undefined} data-embedded={setup?.kind === "embedded" && !unknown || undefined} aria-labelledby="payment-method-title" aria-busy={Boolean(busy)}>
         <div className={styles.sectionHeading}><h2 id="payment-method-title" ref={headingRef} tabIndex={-1}>Zahlungsmittel</h2>
             {editing && <div className={styles.headerTools}>{setup?.kind === "embedded" && <StripeReloadButton controls={stripeControls} disabled={Boolean(busy)} />}<button type="button" className={`app-glass-control ${styles.close}`} aria-label="Einrichtung schließen" disabled={Boolean(busy)} onClick={() => setup?.kind === "local" ? void finishLocal("cancel") : closeEditor()}><X size={19} /></button></div>}
         </div>
@@ -191,8 +195,22 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
             <span className={styles.cardMark} aria-hidden="true">{method.brand === "visa" ? "VISA" : method.brand === "mastercard" ? "MC" : <CreditCard size={25} strokeWidth={1.5} />}</span>
             <div className={styles.identity}><strong>{method.brand === "simulation" ? "Test-Zahlungsmittel" : `${cardBrands[method.brand ?? ""] || "Karte"} •••• ${method.last4}`}</strong><span>{method.brand === "simulation" ? "Keine echte Karte hinterlegt" : method.expiryMonth && method.expiryYear ? `Gültig bis ${String(method.expiryMonth).padStart(2, "0")}/${String(method.expiryYear).slice(-2)}` : "Für deine nächsten Jobs hinterlegt"}</span></div>
             <div className={styles.methodControls}><button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} onClick={openEditor} disabled={Boolean(busy)}>Ändern</button>
-                <div className={styles.menuAnchor} ref={menuRef}><button type="button" className={`app-glass-control ${styles.iconButton}`} aria-label="Zahlungsmittel verwalten" aria-expanded={menu} aria-controls={menuId} disabled={Boolean(busy)} onClick={() => setMenu(value => !value)}><MoreHorizontal size={21} /></button>
-                    {menu && <div id={menuId} className={styles.menu}><button type="button" onClick={() => { setMenu(false); setRemoving(true); requestAnimationFrame(() => keepButtonRef.current?.focus({preventScroll:true})); }}><Trash2 size={17} />Entfernen</button></div>}
+                <div className={styles.menuAnchor} ref={menuRef}
+                    onBlur={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setMenu(false); }}>
+                    <button type="button" ref={menuButtonRef} id={menuButtonId} className={`app-glass-control ${styles.iconButton}`}
+                        aria-label="Zahlungsmittel verwalten" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
+                        disabled={Boolean(busy)} onClick={() => setMenu(value => !value)} onKeyDown={event => {
+                            if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setMenu(true); }
+                        }}><MoreHorizontal size={21} aria-hidden="true" /></button>
+                    {menu && <div id={menuId} role="menu" aria-labelledby={menuButtonId} className={styles.menu}
+                        onKeyDown={event => {
+                            if (event.key === "Tab" && event.shiftKey) { event.preventDefault(); setMenu(false); menuButtonRef.current?.focus({preventScroll:true}); }
+                            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) { event.preventDefault(); menuItemRef.current?.focus({preventScroll:true}); }
+                        }}>
+                        <button type="button" ref={menuItemRef} role="menuitem" onClick={() => {
+                            setMenu(false); setRemoving(true); requestAnimationFrame(() => keepButtonRef.current?.focus({preventScroll:true}));
+                        }}><Trash2 size={17} aria-hidden="true" />Entfernen</button>
+                    </div>}
                 </div>
             </div>
         </div> : !editing && <div className={styles.emptyMethod}>
@@ -211,7 +229,7 @@ export function BuyerPaymentMethod({ initial, returnTo, resumeSetupId, onChanged
         {setup?.kind === "embedded" && !unknown && <div ref={embedRef} className={styles.embedded}><PaymentEmbedBoundary onCancel={closeEditor} headerControls><EmbeddedBuyerSetup publishableKey={setup.publishableKey} clientSecret={setup.clientSecret} onComplete={onStripeComplete} onCancel={closeEditor} controlsRef={stripeControls} /></PaymentEmbedBoundary>{busy === "confirm" && <p className={styles.loading} role="status">Zahlungsmittel wird geprüft …</p>}</div>}
         {setup?.kind === "local" && !unknown && <div ref={embedRef} className={styles.editor}><div className={styles.localPreview}><CreditCard size={26} strokeWidth={1.5} /><div><strong>Lokales Test-Zahlungsmittel</strong><span>Keine Karte und keine Bankdaten erforderlich.</span></div></div><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => void finishLocal("complete")}>{busy === "confirm" ? <Loader2 size={17} className={styles.spinner} /> : <Check size={17} />}Test-Einrichtung abschließen</button><button type="button" className={styles.quietButton} disabled={Boolean(busy)} onClick={() => void finishLocal("cancel")}>Abbrechen</button></div></div>}
 
-        {removing && <div className={styles.confirmation} role="group" aria-labelledby={removeTitleId}><h3 id={removeTitleId}>Zahlungsmittel entfernen?</h3><p>Für einen neuen Job brauchst du anschließend wieder eines. Bestehende Aufträge bleiben erhalten.</p><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={remove} disabled={Boolean(busy)}>{busy === "remove" && <Loader2 size={16} className={styles.spinner} />}Entfernen</button><button type="button" ref={keepButtonRef} className={styles.quietButton} onClick={() => { setRemoving(false); restoreFocus(); }} disabled={Boolean(busy)}>Behalten</button></div></div>}
+        {removing && <div className={styles.confirmation} role="group" aria-labelledby={removeTitleId}><h3 id={removeTitleId}>Zahlungsmittel entfernen?</h3><p>Für einen neuen Job brauchst du anschließend wieder eines. Bestehende Aufträge bleiben erhalten.</p><div className={styles.editorActions}><button type="button" className={`app-glass-control ${styles.action}`} onClick={remove} disabled={Boolean(busy)}>{busy === "remove" && <Loader2 size={16} className={styles.spinner} />}Entfernen</button><button type="button" ref={keepButtonRef} className={styles.quietButton} onClick={() => { setRemoving(false); restoreFocus("menu"); }} disabled={Boolean(busy)}>Behalten</button></div></div>}
         {snapshot.pendingRemoval && <div className={styles.notice}><p>Eine frühere Karte muss bei Stripe noch entfernt werden. Dein aktuelles Zahlungsmittel bleibt dabei erhalten.</p><button type="button" className={styles.textAction} disabled={Boolean(busy)} onClick={() => void refreshOrCleanup(true)}>Entfernung abschließen</button></div>}
         {unknown && <button type="button" ref={editButtonRef} className={`app-glass-control ${styles.action}`} disabled={Boolean(busy)} onClick={() => setup ? void confirmed(setup.sessionId) : void refreshOrCleanup(false)}>{setup ? "Einrichtung prüfen" : "Status neu laden"}</button>}
         {error && <p className={styles.error} role="alert">{error}</p>}

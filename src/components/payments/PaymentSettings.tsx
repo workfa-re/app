@@ -31,7 +31,7 @@ type Props = {
 
 export function PaymentQuestions({ recipient, kind }: { recipient: boolean; kind: PaymentSurfaceKind }) {
     return <details className={styles.questions}>
-        <summary className={styles.helpSummary}><CircleHelp size={17} aria-hidden="true" /><span>Fragen zu Workfare Pay</span><ChevronRight size={15} className={styles.rowArrow} aria-hidden="true" /></summary>
+        <summary className={styles.settingsRow}><span className={`app-glass-control ${styles.rowIcon}`}><CircleHelp size={21} aria-hidden="true" /></span><span>Fragen zu Workfare Pay</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" /></summary>
         <div className={styles.answers}>
             <h3>{recipient ? "Wann kommt meine Vergütung an?" : "Wird beim Einrichten etwas abgebucht?"}</h3>
             <p>{recipient ? <>Nach der Zahlung kann die Vergütung zunächst in Bearbeitung sein. Erst verfügbare Beträge werden nach deinem Auszahlungstag oder auf deinen Wunsch an deine Bank überwiesen. Den aktuellen Stand siehst du in der Zahlungsübersicht.{kind === "sandbox" ? " Im Testbetrieb wird kein echtes Geld bewegt." : kind === "local" ? " In der lokalen Simulation wird kein echtes Geld bewegt." : ""}</> : "Nein. Du hinterlegst nur dein Zahlungsmittel. Vor einer Zahlung siehst du Vergütung, Servicegebühr und Gesamtbetrag und bestätigst den Vorgang gesondert."}</p>
@@ -77,7 +77,7 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
             {provider ? <>
                 <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
                 {snapshot.featureEnabled || snapshot.setupEnabled === true ? <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion}>{questions}</BuyerAccountPanel> : <section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>}
-            </> : role === "job_seeker" ? <><RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} />{questions}</> : <>
+            </> : role === "job_seeker" ? <><RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section></> : <>
                 <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>
             </>}
         </div>

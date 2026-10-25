@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), record: vi.fn(), snapshot: vi.fn(), beginSync: vi.fn(), applySync: vi.fn(), inspect: vi.fn(), rpc: vi.fn(), sdk: vi.fn(), runtime: vi.fn(), retrieveAccount: vi.fn(), updateAccount: vi.fn(), settings: vi.fn(), updateSettings: vi.fn(), balance: vi.fn(), banks: vi.fn(), listPayouts: vi.fn(), retrievePayout: vi.fn(), createPayout: vi.fn(), event: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), record: vi.fn(), findRecord: vi.fn(), snapshot: vi.fn(), beginSync: vi.fn(), applySync: vi.fn(), inspect: vi.fn(), rpc: vi.fn(), sdk: vi.fn(), runtime: vi.fn(), retrieveAccount: vi.fn(), updateAccount: vi.fn(), settings: vi.fn(), updateSettings: vi.fn(), balance: vi.fn(), banks: vi.fn(), listPayouts: vi.fn(), retrievePayout: vi.fn(), createPayout: vi.fn(), event: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getAuthState: mocks.auth }));
 vi.mock("@/lib/supabase/admin", () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
-vi.mock("@/lib/payments/recipient-repository.server", () => ({ getRecipientAccount: mocks.record, getRecipientSettingsSnapshot:mocks.snapshot, beginRecipientSync: mocks.beginSync, applyRecipientSync: mocks.applySync }));
+vi.mock("@/lib/payments/recipient-repository.server", () => ({ getRecipientAccount: mocks.record, findRecipientByAccount: mocks.findRecord, getRecipientSettingsSnapshot:mocks.snapshot, beginRecipientSync: mocks.beginSync, applyRecipientSync: mocks.applySync }));
 vi.mock("@/lib/payments/recipient-stripe.server", () => ({ createRecipientStripeAdapter: () => ({ inspect: mocks.inspect }) }));
 vi.mock("@/lib/payments/runtime.server", async original => ({ ...await original<typeof import("@/lib/payments/runtime.server")>(), requirePaymentRuntime: mocks.runtime }));
 vi.mock("@/lib/payments/stripe-mode.server", async original => ({ ...await original<typeof import("@/lib/payments/stripe-mode.server")>(), paymentStripeSdk: () => mocks.sdk }));
@@ -26,6 +26,7 @@ beforeEach(() => {
     mocks.auth.mockResolvedValue({ state: "ready", session: { user: { id: user, email_confirmed_at: new Date().toISOString() } }, profile: { account_type: "job_seeker" } });
     mocks.snapshot.mockResolvedValue({status:"ready",hasPayoutMethod:true,payoutsEnabled:true,transfersActive:true,detailsSubmitted:true,requirementCount:0});
     mocks.record.mockResolvedValue({ userId: user, mode: "sandbox", accountRef, minorBinding: null }); mocks.beginSync.mockResolvedValue({ generation: 1, accountRef }); mocks.applySync.mockResolvedValue({ applied: true }); mocks.inspect.mockResolvedValue({ status: "ready", requirementCount:0, hasPayoutMethod: true, payoutsEnabled: true, transfersActive: true, detailsSubmitted: true });
+    mocks.findRecord.mockResolvedValue({ id: "recipient-record", userId: user, mode: "sandbox", accountRef, minorBinding: null });
     mocks.retrieveAccount.mockImplementation(async () => account()); mocks.updateAccount.mockImplementation(async (_ref, body) => ({ ...account(), metadata: body.metadata }));
     mocks.settings.mockImplementation(async () => settings()); mocks.updateSettings.mockImplementation(async body => { schedule = body.payments.payouts.schedule; return settings(); });
     mocks.balance.mockImplementation(async () => ({ object: "balance", livemode: false, available: [{ currency: "eur", amount: available, source_types: { card: available } }], pending: [{ currency: "eur", amount: 2300 }] }));
@@ -38,6 +39,7 @@ beforeEach(() => {
         if (name === "pay_recipient_payout_begin") { op = operation({ operationId: args.p_operation_id, kind: args.p_kind, originalSchedule: args.p_original_schedule, targetSchedule: args.p_target_schedule, amountCents: args.p_amount_cents, sourceType: args.p_source_type, destinationRef: args.p_destination_ref }); history.set(String(op.operationId), op); return { data: op, error: null }; }
         if (name === "pay_recipient_payout_mark") { const previous = [...history.values()].find(row => row.id === args.p_id) ?? op!; const updated: Record<string, unknown> = { ...previous, state: args.p_state, restored: args.p_restored, payoutRef: args.p_payout_ref, payoutStatus: args.p_payout_status, arrivalAt: args.p_arrival_at, finished: args.p_restored && ["complete", "failed"].includes(args.p_state) }; history.set(String(updated.operationId), updated); if (op?.id === updated.id) op = updated; return { data: null, error: null }; }
         if (name === "pay_recipient_payout_recovery_list") return { data: op ? [op] : [], error: null };
+        if (name === "pay_recipient_payout_notice") return { data: null, error: null };
         throw new Error(`unexpected RPC ${name}`);
     });
     vi.stubEnv("WORKFARE_PAY_HOSTED_STATE_SECRET", "offline-only-recovery-secret-at-least-32-chars"); vi.stubEnv("STRIPE_CONNECT_SNAPSHOT_WEBHOOK_SECRET", "whsec_offlineFixture");
@@ -203,6 +205,28 @@ describe("monthly default and read-only recovery", () => {
         op = operation({ finished: true, restored: true, state: "complete", payoutRef: "po_fixture", payoutStatus: "pending" });
         mocks.event.mockReturnValue({ livemode: false, type: "payout.failed", account: accountRef, data: { object: payout({ status: "paid" }) } }); mocks.retrievePayout.mockResolvedValue(payout({ status: "failed" }));
         await handleRecipientPayoutSnapshot("signed-body", "fixture-signature"); expect(mocks.rpc).toHaveBeenCalledWith("pay_recipient_payout_find", { p_account_ref: accountRef, p_operation_id: id }); expect(op).toMatchObject({ payoutStatus: "failed" }); expect(mocks.updateSettings).not.toHaveBeenCalled(); expect(mocks.createPayout).not.toHaveBeenCalled();
+    });
+    it("notifies an automatic monthly payout from its fresh account-owned state without creating money", async () => {
+        mocks.event.mockReturnValue({ livemode: false, type: "payout.created", account: accountRef, data: { object: payout({ automatic: true, metadata: {} }) } });
+        mocks.retrievePayout.mockResolvedValue(payout({ automatic: true, status: "paid", metadata: {} }));
+        await handleRecipientPayoutSnapshot("signed-body", "signature");
+        expect(mocks.rpc).toHaveBeenCalledWith("pay_recipient_payout_notice", { p_user_id: user, p_mode: "sandbox", p_account_ref: accountRef, p_payout_ref: "po_fixture", p_status: "paid", p_amount_cents: 1700 });
+        expect(mocks.createPayout).not.toHaveBeenCalled(); expect(mocks.updateSettings).not.toHaveBeenCalled(); expect(mocks.auth).not.toHaveBeenCalled();
+    });
+    it.each(["unsigned", "unknown-account", "wrong-mode", "wrong-currency", "wrong-payout", "changed-owner", "wrong-user"])("does not emit an automatic payout notification for %s", async reason => {
+        mocks.event.mockReturnValue({ livemode: false, type: "payout.paid", account: accountRef, data: { object: payout({ automatic: true, metadata: {} }) } });
+        mocks.retrievePayout.mockResolvedValue(payout({ automatic: true, status: "paid", metadata: {} }));
+        if (reason === "unsigned") mocks.event.mockImplementation(() => { throw new Error("signature"); });
+        if (reason === "unknown-account") mocks.findRecord.mockResolvedValue(null);
+        if (reason === "wrong-mode") mocks.retrievePayout.mockResolvedValue(payout({ livemode: true, metadata: {} }));
+        if (reason === "wrong-currency") mocks.retrievePayout.mockResolvedValue(payout({ currency: "usd", metadata: {} }));
+        if (reason === "wrong-payout") mocks.retrievePayout.mockResolvedValue(payout({ id: "po_other", metadata: {} }));
+        if (reason === "changed-owner") mocks.findRecord.mockResolvedValueOnce({ id: "recipient-record", userId: user, mode: "sandbox", accountRef, minorBinding: null }).mockResolvedValue(null);
+        if (reason === "wrong-user") mocks.retrievePayout.mockResolvedValue(payout({ metadata: { workfare_user: other } }));
+        if (reason === "unknown-account") await handleRecipientPayoutSnapshot("signed-body", "signature");
+        else await expect(handleRecipientPayoutSnapshot("signed-body", "signature")).rejects.toThrow();
+        expect(mocks.rpc.mock.calls.some(([name]) => name === "pay_recipient_payout_notice")).toBe(false);
+        expect(mocks.createPayout).not.toHaveBeenCalled();
     });
 });
 

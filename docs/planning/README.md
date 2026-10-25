@@ -2,6 +2,8 @@
 
 Stand: **24.10.2026**. Aktiver Arbeitsbereich ist **Workfare Pay**. Die übrigen Produktideen sind festgehalten und werden anschließend in abgegrenzten Paketen priorisiert. Dieses Dokument ist keine Freischaltung oder Zusage bereits verfügbarer Funktionen.
 
+**Ergänzung vom 25.10.2026:** Der folgende Einführungsplan ist historischer Stand. Für den aktuellen Zahlungs-/Auszahlungsbetrieb gelten die [Betriebsbeschreibung](../operations/workfare-pay-completion-payouts.md) und die [Release-Nachweise](../releases/2026-10-25-pay-account-refinement.md). Die neue [Konten- und Kartenplanung](workfare-account-card.md) beschreibt ein optionales zukünftiges Produkt mit lizenziertem Partner; sie aktiviert weder Konto noch Karte. Ein höherer allgemeiner Gesamttarif wird [zunächst kalkuliert](payment-provider-comparison.md#7-neue-preisentscheidung-vom-25102026), nicht stillschweigend eingeführt.
+
 ## Verbindlich festgehaltene Produktentscheidungen
 
 | Thema | Entscheidung |
@@ -57,6 +59,7 @@ Die [23 Produktfunktionen](feature-overview.md) enthalten Nutzen und Einbauort. 
 
 ## Dokumente
 
+- [Workfare Konto und eigene Karte: Partner, Jugendmodell und Ablauf](workfare-account-card.md)
 - [Workfare Pay: konkreter Implementierungsplan](workfare-pay-implementation.md)
 - [Workfare Pay: fachlicher Geldfluss und Freigaben](workfare-pay.md)
 - [Anbieter- und Kostenvergleich mit Rechenbeispielen](payment-provider-comparison.md)

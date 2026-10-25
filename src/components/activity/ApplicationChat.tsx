@@ -83,6 +83,7 @@ interface ApplicationChatProps {
     premiumComposer?: boolean;
     readOnly?: boolean;
     paymentOrdersEnabled?: boolean;
+    initialPaymentMessageId?: string | null;
 }
 
 type TimelineMessage = ActivityMessage & { isApplicationMessage?: boolean; isSystemMessage?: boolean };
@@ -171,6 +172,7 @@ export function ApplicationChat({
     premiumComposer: _premiumComposer = false,
     readOnly = false,
     paymentOrdersEnabled = false,
+    initialPaymentMessageId = null,
 }: ApplicationChatProps) {
     void _premiumComposer;
 
@@ -189,7 +191,7 @@ export function ApplicationChat({
     const [sending, setSending] = useState(false);
     const [realtimeState, setRealtimeState] = useState<RealtimeState>("connecting");
     const [detailsOpen, setDetailsOpen] = useState(false);
-    const [paymentFocus, setPaymentFocus] = useState<{ appointmentId: string; nonce: number } | null>(null);
+    const [paymentFocus, setPaymentFocus] = useState<{ appointmentId: string; orderId?: string; nonce: number } | null>(null);
     const [profileOpen, setProfileOpen] = useState(false);
     const [compactDetails, setCompactDetails] = useState(true);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -719,7 +721,7 @@ export function ApplicationChat({
         return () => { active = false; };
     }, [appointmentRequests.available, appointmentRequests.requests, appointmentMessageId, appointmentFocusKey, canManageAppointments, detailsOpen, focusedAppointmentRequest?.id, focusedAppointmentRequest?.status, liveApplication.id]);
 
-    const openPaymentMessage = async (messageId: string) => {
+    const openPaymentMessage = useCallback(async (messageId: string) => {
         const generation = ++appointmentTargetGenerationRef.current;
         setAppointmentFocusKey(0);
         setSearchOpen(false);
@@ -729,15 +731,21 @@ export function ApplicationChat({
             const target = await getPaymentOrderForMessage(liveApplication.id, messageId);
             if (generation !== appointmentTargetGenerationRef.current) return;
             if (!target.available) {
-                setLoadError("Der Preis konnte nicht zugeordnet werden. Bitte lade den Gesprächsstand erneut.");
+                setLoadError("Der Zahlungsstand konnte nicht zugeordnet werden. Bitte lade den Gesprächsstand erneut.");
                 return;
             }
             setLoadError(null);
-            setPaymentFocus(current => ({ appointmentId: target.appointmentId, nonce: (current?.nonce ?? 0) + 1 }));
+            setPaymentFocus(current => ({ appointmentId: target.appointmentId, orderId: target.orderId, nonce: (current?.nonce ?? 0) + 1 }));
         } catch {
-            if (generation === appointmentTargetGenerationRef.current) setLoadError("Der Preis konnte gerade nicht geladen werden.");
+            if (generation === appointmentTargetGenerationRef.current) setLoadError("Der Zahlungsstand konnte gerade nicht geladen werden.");
         }
-    };
+    }, [liveApplication.id]);
+    useEffect(() => {
+        if (!initialPaymentMessageId || !paymentOrdersEnabled || readOnly
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(initialPaymentMessageId)) return;
+        const frame = requestAnimationFrame(() => { void openPaymentMessage(initialPaymentMessageId); });
+        return () => { cancelAnimationFrame(frame); appointmentTargetGenerationRef.current += 1; };
+    }, [initialPaymentMessageId, openPaymentMessage, paymentOrdersEnabled, readOnly]);
 
     const jumpToMessage = (id: string, query: string) => {
         setMessageHighlight({ id, query: query.trim() });
@@ -1249,7 +1257,7 @@ export function ApplicationChat({
                                     {dateSeparator}
                                     {timelineMessage.isSystemMessage ? (
                                         paymentMessageKind && paymentOrdersEnabled && !readOnly ? <button type="button" className="activity-system-message activity-system-message-link"
-                                            onClick={() => void openPaymentMessage(timelineMessage.id)} aria-label={`${timelineMessage.content} Preis in Details ansehen`}>
+                                            onClick={() => void openPaymentMessage(timelineMessage.id)} aria-label={`${timelineMessage.content} Zahlung in Details ansehen`}>
                                             <Banknote size={16} aria-hidden="true" />
                                             <span><HighlightedChatText text={timelineMessage.content} query={messageHighlight?.id === timelineMessage.id ? messageHighlight.query : ""} /></span>
                                             <time dateTime={timelineMessage.created_at || undefined}>{formatMessageTime(timelineMessage.created_at)}</time>

@@ -21,7 +21,7 @@ type ChatDetailsProps = {
     statusLabel: string; stage?: ActivityStage; closureReason?: string | null; authorizedAddress?: string | null;
     appointments: ChatAppointment[]; scheduledFor?: string | null; scheduleNote?: string | null;
     appointmentActions?: ReactNode;
-    paymentFocus?: { appointmentId: string; nonce: number } | null;
+    paymentFocus?: { appointmentId: string; orderId?: string; nonce: number } | null;
     appointmentFocusKey?: number; appointmentFocusReady?: boolean;
     formatSchedule: (value?: string | null) => string | null;
     searchOpen: boolean; onSearchOpen: (open: boolean) => void; query: string; onQuery: (query: string) => void;
@@ -45,6 +45,7 @@ export function ChatDetails({
     const bodyRef = useRef<HTMLDivElement>(null);
     const appointmentActionsRef = useRef<HTMLDivElement>(null);
     const handledAppointmentFocusRef = useRef(0);
+    const handledPaymentFocusRef = useRef<typeof props.paymentFocus>(null);
     const reducedMotion = useReducedMotion();
     const headingId = useId();
     const jobHeadingId = useId();
@@ -55,16 +56,19 @@ export function ChatDetails({
     const orderedAppointments = useMemo(() => orderChatAppointments(appointments, scheduledFor, scheduleNote, now), [appointments, scheduledFor, scheduleNote, now]);
     const next = orderedAppointments[0];
     const nextIsUpcoming = next?.status === "scheduled" && new Date(next.starts_at).getTime() >= now;
+    const paymentTargetPresent = orderedAppointments.some(appointment => appointment.id === props.paymentFocus?.appointmentId);
 
     useEffect(() => {
         const targetId = props.paymentFocus?.appointmentId;
-        if (searchOpen || !targetId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) return;
+        if (searchOpen || !targetId || !paymentTargetPresent || handledPaymentFocusRef.current === props.paymentFocus
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) return;
         let focusFrame = 0;
         const frame = requestAnimationFrame(() => {
             focusFrame = requestAnimationFrame(() => {
                 const body = bodyRef.current;
                 const target = body?.querySelector<HTMLElement>(`[data-payment-appointment="${targetId}"]`);
                 if (!body || !target) return;
+                handledPaymentFocusRef.current = props.paymentFocus;
                 const history = target.closest("details");
                 if (history) history.open = true;
                 const top = body.scrollTop + target.getBoundingClientRect().top - body.getBoundingClientRect().top - 16;
@@ -73,7 +77,7 @@ export function ChatDetails({
             });
         });
         return () => { cancelAnimationFrame(frame); cancelAnimationFrame(focusFrame); };
-    }, [props.paymentFocus, reducedMotion, searchOpen]);
+    }, [props.paymentFocus, reducedMotion, searchOpen, paymentTargetPresent]);
 
     useEffect(() => {
         bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
@@ -176,8 +180,8 @@ export function ChatDetails({
 
                 {(next || props.appointmentActions) && <section className={`${styles.section} ${styles.appointmentSection}`} aria-label="Termine"><h3>{!props.appointmentActions && nextIsUpcoming ? "Nächster Termin" : "Termine"}</h3>
                     {props.appointmentActions && <div ref={appointmentActionsRef} className={styles.appointmentActions} role="group" tabIndex={-1} aria-label="Terminanfrage">{props.appointmentActions}</div>}
-                    {next && <><Appointment appointment={next} formatSchedule={props.formatSchedule} /><AppointmentPayment appointment={next} job={job} /></>}
-                    {orderedAppointments.length > 1 && <details className={styles.history}><summary>Weitere Termine ({orderedAppointments.length - 1})</summary>{orderedAppointments.slice(1).map(appointment => <div key={appointment.id}><Appointment appointment={appointment} formatSchedule={props.formatSchedule} /><AppointmentPayment appointment={appointment} job={job} /></div>)}</details>}
+                    {next && <><Appointment appointment={next} formatSchedule={props.formatSchedule} /><AppointmentPayment appointment={next} job={job} focusedOrderId={props.paymentFocus?.appointmentId === next.id ? props.paymentFocus.orderId : undefined} /></>}
+                    {orderedAppointments.length > 1 && <details className={styles.history}><summary>Weitere Termine ({orderedAppointments.length - 1})</summary>{orderedAppointments.slice(1).map(appointment => <div key={appointment.id}><Appointment appointment={appointment} formatSchedule={props.formatSchedule} /><AppointmentPayment appointment={appointment} job={job} focusedOrderId={props.paymentFocus?.appointmentId === appointment.id ? props.paymentFocus.orderId : undefined} /></div>)}</details>}
                 </section>}
                 {props.actions && <section className={styles.section} aria-label="Aktionen"><h3>Aktionen</h3><div className={styles.actions}>{props.actions}</div></section>}
                 {props.dangerAction && <div className={`${styles.actions} ${styles.danger}`}>{props.dangerAction}</div>}

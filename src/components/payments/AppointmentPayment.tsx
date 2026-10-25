@@ -220,10 +220,10 @@ function ScopedAppointmentPaymentsProvider({ context, children }: { context: App
     return <Payments.Provider value={shared}>{children}</Payments.Provider>;
 }
 
-export function AppointmentPayment(props: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null } }) {
+export function AppointmentPayment(props: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; focusedOrderId?: string }) {
     const shared = useContext(Payments);
     if (!shared || !shared.available || !UUID.test(props.appointment.id)) return null;
-    return <PaymentTerm key={props.appointment.id} {...props} shared={shared} />;
+    return <PaymentTerm key={`${props.appointment.id}:${props.focusedOrderId ?? "latest"}`} {...props} shared={shared} />;
 }
 
 /** Completion stays in the conversation and never equates a browser return with payment. */
@@ -289,9 +289,11 @@ function estimatedFee(earnings: number | null, policy: PaymentFeePolicy | null) 
     try { return policy === "local-zero-fee-v1" ? 0 : policy === LIVE_SERVICE_FEE_POLICY ? quoteLiveServiceFee(earnings).grossCents : quoteTestServiceFee(earnings).grossCents; } catch { return null; }
 }
 
-function PaymentTerm({ appointment, job, shared, completion = false, onBusyChange }: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; shared: Shared;
-    completion?: boolean; onBusyChange?: (appointmentId: string, busy: boolean) => void }) {
-    const order = latestAppointmentPaymentOrder(shared.orders, appointment.id);
+function PaymentTerm({ appointment, job, shared, completion = false, onBusyChange, focusedOrderId }: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; shared: Shared;
+    completion?: boolean; onBusyChange?: (appointmentId: string, busy: boolean) => void; focusedOrderId?: string }) {
+    const latest = latestAppointmentPaymentOrder(shared.orders, appointment.id);
+    const order = focusedOrderId ? shared.orders.find(item => item.id === focusedOrderId && item.appointmentId === appointment.id) : latest;
+    const historical = Boolean(focusedOrderId && focusedOrderId !== latest?.id);
     const live = order ? order.mode === "live" : shared.quoteFeePolicy === LIVE_SERVICE_FEE_POLICY;
     const refundLabel = live ? "Erstattung" : "Test-Erstattung";
     const [editor, setEditor] = useState(false);
@@ -313,12 +315,12 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
     useEffect(() => { const update = () => setNow(Date.now()); update(); const timer = setInterval(update, 60_000); return () => clearInterval(timer); }, []);
     const estimated = estimateAppointmentPrice(job.wage_hourly, job.payment_type, Number(minutes));
     const proposalFee = estimatedFee(estimated, shared.quoteFeePolicy);
-    const primary = order ? nextAppointmentPaymentAction(order, shared.isProvider, now) : null;
-    const displayedIntent = intent ?? (primary === "pay" || primary === "confirm" || completion && primary === "capture" ? primary : null);
+    const primary = order && !historical ? nextAppointmentPaymentAction(order, shared.isProvider, now) : null;
+    const displayedIntent = historical ? null : intent ?? (primary === "pay" || primary === "confirm" || completion && primary === "capture" ? primary : null);
     const consentScope = `${order?.id ?? appointment.id}:${order?.totalCents ?? estimated}:${displayedIntent ?? "propose"}:${minutes}:${order?.feePolicy ?? shared.quoteFeePolicy}:${completion}`;
     const consent = acceptedScope === consentScope;
     function setConsent(value: boolean) { setAcceptedScope(value ? consentScope : null); }
-    const canPropose = shared.isProvider && appointment.status === "scheduled" && !!appointment.updated_at
+    const canPropose = !historical && shared.isProvider && appointment.status === "scheduled" && !!appointment.updated_at
         && estimateAppointmentPrice(job.wage_hourly, job.payment_type, 60) !== null && shared.quoteFeePolicy !== null
         && (!order || order.state === "canceled" || order.state === "refunded");
     const proposalOpen = canPropose && (editor || completion);
@@ -326,7 +328,7 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
         : primary === "capture" ? order?.state === "capture_pending" ? "Zahlung prüfen" : "Jetzt bezahlen"
         : primary === "confirm" ? "Preis bestätigen" : "Jetzt bezahlen";
     const needsExtraConsent = (action: PaymentUiAction | "propose") => ["authorize", "cancel", "refund"].includes(action);
-    const canCancel = order && canCancelAppointmentPayment(order, shared.isProvider);
+    const canCancel = !historical && order && canCancelAppointmentPayment(order, shared.isProvider);
     const canRenew = order && canRenewAppointmentPayment(order, shared.isProvider, now);
     const settingsHref = getPaymentSettingsHref(getPaymentConversationReturnPath(shared.applicationId));
     useEffect(() => { onBusyChange?.(appointment.id, pending); return () => onBusyChange?.(appointment.id, false); }, [appointment.id, pending, onBusyChange]);
@@ -341,7 +343,7 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
         finally { locked.current = false; if (mounted.current) setPending(false); }
     }
     async function execute(action: PaymentUiAction | "propose") {
-        if (locked.current || needsExtraConsent(action) && !consent) return;
+        if (historical || locked.current || needsExtraConsent(action) && !consent) return;
         locked.current = true; setPending(true); setError(null);
         const key = `${order?.id ?? appointment.id}:${action}${action === "propose" ? `:${shared.quoteFeePolicy}:${appointment.updated_at}:${minutes}` : ""}`;
         let operation = operationIds.current.get(key);
@@ -379,11 +381,12 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
         } catch (failure) { if (mounted.current) { setIntent(null); setEditor(false); setConsent(false); setError(friendlyError(failure)); await shared.refresh(); } }
         finally { locked.current = false; if (mounted.current) setPending(false); }
     }
-    if (!order && appointment.status !== "scheduled") return null;
+    if (!order && appointment.status !== "scheduled" && !focusedOrderId) return null;
     return <section className={styles.payment} data-payment-appointment={appointment.id} aria-label="Workfare Pay für diesen Termin" aria-busy={pending}>
         <div className={styles.heading}><WalletCards size={17} aria-hidden="true" /><h4 ref={headingRef} tabIndex={-1}>{completion ? <time dateTime={appointment.starts_at}>{Number.isFinite(Date.parse(appointment.starts_at)) ? APPOINTMENT_TIME.format(new Date(appointment.starts_at)) : "Vereinbarter Termin"}</time> : <PayWordmark />}</h4><button type="button" className={styles.refresh} aria-label="Zahlungsstand aktualisieren" onClick={() => void refreshStatus()} disabled={pending || shared.loading}><RefreshCw size={15} aria-hidden="true" /></button></div>
         {shared.loading ? <p className={styles.hint} role="status">Zahlungsstand wird geladen …</p> : shared.error ? <p className={styles.hint} role="alert">{shared.error}<button type="button" className={styles.textButton} onClick={() => void shared.refresh()}>Erneut laden</button></p> : <>
-            {order ? <>
+            {focusedOrderId && !order ? <p className={styles.hint}>Dieser Zahlungsstand ist nicht mehr verfügbar.</p> : order ? <>
+                {historical && <p className={styles.hint}>Früherer Preisstand · nur zur Ansicht</p>}
                 {!displayedIntent && <div className={styles.summary}><strong>{formatAppointmentMoney(shared.isProvider ? order.totalCents : order.earningsCents)}</strong><span>{stateLabels[order.state]}</span></div>}
                 {!displayedIntent && shared.isProvider && order.serviceFeeCents > 0 && <p className={styles.hint}>{formatAppointmentMoney(order.earningsCents)} Vergütung + {formatAppointmentMoney(order.serviceFeeCents)} Servicegebühr</p>}
                 {!displayedIntent && order.paymentType === "hourly" && <p className={styles.hint}>{order.plannedMinutes} Minuten · {formatAppointmentMoney(order.earningsCents)} Vergütung</p>}
@@ -411,7 +414,7 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
                 {needsExtraConsent(displayedIntent) && <label className={styles.consent} htmlFor={`${consentId}-action`}><input id={`${consentId}-action`} type="checkbox" checked={consent} disabled={pending} onChange={event => setConsent(event.target.checked)} />{displayedIntent === "cancel" ? "Diesen Zahlungsversuch möchte ich beenden." : displayedIntent === "refund" ? `Diese vollständige ${refundLabel} möchte ich auslösen.` : "Ich möchte diesen Zahlungsvorgang fortsetzen."}</label>}
                 <button type="button" className={`app-glass-control ${styles.primary}`} disabled={pending || needsExtraConsent(displayedIntent) && !consent} onClick={() => void (order.state === "capture_pending" && displayedIntent === "pay" ? refreshStatus() : execute(displayedIntent))}>{pending ? <LoaderCircle size={16} className={styles.spinner} /> : displayedIntent === "confirm" ? <Check size={16} /> : <CreditCard size={16} />}{displayedIntent === "cancel" ? completion ? "Zahlungsversuch beenden" : "Storno bestätigen" : displayedIntent === "refund" ? `${refundLabel} bestätigen` : order.state === "capture_pending" ? "Zahlungsstand prüfen" : order.state === "authorization_pending" && displayedIntent === "pay" ? "Zahlung fortsetzen" : displayedIntent === "pay" || displayedIntent === "capture" ? `${formatAppointmentMoney(order.totalCents)} bezahlen` : displayedIntent === "confirm" ? "Preis bestätigen" : "Zahlung fortsetzen"}</button>
             </div>}
-            {order && !pending && !["cancel", "refund"].includes(displayedIntent ?? "") && (canCancel || !completion && shared.isProvider && order.state === "paid") && <details className={styles.secondaryActions}>
+            {!historical && order && !pending && !["cancel", "refund"].includes(displayedIntent ?? "") && (canCancel || !completion && shared.isProvider && order.state === "paid") && <details className={styles.secondaryActions}>
                 <summary>Weitere Aktionen</summary>
                 {canCancel && <button type="button" className={styles.textButton} onClick={() => open("cancel")}>{canRenew ? "Zahlungsversuch neu beginnen" : "Preisvorschlag zurückziehen"}</button>}
                 {!completion && shared.isProvider && order.state === "paid" && <button type="button" className={styles.textButton} onClick={() => open("refund")}>{refundLabel}</button>}

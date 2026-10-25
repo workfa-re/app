@@ -1,7 +1,7 @@
 import { getNotificationRoute } from "./notificationRouting";
 import type { NotificationItem, NotificationPriority } from "./notificationTypes";
 
-export type NotificationCategory = "message" | "appointment" | "application" | "job" | "account" | "system";
+export type NotificationCategory = "message" | "appointment" | "application" | "job" | "account" | "payment" | "system";
 
 function dataRecord(value: unknown): Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -42,7 +42,8 @@ export function getNotificationPresentation(item: NotificationItem): {
     const data = dataRecord(item.data);
     const event = item.event_type ?? "";
     let category: NotificationCategory = "system";
-    if (item.category === "messages" || item.type === "message" || event === "message_received") category = "message";
+    if (/^(payment|payout)_/.test(event)) category = "payment";
+    else if (item.category === "messages" || item.type === "message" || event === "message_received") category = "message";
     else if (item.category === "appointments" || data.appointment_id || data.appointment_request_id || event.startsWith("appointment_")) category = "appointment";
     else if (item.category === "account" || /^(account|security|guardian|verification)(_|$)/.test(event)) category = "account";
     else if (item.category === "applications" || data.application_id || /^(application|conversation)_/.test(event)) category = "application";
@@ -62,6 +63,7 @@ export function getNotificationPresentation(item: NotificationItem): {
         fullBody,
         category,
         actionLabel: category === "message" ? "Nachricht öffnen"
+            : category === "payment" ? event.startsWith("payout_") ? "Auszahlung ansehen" : "Zahlung ansehen"
             : category === "appointment" ? "Termin ansehen"
                 : category === "application" ? "Zusammenarbeit öffnen"
                     : category === "job" ? "Job ansehen"

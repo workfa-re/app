@@ -151,6 +151,13 @@ describe("ActivityCommandCenter workspace navigation", () => {
         expect(getActivityWorkspaceSelection("ongoing", null, completedRows)).toEqual({ selectedAppId: "ongoing", filter: "closed" });
     });
 
+    it("clears payment notice targets only when leaving their conversation", () => {
+        const href="https://example.test/app-home/activities?conversation=first&payment_message=notice-a";
+        expect(getActivityWorkspaceUrl(href,"first","active")).toContain("payment_message=notice-a");
+        expect(getActivityWorkspaceUrl(href,"second","active")).toBe("/app-home/activities?conversation=second");
+        expect(getActivityWorkspaceUrl(href,null,"closed")).toBe("/app-home/activities?view=archive");
+    });
+
     it("preserves the provider job filter and hash when selecting or closing a conversation", () => {
         const href = "http://localhost:3000/app-home/activities?jobId=job-a#workspace";
         expect(getActivityWorkspaceUrl(href, "app/a", "closed"))

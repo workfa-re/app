@@ -237,6 +237,7 @@ export function getActivityWorkspaceUrl(
     filter: InboxFilter,
 ) {
     const url = new URL(currentHref);
+    if (!applicationId || url.searchParams.get("conversation") !== applicationId) url.searchParams.delete("payment_message");
     if (applicationId) url.searchParams.set("conversation", applicationId);
     else url.searchParams.delete("conversation");
     if (filter === "closed") url.searchParams.set("view", "archive");
@@ -781,6 +782,7 @@ export function ActivityCommandCenter({
                                 currentUserId={currentUserId}
                                 readOnly={readOnly}
                                 paymentOrdersEnabled={paymentOrdersEnabled}
+                                initialPaymentMessageId={searchParams.get("payment_message")}
                                 onWithdraw={
                                     role === "seeker" && onWithdraw
                                         ? (reason: string) => updateSelectedStatus(reason, "withdrawn")

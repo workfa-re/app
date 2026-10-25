@@ -11,6 +11,7 @@ import {
     RefreshCw,
     ShieldCheck,
     UsersRound,
+    WalletCards,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getNotificationPresentation, type NotificationCategory } from "./notificationPresentation";
@@ -40,6 +41,7 @@ const ICONS = {
     application: UsersRound,
     job: BriefcaseBusiness,
     account: ShieldCheck,
+    payment: WalletCards,
     system: Bell,
 } satisfies Record<NotificationCategory, typeof Bell>;
 

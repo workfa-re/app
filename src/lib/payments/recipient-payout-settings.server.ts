@@ -6,7 +6,7 @@ import { getAuthState } from "@/lib/auth";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { PaymentFlowError, requirePaymentRuntime } from "./runtime.server";
 import { assertStripeModeObject, paymentStripeSdk } from "./stripe-mode.server";
-import { getRecipientAccount, getRecipientSettingsSnapshot, beginRecipientSync, applyRecipientSync } from "./recipient-repository.server";
+import { getRecipientAccount, getRecipientSettingsSnapshot, beginRecipientSync, applyRecipientSync, findRecipientByAccount } from "./recipient-repository.server";
 import { recipientIdentityUnchanged } from "./recipient-identity";
 import { summarizeRecipientBank } from "./recipient-bank-summary";
 import { createRecipientStripeAdapter } from "./recipient-stripe.server";
@@ -333,12 +333,30 @@ export async function handleRecipientPayoutSnapshot(payload: string, signature: 
     try { event = stripe.webhooks.constructEvent(payload, signature, secret); } catch { throw new PaymentFlowError("invalid_webhook_signature", 400); }
     assertStripeModeObject(event, runtime.mode);
     if (!["payout.created", "payout.updated", "payout.paid", "payout.failed", "payout.canceled"].includes(event.type) || !event.account) return;
-    const object = event.data.object as Stripe.Payout, operationId = object.metadata?.workfare_operation;
-    if (!uuid.safeParse(operationId).success) return;
-    const op = parseOperation(await rpc("pay_recipient_payout_find", { p_account_ref: event.account, p_operation_id: operationId }));
-    if (!op || op.accountRef !== event.account || op.mode !== runtime.mode) return;
-    await owned(stripe, op.userId, op.accountRef, op.mode);
-    const actual = validatePayout(await stripe.payouts.retrieve(object.id, {}, { stripeAccount: op.accountRef }), op);
+    const object = event.data.object as Stripe.Payout;
+    if (object.object !== "payout" || !/^po_[A-Za-z0-9]+$/.test(object.id)) reject();
+    const record = await findRecipientByAccount(event.account);
+    if (!record || record.accountRef !== event.account || record.mode !== runtime.mode) return;
+    await owned(stripe, record.userId, event.account, runtime.mode);
+    // Scheduled payouts have no Workfare operation metadata. They still belong
+    // to this recipient, and only a fresh retrieval proves their actual status.
+    const actual = await stripe.payouts.retrieve(object.id, {}, { stripeAccount: event.account });
+    assertStripeModeObject(actual, runtime.mode);
+    if (actual.object !== "payout" || actual.id !== object.id || actual.currency !== "eur"
+        || !Number.isSafeInteger(actual.amount) || actual.amount <= 0 || actual.amount > 999_999_999
+        || !["pending", "in_transit", "paid", "failed", "canceled"].includes(actual.status)
+        || actual.metadata?.workfare_user && actual.metadata.workfare_user !== record.userId) reject();
+    if (!recipientIdentityUnchanged(record, await findRecipientByAccount(event.account))) reject();
+    const operationId = actual.metadata?.workfare_operation;
+    const op = uuid.safeParse(operationId).success
+        ? parseOperation(await rpc("pay_recipient_payout_find", { p_account_ref: event.account, p_operation_id: operationId })) : null;
+    if (op && (op.accountRef !== event.account || op.mode !== runtime.mode || op.userId !== record.userId)) reject();
+    if (!op) {
+        await rpc("pay_recipient_payout_notice", { p_user_id: record.userId, p_mode: runtime.mode,
+            p_account_ref: event.account, p_payout_ref: actual.id, p_status: actual.status, p_amount_cents: actual.amount });
+        return;
+    }
+    validatePayout(actual, op);
     if (op.finished) { await mark(op, "complete", true, actual); return; }
     const token = randomUUID();
     try { await lease(op, token); const restored = await restore(stripe, op); await mark(op, "complete", restored, actual); }
