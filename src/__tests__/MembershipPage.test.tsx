@@ -47,16 +47,19 @@ describe("membership page content", () => {
     it("shows the full recurring price without degrading normal use or promising planned features", () => {
         const html = render();
         expect(html).toContain("5,90"); expect(html).toContain("Zahlungspflichtig abonnieren");
-        expect(html).toContain("Monatlich kündbar"); expect(html).toContain("Alle Jobs und Funktionen bleiben auch ohne Abo verfügbar");
+        expect(html).toContain("Monatlich kündbar, automatische Verlängerung");
+        expect(html).not.toMatch(/Für Jobanbieter|Alle Jobs und Funktionen|Ein Beitrag\. Jeden Monat\.|Endpreis/);
         expect(html).toContain("Prozentpunkte weniger"); expect(html).not.toContain("50 % günstiger");
         expect(html).toContain('href="/legal/workfare-plan"'); expect(html).toContain('href="/membership/cancel"'); expect(html).toContain('href="/membership/withdraw"');
         expect(html).toContain("14-tägiges Widerrufsrecht bleibt bestehen");
         expect(html).toMatch(/type="checkbox"/); expect(html).not.toMatch(/type="checkbox"[^>]*checked=""/);
         expect(html).toContain("Geplant. Noch nicht Bestandteil deines Abos");
         expect(html).toContain("Mehrere Einsatzorte"); expect(html).toContain("Gemeinsames Haushaltsbudget"); expect(html).toContain("Zahlung aufteilen");
-        expect(html.match(/Demnächst/g)).toHaveLength(3);
+        expect(html).toContain("Demnächst"); expect(html.match(/<span>Geplant<\/span>/g)).toHaveLength(3);
         expect(html).not.toMatch(/Jobvorlagen|Sammelübersichten|Gemeinsam organisieren/);
         expect(html).not.toMatch(/kostenlos testen|Premium|Plus/);
+        expect(html).toContain('aria-label="Workfare Pay mit Stripe"'); expect(html).toContain("Über Stripe");
+        expect(html).not.toContain("Sichere Abwicklung über Stripe");
     });
     it("does not expose an enabled purchase for an unavailable offer", () => {
         const html = render({ ...snapshot, checkoutAvailable: false });
@@ -88,7 +91,7 @@ describe("membership page content", () => {
     });
     it("includes the monthly subscription cost in the example", () => {
         const html = renderToStaticMarkup(<MembershipCalculator offer={MEMBERSHIP_DEFAULT_OFFER} />);
-        expect(html).toMatch(/^<section\b/);
+        expect(html).toMatch(/^<details\b/); expect(html).not.toMatch(/^<details\b[^>]*\bopen=/);
         expect(html).toContain('type="range"'); expect(html.match(/<input/g)).toHaveLength(1);
         expect(html).toContain('min="0"'); expect(html).toContain('max="12"');
         expect(html).toContain("Beispiel: je 50 € Vergütung"); expect(html).toContain("Jobs pro Monat");

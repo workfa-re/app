@@ -13,6 +13,7 @@ import { BuyerPaymentMethod } from "./BuyerPaymentMethod";
 import { RecipientPayments } from "./RecipientPayments";
 import { PayWordmark } from "./PayWordmark";
 import { PaymentMotion } from "./PaymentMotion";
+import { PaymentProviderBrand } from "./PaymentProviderBrand";
 import { PaymentEnvironment, type PaymentSurfaceKind } from "./PaymentEnvironment";
 import styles from "./Payments.module.css";
 
@@ -94,11 +95,6 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
             </details>
             {questions}
         </section>
-        <footer className={styles.provider}>
-            {kind === "local" ? <span>Lokaler Test ohne Verbindung zu Stripe</span> : kind === "disabled" ? <PayWordmark /> : <>
-                <div className={styles.providerBrand} aria-label="Workfare Pay mit Stripe"><PayWordmark /><span className={styles.providerCross} aria-hidden="true">×</span><span className={styles.stripeWordmark}>stripe</span></div>
-                <a href="https://stripe.com/de" target="_blank" rel="noopener noreferrer" className={styles.providerLink}>Über Stripe<ArrowRight size={13} aria-hidden="true" /></a>
-            </>}
-        </footer>
+        <PaymentProviderBrand kind={kind} />
     </div>;
 }

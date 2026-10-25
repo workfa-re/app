@@ -136,7 +136,6 @@
 .feedback { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
 .feedback > svg { color: var(--app-accent-ink); flex-shrink: 0; }
 .loading { margin: 12px 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
-.provider { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; margin-top: 26px; color: var(--app-muted); font-size: 11px; line-height: 1.6; }
 .utilityGroup.utilityGroup { padding: 6px 10px; margin-top: 20px; }
 .utilitySection { position: relative; min-width: 0; border-radius: 23px; }
 .utilitySection + .utilitySection::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; left: 7px; right: 7px; height: 20px; border: 1px solid var(--app-panel-rule); border-bottom: 0; border-radius: 20px 20px 0 0; }
@@ -145,11 +144,6 @@
 .outlookBody { max-width: 67ch; padding: 0 16px 22px 73px; }
 .outlookBody p { margin: 0; color: var(--app-muted); font-size: 13px; line-height: 1.75; text-wrap: pretty; }
 .outlook[open] > summary > .rowArrow { rotate: 90deg; }
-.providerBrand { display: flex; align-items: baseline; justify-content: center; gap: 14px; max-width: 100%; font-size: 19px; line-height: 1.4; }
-.providerCross { align-self: center; color: var(--app-muted); font-size: 17px; font-weight: 400; }
-.stripeWordmark { color: var(--app-ink); font-size: 23px; font-weight: 700; letter-spacing: -.055em; }
-.providerLink { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; color: var(--app-muted); font-size: 11px; text-decoration: none; }
-.providerLink:hover { color: var(--app-ink); }
 .settingsRow { display: flex; align-items: center; gap: 15px; min-height: 66px; width: 100%; padding: 8px 4px; border: 0; border-radius: 15px; background: transparent; color: var(--app-ink); font-family: inherit; font-size: 15px; text-align: left; list-style: none; cursor: pointer; }
 .settingsRow::-webkit-details-marker { display: none; }
 .rowIcon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; color: var(--app-ink); }
