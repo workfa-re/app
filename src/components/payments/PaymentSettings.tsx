@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,7 @@ import { sanitizePaymentReturnPath } from "@/lib/payments/return-path";
 import { followGlassPointer } from "@/lib/glass-pointer";
 import { BuyerPaymentMethod } from "./BuyerPaymentMethod";
 import { RecipientPayments } from "./RecipientPayments";
+import { RecipientSummaryProvider } from "./RecipientOverview";
 import { PayWordmark } from "./PayWordmark";
 import { PaymentMotion } from "./PaymentMotion";
 import { PaymentProviderBrand } from "./PaymentProviderBrand";
@@ -69,19 +70,8 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
         }
     }, [provider, result, returnTo, router, snapshot.buyerReady, snapshot.method]);
 
-    return <div className={`${styles.page} ${styles.workspace}`} onPointerMove={followGlassPointer}>
-        <Link href={returnTo || "/app-home/settings"} prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
-        <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
-        <div className={styles.stack} key={kind}>
-            {result === "canceled" && <p role="status" className={styles.feedback}>Einrichtung abgebrochen. Dein bisheriger Stand bleibt erhalten.</p>}
-            {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}
-            {provider ? <>
-                <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
-            </> : role === "job_seeker" ? <RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /> : <>
-                <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section>
-            </>}
-        </div>
-        <section className={`${styles.surface} ${styles.utilityGroup}`} aria-label="Workfare Pay verwalten">
+    function renderUtilities(recipientTools?: ReactNode) {
+        return <section className={`${styles.surface} ${styles.utilityGroup}`} aria-label="Workfare Pay verwalten">
             {provider && <>
                 {(snapshot.featureEnabled || snapshot.setupEnabled === true) && <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion} />}
                 <Link href="/app-home/settings/membership" prefetch={false} className={`${styles.settingsRow} ${styles.utilitySection} ${styles.planEntry}`}>
@@ -89,12 +79,33 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
                     <span>Gebühren &amp; Abo</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" />
                 </Link>
             </>}
+            {recipientTools}
             <details className={`${styles.utilitySection} ${styles.outlook}`}>
                 <summary className={styles.settingsRow}><span className={`app-glass-control ${styles.rowIcon}`} aria-hidden="true"><WalletCards size={21} strokeWidth={1.5} /></span><span>Konto &amp; Karte</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true" /></summary>
                 <div className={styles.outlookBody}><p>Wir arbeiten an einem eigenen Zahlungskonto mit Workfare Pay Karte. Neuigkeiten findest du hier.</p></div>
             </details>
             {questions}
-        </section>
+        </section>;
+    }
+
+    const page = <div className={`${styles.page} ${styles.workspace}`} onPointerMove={followGlassPointer}>
+        <Link href={returnTo || "/app-home/settings"} prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
+        <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
+        <div className={styles.stack} key={kind}>
+            {result === "canceled" && <p role="status" className={styles.feedback}>Einrichtung abgebrochen. Dein bisheriger Stand bleibt erhalten.</p>}
+            {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}
+            {provider ? <>
+                <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
+                {renderUtilities()}
+            </> : role === "job_seeker" ? <RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} renderUtilities={renderUtilities} /> : <>
+                <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section>
+                {renderUtilities()}
+            </>}
+        </div>
         <PaymentProviderBrand kind={kind} />
     </div>;
+
+    return role === "job_seeker" && ownerId && recipientSnapshot && kind !== "disabled"
+        ? <RecipientSummaryProvider key={`${ownerId}:${kind}`} ownerId={ownerId} kind={kind}>{page}</RecipientSummaryProvider>
+        : page;
 }

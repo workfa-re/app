@@ -105,6 +105,13 @@ describe("compact payment history and billing UI", () => {
         expect(html).not.toContain("<aside");
     });
 
+    it("offers one clear optional-address action instead of an empty address panel", () => {
+        const html = render({ ...sandbox, billing: { ...sandbox.billing, details: { ...sandbox.billing.details!, address: null } } });
+        expect(html).toContain("Rechnungsadresse</h3>");
+        expect(html).toContain("Optional"); expect(html.match(/>Hinzufügen<\/button>/g)).toHaveLength(1);
+        expect(html).not.toMatch(/Keine Rechnungsadresse hinterlegt|Nur ergänzen|>Ergänzen<|<input/);
+    });
+
     it("labels an authorization as reserved money without inventing a captured amount or receipt", () => {
         const html = render(sandbox);
         expect(html).toContain("Vorgemerkt");

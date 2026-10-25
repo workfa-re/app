@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import { PaymentProviderBrand } from "@/components/payments/PaymentProviderBrand";
 
 describe("shared payment processor branding", () => {
-    it.each([undefined, "live", "sandbox"] as const)("offers the same processor information for %s", kind => {
+    it.each([undefined, "live", "sandbox"] as const)("keeps the processor identity concise for %s", kind => {
         const html = renderToStaticMarkup(<PaymentProviderBrand kind={kind} />);
         expect(html).toContain('aria-label="Workfare Pay mit Stripe"');
         expect(html).toContain("Workfare"); expect(html).toContain("Pay"); expect(html).toContain("×");
-        expect(html).toContain('href="https://stripe.com/de"'); expect(html).toContain("Über Stripe");
-        expect(html).toContain('rel="noopener noreferrer"');
+        expect(html).not.toContain("Über Stripe"); expect(html).not.toContain("href=");
         expect(html).not.toMatch(/offizieller Partner|Zahlung bestätigt|Guthaben verfügbar/);
     });
     it("does not present local simulation as an active processor connection", () => {

@@ -16,10 +16,10 @@
 .header > p { margin: 8px 0 0; color: var(--app-muted); font-size: 16px; line-height: 1.6; text-wrap: pretty; }
 .workspace { max-width: 1104px; }
 .workspace > .back { margin-bottom: 8px; }
-.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.65fr); align-items: center; gap: 20px; min-height: 156px; padding: 0 3px; margin-bottom: 18px; }
+.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.65fr); align-items: center; gap: 20px; min-height: 144px; padding: 0 3px; margin-bottom: 18px; background: var(--app-ground); }
 .heroCopy { position: relative; z-index: 1; min-width: 0; pointer-events: none; }
 .hero h1 { font-size: clamp(36px, 4.2vw, 48px); line-height: 1.08; letter-spacing: -.045em; }
-.hero .environment { margin-top: 9px; font-size: 10px; }
+.hero .environment { position: absolute; top: 100%; margin-top: 9px; font-size: 10px; }
 .motion { position: relative; display: grid; grid-template-rows: minmax(0,1fr) 44px; justify-items: center; min-width: 0; width: 100%; max-width: 320px; height: 156px; justify-self: end; pointer-events: none; }
 .motionVisual { position: relative; width: min(100%,208px); height: 112px; margin-inline: auto; pointer-events: none; mix-blend-mode: darken; mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); mask-composite: intersect; -webkit-mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); -webkit-mask-composite: source-in; }
 .motionVisual > img, .motionVideo { width: 100%; height: 100%; object-fit: contain; object-position: center; }
@@ -29,7 +29,9 @@
 .motionVideo { position: absolute; inset: 0; opacity: 0; transition: opacity 260ms ease; }
 .motionVideo[data-ready="true"] { opacity: 1; }
 .motionToggle { position: relative; justify-self: end; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 50%; color: var(--app-muted); cursor: pointer; pointer-events: auto; transition: color 200ms ease; }
-.hero .motion .motionToggle { position: relative; }
+.hero .motion { display: block; height: 144px; }
+.hero .motionVisual { width: min(100%,252px); height: 144px; }
+.page .hero .motionToggle { position: absolute; top: -52px; right: 0; }
 .motionToggle:hover { color: var(--app-ink); }
 :global(html.dark) .motionVisual { mix-blend-mode: lighten; }
 :global(html.dark) .posterLight { display: none; }
@@ -137,8 +139,13 @@
 .feedback > svg { color: var(--app-accent-ink); flex-shrink: 0; }
 .loading { margin: 12px 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
 .utilityGroup.utilityGroup { padding: 6px 10px; margin-top: 20px; }
-.utilitySection { position: relative; min-width: 0; border-radius: 23px; }
-.utilitySection + .utilitySection::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; left: 7px; right: 7px; height: 20px; border: 1px solid var(--app-panel-rule); border-bottom: 0; border-radius: 20px 20px 0 0; }
+.stack > .utilityGroup { margin-top: 0; }
+.utilitySection { position: relative; isolation: isolate; min-width: 0; border-radius: 24px; }
+.utilityGroup :is(details,a).utilitySection::before { content: ""; position: absolute; z-index: -1; inset: -8px 0 0; border-radius: inherit; pointer-events: none; background: var(--app-glass-fill); box-shadow: var(--app-glass-inner-shadow),0 -4px 12px rgb(0 0 0 / .025); backdrop-filter: var(--app-glass-filter); -webkit-backdrop-filter: var(--app-glass-filter); }
+.utilityGroup :is(details,a).utilitySection::after { content: ""; position: absolute; inset: -8px 0 0; padding: 1px; border-radius: inherit; pointer-events: none; background: var(--app-glass-rim); mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite: exclude; -webkit-mask-composite: xor; }
+.utilityGroup :is(details,a).utilitySection:first-child::before,.utilityGroup :is(details,a).utilitySection:first-child::after { top: 0; }
+.utilityGroup > .questions { margin-top: 8px; border-top: 1px solid color-mix(in srgb,var(--app-ink) 14%,transparent); border-radius: 0 0 24px 24px; }
+.utilityGroup > .questions::before,.utilityGroup > .questions::after { display: none; }
 .utilityLoading { margin: 0; padding: 25px 14px; color: var(--app-muted); font-size: 13px; }
 .planEntry { color: var(--app-ink); text-decoration: none; }
 .outlookBody { max-width: 67ch; padding: 0 16px 22px 73px; }
@@ -162,7 +169,7 @@
 @media (max-width:850px) and (min-width:601px) {
     .emptyMethod { grid-template-columns: 48px minmax(0,1fr); gap: 16px; }
     .emptyMethod > .primaryAction { grid-column: 2; justify-self: start; }
-    .hero { min-height: 156px; }
+    .hero { min-height: 144px; }
     .hero h1 { font-size: 42px; }
 }
 @media (max-width:600px) {
@@ -170,13 +177,14 @@
     .back { margin-bottom: 17px; }
     .header { margin-bottom: 23px; }
     .header > p { font-size: 14px; }
-    .hero { grid-template-columns: minmax(0,1fr) 96px; gap: 8px; min-height: 120px; padding: 0; margin-bottom: 12px; }
+    .hero { grid-template-columns: minmax(0,1fr) 112px; gap: 8px; min-height: 104px; padding: 0; margin-bottom: 12px; }
     .heroCopy { max-width: 100%; }
-    .hero h1 { font-size: clamp(28px, 8vw, 36px); }
+    .hero h1 { font-size: clamp(26px, 7.6vw, 36px); }
     .hero .environment { margin-top: 8px; font-size: 10px; }
     .motion { height: 120px; max-width: none; }
     .motionVisual { width: 100%; height: 76px; }
     .motionToggle { width: 40px; height: 40px; }
+    .hero .motion,.hero .motionVisual { height: 104px; }
     .surface { padding: 22px; border-radius: 28px; }
     .surface h2 { font-size: 18px; }
     .stack { gap: 16px; }
@@ -201,6 +209,7 @@
     .editorIntro,.smallCopy { font-size: 13px; }
     .settingsRow { font-size: 14px; gap: 12px; }
     .utilityGroup.utilityGroup { padding: 5px 7px; margin-top: 16px; }
+    .stack > .utilityGroup { margin-top: 0; }
     .utilityGroup .settingsRow { min-height: 80px; padding: 16px 13px; font-size: 14px; }
     .outlookBody { padding: 0 13px 20px; }
     .answers { padding: 0 10px 18px; }
@@ -215,4 +224,4 @@
 }
 @media (prefers-reduced-motion:reduce) { .page *,.page *::before,.page *::after { animation: none !important; transition: none !important; } }
 @media (prefers-contrast:more) { .surface { border-color: var(--app-muted); } .action,.iconButton { outline: 1px solid var(--app-muted); } .smallCopy,.consent,.identity > span { color: var(--app-ink); } }
-@media (prefers-reduced-transparency:reduce) { .surface { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--app-ground); } }
+@media (prefers-reduced-transparency:reduce) { .surface,.utilityGroup :is(details,a).utilitySection::before { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--app-ground); } }

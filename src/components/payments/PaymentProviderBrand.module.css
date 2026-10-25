@@ -2,6 +2,3 @@
 .providerBrand { display: flex; align-items: baseline; justify-content: center; gap: 14px; max-width: 100%; font-size: 19px; line-height: 1.4; }
 .providerCross { align-self: center; color: var(--app-muted); font-size: 17px; font-weight: 400; }
 .stripeWordmark { color: var(--app-ink); font-size: 23px; font-weight: 700; letter-spacing: -.055em; }
-.providerLink { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; color: var(--app-muted); font-size: 11px; text-decoration: none; }
-.providerLink:hover { color: var(--app-ink); }
-.providerLink:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 4px; }

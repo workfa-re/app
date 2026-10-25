@@ -36,9 +36,7 @@
 .billingSummary:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
 .billingBody { padding: 0 14px 20px; }
 .unavailable, .billingNote { margin: 0; }
-.billingRead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 15px; }
-.billingRead button { min-height: 40px; flex-shrink: 0; }
-.address { display: grid; gap: 2px; min-width: 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; font-style: normal; overflow-wrap: anywhere; }
+.address { display: grid; gap: 2px; min-width: 0; margin-top: 8px; color: var(--app-muted); font-size: 13px; line-height: 1.6; font-style: normal; overflow-wrap: anywhere; }
 .address strong { color: var(--app-ink); font-weight: 500; }
 .linkedIdentity { display: grid; gap: 16px; margin: 2px 0 24px; }
 .linkedField { display: grid; gap: 3px; min-width: 0; }
@@ -47,26 +45,31 @@
 .linkedField small, .identityFeedback { color: var(--app-muted); font-size: 12px; line-height: 1.6; }
 .linkedFieldHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .linkedFieldHeading button { min-height: 40px; font-size: 12px; margin-block: -10px; }
-.addressTitle { color: var(--app-muted); font-size: 13px; }
-.addressTitle small { font-size: 12px; margin-left: 5px; }
+.addressSection { min-width: 0; }
+.addressHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.addressTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; min-width: 0; }
+.addressTitle h3 { margin: 0; color: var(--app-ink); font-size: 13px; line-height: 1.5; font-weight: 500; }
+.addressTitle > span { color: var(--app-muted); font-size: 11px; line-height: 1.5; }
+.addressEdit { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 15px; border: 0; border-radius: 999px; color: var(--app-accent-ink); font: inherit; font-size: 13px; cursor: pointer; }
+.addressEdit:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 3px; }
 .emailForm { padding: 16px; border-radius: 20px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); }
 .emailForm label { display: grid; gap: 7px; color: var(--app-ink); font-size: 12px; }
 .emailForm input { min-width: 0; width: 100%; min-height: 46px; padding: 11px 13px; color: var(--app-ink); background: var(--app-glass-fill); border: 1px solid var(--app-panel-rule); border-radius: 14px; font: inherit; font-size: 16px; }
 .emailForm input:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 2px; }
 .identityFeedback { margin: 0; }
-.form fieldset { display: grid; gap: 15px; min-width: 0; padding: 0; margin: 18px 0 0; border: 0; }
+.form fieldset { display: grid; gap: 15px; min-width: 0; padding: 0; margin: 14px 0 0; border: 0; }
 .form label { display: block; min-width: 0; color: var(--app-ink); font-size: 12px; font-weight: 500; line-height: 1.5; }
 .form label > span { margin-left: 5px; color: var(--app-muted); font-weight: 400; }
 .form input { display: block; width: 100%; min-height: 46px; margin-top: 6px; padding: 11px 13px; color: var(--app-ink); font: inherit; font-size: 14px; font-weight: 400; line-height: 1.5; background: var(--app-glass-fill); border: 1px solid color-mix(in srgb, var(--app-ink) 13%, transparent); border-radius: 14px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--app-ink) 3%, transparent); transition: border-color 160ms ease, box-shadow 160ms ease; }
 .form input:focus-visible { outline: 2px solid var(--app-accent-ink); outline-offset: 2px; border-color: transparent; }
 .form fieldset:disabled { opacity: .65; }
 .addressRow { display: grid; grid-template-columns: minmax(90px, .65fr) minmax(0, 1.35fr); gap: 14px; }
-.country { margin: -3px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.5; }
-.optionalAddress { padding: 13px 16px; min-width: 0; border-radius: 20px; background: var(--app-glass-fill); box-shadow: var(--app-glass-shadow); }
-.addressHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; }
-.addressHeading small { margin-left: 5px; color: var(--app-muted); font-size: 12px; }
-.addressPreview { margin: 3px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.addressFields { display: grid; gap: 15px; padding: 10px 0 4px; }
+.country { color: var(--app-muted); font-size: 12px; line-height: 1.5; }
+.addressFields { display: grid; gap: 15px; }
+.addressFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; min-height: 40px; }
+.removal { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
+.removal p { flex: 1 1 180px; margin: 0; }
+.removal p:focus { outline: none; }
 .formActions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 3px; }
 .formActions button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; gap: 7px; }
 .saved { display: flex; align-items: center; gap: 7px; margin: 17px 0 0; font-size: 12px; }
@@ -80,12 +83,11 @@
     .billingBody { padding: 0 13px 20px; }
     .entryTitle { gap: 12px; }
     .entryMeta { gap: 0 10px; }
-    .billingRead { flex-wrap: wrap; }
-    .billingRead .address { flex-basis: 100%; }
     .addressRow { gap: 12px; }
     .form input { font-size: 16px; }
 
 }
+@media (max-width: 350px) { .addressTitle { flex-direction: column; align-items: flex-start; gap: 1px; } .addressEdit { padding-inline: 12px; } }
 @media (prefers-reduced-motion: reduce) {
     .spinner { animation: none; }
     .billingChevron, .form input { transition: none; }

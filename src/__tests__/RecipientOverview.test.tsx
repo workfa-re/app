@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RecipientPaymentSummary } from "@/lib/payments/recipient-summary-types";
 vi.mock("@/lib/supabaseClient", () => ({ supabaseBrowser: { auth: {} } }));
-import { RecipientBalanceDetail, RecipientOverviewView, validRecipientPaymentSummary } from "@/components/payments/RecipientOverview";
+import { RecipientOverviewView, RecipientTransactionHistoryView, validRecipientPaymentSummary } from "@/components/payments/RecipientOverview";
 
 const ownerId = "11111111-1111-4111-8111-111111111111";
 const applicationId = "22222222-2222-4222-8222-222222222222";
@@ -20,6 +20,9 @@ const summary: RecipientPaymentSummary = {
 const render = (value: RecipientPaymentSummary | null, props: Partial<Parameters<typeof RecipientOverviewView>[0]> = {}) => renderToStaticMarkup(
     <RecipientOverviewView summary={value} loading={false} error={null} onRetry={vi.fn()} {...props} />,
 );
+const renderHistory = (value: RecipientPaymentSummary | null, props: Partial<Parameters<typeof RecipientTransactionHistoryView>[0]> = {}) => renderToStaticMarkup(
+    <RecipientTransactionHistoryView summary={value} loading={false} error={null} onRetry={vi.fn()} {...props} />,
+);
 const text = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 
 describe("recipient financial overview", () => {
@@ -31,10 +34,11 @@ describe("recipient financial overview", () => {
         expect(home).toMatch(/class="[^"]*wordmark/);
         expect(home).toContain("Workfare Pay öffnen");
         expect(home).not.toContain("<h2");
+        expect(home).toContain("lucide-wallet-cards");
     });
     it("separates available, pending, confirmed earnings and payouts without inventing a total balance", () => {
         const html = text(render(summary));
-        for (const value of ["Für Auszahlung verfügbar", "In Bearbeitung", "Insgesamt verdient", "Bereits ausgezahlt", "12,50", "33,00", "65,00", "15,00"]) expect(html).toContain(value);
+        for (const value of ["Verfügbar", "In Bearbeitung", "Gesamtverdienst", "Bereits ausgezahlt", "12,50", "33,00", "65,00", "15,00"]) expect(html).toContain(value);
         expect(html).not.toContain("45,50");
         expect(html).not.toContain("Bankkonto eröffnen");
         expect(html).not.toContain("So setzt sich deine Übersicht zusammen");
@@ -49,8 +53,8 @@ describe("recipient financial overview", () => {
         expect(html).toContain("Testbetrieb");
         expect(html).not.toContain("Letzte Vorgänge");
         const terms = [...html.matchAll(/<dt>(.*?)<\/dt>/g)].map(match => match[1]);
-        expect(terms).toEqual(["Für Auszahlung verfügbar", "Insgesamt verdient"]);
-        expect(html).toContain("Für Auszahlung verfügbar</dt><dd><span>12,50");
+        expect(terms).toEqual(["Verfügbar", "Gesamtverdienst"]);
+        expect(html).toContain("Verfügbar</dt><dd><span>12,50");
         expect(html).not.toContain("Stand ");
     });
     it("shows live earnings without relabeling sandbox funds as real money", () => {
@@ -73,8 +77,8 @@ describe("recipient financial overview", () => {
     it("does not turn missing minor payout readiness into a zero Stripe balance", () => {
         const html = render({ ...summary, funds: null, payouts: null, earnings: { ...summary.earnings, confirmedCents: 0, paidJobs: 0 }, fundsUnavailableReason: "minor_review_required" });
         const amounts = html.match(/<dl[^>]*>[\s\S]*?<\/dl>/)?.[0];
-        expect(amounts).toContain("Insgesamt verdient</dt><dd><span>0,00");
-        expect(amounts).toContain("Für Auszahlung verfügbar</dt><dd><span>—</span>");
+        expect(amounts).toContain("Gesamtverdienst</dt><dd><span>0,00");
+        expect(amounts).toContain("Verfügbar</dt><dd><span>—</span>");
         expect(amounts).toContain("In Bearbeitung</dt><dd><span>—</span>");
         expect(amounts).toContain("Bereits ausgezahlt</dt><dd><span>—</span>");
         expect(html).toContain("Bankauszahlungen für Minderjährige sind noch nicht freigegeben");
@@ -87,7 +91,7 @@ describe("recipient financial overview", () => {
     });
 
     it("keeps disputed amounts outside earnings without introducing a general confirmation step", () => {
-        const html = render({ ...summary, earnings: { ...summary.earnings, underReviewCents: 4_000, underReviewCount: 1 },
+        const html = renderHistory({ ...summary, earnings: { ...summary.earnings, underReviewCents: 4_000, underReviewCount: 1 },
             recentPayments: [{ ...summary.recentPayments[0], state: "review_required" }] });
         expect(html).not.toMatch(/Eine Zahlung wird|erst nach Bestätigung|Nachrichten öffnen/);
         expect(html).toContain("Zahlung in Klärung");
@@ -105,34 +109,26 @@ describe("recipient financial overview", () => {
         const value = { ...summary, payouts: null, fundsUnavailableReason: "provider_unavailable" as const };
         const html = render(value);
         expect(html).toContain("Der Auszahlungsverlauf ist gerade nicht verfügbar.");
-        expect(html).toContain("Für Auszahlung verfügbar</dt><dd><span>12,50");
+        expect(html).toContain("Verfügbar</dt><dd><span>12,50");
         expect(html).not.toContain("Der aktuelle Stripe-Guthabenstand konnte nicht bestätigt werden");
         expect(render(value, { compact: true })).not.toContain("Der Auszahlungsverlauf ist gerade nicht verfügbar.");
     });
 
-    it("offers payout controls only when the caller has a working Stripe action", () => {
-        expect(render(summary)).not.toContain("Auszahlungen ansehen");
+    it("keeps the main summary focused on its figures and refresh control", () => {
         const html = render(summary, { onPayouts: vi.fn() });
-        expect(html).toContain("Auszahlungen ansehen"); expect(html).toContain("Guthaben ansehen"); expect(html).not.toContain("<details"); expect(html).toContain('aria-expanded="false"'); expect(html).not.toContain("Auszahlungsplan:"); expect(html).not.toContain("Auszahlungseinstellungen ändern");
-        expect(html).not.toContain("Jetzt auszahlen"); expect(html).not.toContain("Geld behalten");
-    });
-    it("keeps Stripe controls in place but disabled while a financial action is running", () => {
-        const html = render(summary, { busy: true, onPayouts: vi.fn() });
+        expect(html).not.toMatch(/Auszahlungen ansehen|Guthaben ansehen|Dein Guthaben|Letzte Vorgänge|Transaktionshistorie|<details/);
+        expect(html).not.toContain("Pflanzen versorgen");
         const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen"]) {
-            const button = buttons.find(value => value.includes(label));
-            expect(button).toBeDefined(); expect(button).toContain('disabled=""');
-        }
-        expect(buttons.find(value => value.includes('aria-label="Zahlungsübersicht aktualisieren"'))).toContain('disabled=""');
+        expect(buttons).toHaveLength(1);
+        expect(buttons[0]).toContain('aria-label="Zahlungsübersicht aktualisieren"');
     });
-    it.each([{ stripePayoutsEnabled: false }, { hasPayoutMethod: false }])("disables Stripe controls when the latest required payout readiness is absent (%j)", flags => {
-        const html = render({ ...summary, funds: { ...summary.funds!, ...flags } }, { onPayouts: vi.fn() });
-        const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-        for (const label of ["Auszahlungen ansehen"]) expect(buttons.find(value => value.includes(label))).toContain('disabled=""');
+    it("disables summary refresh while a financial action is running", () => {
+        const html = render(summary, { busy: true });
+        expect(html.match(/<button\b[^>]*>/)?.[0]).toContain('disabled=""');
     });
     it("does not depict a proposed price as an incoming payment", () => {
-        const html = render({ ...summary, payouts: null, recentPayments: [{ ...summary.recentPayments[0], state: "awaiting_confirmation" }] });
-        expect(html).toContain("Letzte Vorgänge"); expect(html).toContain("Preis vorgeschlagen");
+        const html = renderHistory({ ...summary, payouts: null, recentPayments: [{ ...summary.recentPayments[0], state: "awaiting_confirmation" }] });
+        expect(html).toContain("Preis vorgeschlagen");
         expect(html).toContain("lucide-file-text"); expect(html).not.toContain("lucide-arrow-down-left");
     });
     it("uses Workfare Pay wording when the available balance cannot be confirmed", () => {
@@ -148,10 +144,12 @@ describe("recipient financial overview", () => {
     });
     it("shows the glass discovery action only before the first earnings", () => {
         const empty = { ...summary, payouts: null, recentPayments: [], earnings: { ...summary.earnings, confirmedCents: 0, refundedCents: 0, paidJobs: 0 } };
-        const html = render(empty);
+        const html = renderHistory(empty);
+        expect(render(empty)).not.toContain("Jobs entdecken");
+        expect(html).toContain("Noch keine Transaktionen.");
         expect(html).toMatch(/<a[^>]*class="app-glass-control [^"]*"[^>]*>Jobs entdecken/);
         for (const earnings of [{ confirmedCents: 100 }, { refundedCents: 100 }, { paidJobs: 1 }]) {
-            const existing = render({ ...empty, earnings: { ...empty.earnings, ...earnings } });
+            const existing = renderHistory({ ...empty, earnings: { ...empty.earnings, ...earnings } });
             expect(existing).not.toContain("Dein erster Verdienst");
             expect(existing).not.toContain("Jobs entdecken");
         }
@@ -161,7 +159,7 @@ describe("recipient financial overview", () => {
 describe("recipient overview focus",()=>{
  it("gives the two headline values equal priority and places secondary values below",()=>{
   const html=render(summary);const terms=[...html.matchAll(/<dt>(.*?)<\/dt>/g)].map(match=>match[1]);
-  expect(terms).toEqual(["Für Auszahlung verfügbar","Insgesamt verdient","In Bearbeitung","Bereits ausgezahlt"]);
+  expect(terms).toEqual(["Verfügbar","Gesamtverdienst","In Bearbeitung","Bereits ausgezahlt"]);
   expect(html.match(/class="[^"]*primary[^"]*"/g)).toHaveLength(2);
  });
  it("keeps processing, review and unavailable-history notices off the home widget",()=>{
@@ -170,13 +168,15 @@ describe("recipient overview focus",()=>{
   expect(html.match(/<dt>/g)).toHaveLength(2);
  });
  it("keeps payment clarification on the affected movement and opens its own conversation",()=>{
-  const html=render({...summary,earnings:{...summary.earnings,underReviewCount:1,underReviewCents:2000},recentPayments:[{...summary.recentPayments[0],state:"review_required"}]});
+  const html=renderHistory({...summary,earnings:{...summary.earnings,underReviewCount:1,underReviewCents:2000},recentPayments:[{...summary.recentPayments[0],state:"review_required"}]});
   const movement=html.match(new RegExp('<a[^>]*href="/app-home/activities\\?conversation='+applicationId+'"[^>]*>[\\s\\S]*?</a>'))?.[0];
   expect(movement).toContain("Pflanzen versorgen");expect(movement).toContain("Zahlung in Klärung");
   expect(html).not.toContain("erst nach Bestätigung");
  });
- it("does not invent balance detail when a provider snapshot is unavailable",()=>{
-  expect(renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={{...summary,funds:null}} onClose={()=>{}}/>)).toBe("");
+ it("keeps unavailable balances and the transaction history separate",()=>{
+  const value={...summary,funds:null};
+  expect(render(value)).not.toContain("Pflanzen versorgen");
+  expect(renderHistory(value)).toContain("Pflanzen versorgen");
  });
 });
 
@@ -204,22 +204,62 @@ describe("financial response validation", () => {
     });
 });
 
-describe("settlement information inside Workfare",()=>{
- it("keeps a paid job distinct from later bank availability without requesting another approval",()=>{
-  const html=renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={summary} onClose={()=>{}}/>);
-  expect(html).toContain("Bezahlt");expect(html).toContain("Für die Auszahlung in Bearbeitung");
-  expect(html).toContain("Der Zahlungsanbieter verarbeitet den Betrag.");
-  expect(html).not.toMatch(/Freigabe wird noch bestätigt|erst nach Bestätigung|bestätigen/);
-  expect(html).toMatch(/Für Auszahlung verfügbar<\/dt><dd><span>12,50/);
-  expect(html).toMatch(/In Bearbeitung<\/dt><dd><span>33,00/);
- });
- it("shows verified availability, bank and movements in a native funds detail",()=>{
-  const value={...summary,funds:{...summary.funds!,pendingAvailableAt:"2026-10-28T00:00:00Z",bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur" as const}}};
-  const html=renderToStaticMarkup(<RecipientBalanceDetail id="funds-detail" summary={value} onClose={()=>{}}/>);
-  expect(html).toContain('aria-labelledby="funds-detail-title"'); expect(html).toContain("Dein Guthaben");
-  expect(html).toMatch(/datetime="2026-10-28T00:00:00Z"/i);expect(html).toContain("Voraussichtlich verfügbar");
-  for(const content of ["12,50", "33,00", "Testbank", "•••• 6789", "Pflanzen versorgen", "Letzte Auszahlungen"])expect(html).toContain(content);
-  expect(html).not.toMatch(/Auszahlungseinstellungen ändern|Melden Sie sich an|Bankkonto eröffnen|<iframe|acct_|ba_/);
- });
- it("does not accept an invented or malformed availability timestamp",()=>{expect(validRecipientPaymentSummary({...summary,funds:{...summary.funds!,pendingAvailableAt:"unknown"}},ownerId)).toBe(false);});
+describe("settlement information inside Workfare", () => {
+    it("explains bank processing without requesting another approval or duplicating the balance", () => {
+        const html = render(summary);
+        expect(html).toContain("Die Beträge in Bearbeitung werden für deine Bankauszahlung verarbeitet.");
+        expect(html).not.toMatch(/Freigabe wird noch bestätigt|erst nach Bestätigung|bestätigen|Dein Guthaben/);
+        expect(html).toMatch(/Verfügbar<\/dt><dd><span>12,50/);
+        expect(html).toMatch(/In Bearbeitung<\/dt><dd><span>33,00/);
+        expect(html.match(/<dl\b/g)).toHaveLength(1);
+    });
+    it("shows a verified availability date beside the summary and keeps bank information in its own utility", () => {
+        const value = { ...summary, funds: { ...summary.funds!, pendingAvailableAt: "2026-10-28T00:00:00Z", bank: { bankName: "Testbank", last4: "6789", country: "DE", currency: "eur" as const } } };
+        const html = render(value);
+        expect(html).toMatch(/datetime="2026-10-28T00:00:00Z"/i);
+        expect(html).toContain("voraussichtlich auszahlbar am");
+        expect(html).not.toMatch(/Testbank|6789|Auszahlungseinstellungen ändern|Melden Sie sich an|<iframe|acct_|ba_/);
+        expect(render(value, { compact: true })).not.toContain("voraussichtlich");
+    });
+    it("does not accept an invented or malformed availability timestamp", () => {
+        expect(validRecipientPaymentSummary({ ...summary, funds: { ...summary.funds!, pendingAvailableAt: "unknown" } }, ownerId)).toBe(false);
+    });
+});
+
+describe("separate transaction history", () => {
+    it("starts collapsed as a utility row and keeps refresh outside its summary", () => {
+        const html = renderHistory(summary);
+        expect(html).toMatch(/^<details class="/);
+        expect(html).not.toMatch(/<details[^>]*\sopen(?:=|\s|>)/);
+        const heading = html.match(/<summary[^>]*>[\s\S]*?<\/summary>/)?.[0];
+        expect(heading).toContain("Transaktionshistorie");
+        expect(heading).not.toMatch(/<button|<a\b/);
+        expect(html).toContain('aria-label="Transaktionshistorie aktualisieren"');
+        expect(html).not.toMatch(/Guthaben ansehen|Dein Guthaben/);
+    });
+    it("preserves the payment and payout status, date, amount, and conversation destination", () => {
+        const html = renderHistory(summary);
+        for (const value of ["Zahlungen", "Bankauszahlungen", "Pflanzen versorgen", "Bezahlt", "20,00", "Automatische Bankauszahlung", "Ausgezahlt", "15,00", "22. Okt. 2026"]) expect(text(html)).toContain(value);
+        expect(html).toContain(`href="/app-home/activities?conversation=${applicationId}"`);
+    });
+    it("does not add an external payout action without the caller's supported action", () => {
+        expect(renderHistory(summary)).not.toContain("Alle Auszahlungen");
+        expect(renderHistory(summary, { onPayouts: vi.fn() })).toContain("Alle Auszahlungen");
+        expect(renderHistory({ ...summary, funds: null }, { onPayouts: vi.fn() })).not.toContain("Alle Auszahlungen");
+    });
+    it.each([{ busy: true }, { stripePayoutsEnabled: false }, { hasPayoutMethod: false }])("preserves payout-action readiness during %j", flags => {
+        const html = renderHistory({ ...summary, funds: { ...summary.funds!, ...flags } }, { onPayouts: vi.fn(), busy: "busy" in flags && flags.busy });
+        const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
+        expect(buttons.find(button => button.includes("Alle Auszahlungen"))).toContain('disabled=""');
+    });
+    it("distinguishes loading, retryable failure, and a genuinely empty history", () => {
+        const loading = renderHistory(null, { loading: true });
+        const failed = renderHistory(null, { error: "Nicht erreichbar" });
+        expect(loading).toContain('role="status"');
+        expect(loading).not.toContain("Noch keine Transaktionen");
+        expect(failed).toContain('role="alert"');
+        expect(failed).toContain("Nicht erreichbar");
+        expect(failed).not.toContain("Noch keine Transaktionen");
+        expect(failed.match(/<button\b[^>]*>/)?.[0]).not.toContain('disabled=""');
+    });
 });

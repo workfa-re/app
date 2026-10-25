@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { ArrowDownToLine, CalendarDays, Check, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDownToLine, CalendarDays, Check, ChevronRight, Landmark, Loader2, RefreshCw } from "lucide-react";
 import type { RecipientPayoutSettings as Snapshot, AutomaticPayoutSchedule } from "@/lib/payments/recipient-payout-types";
 import { validRecipientBankSummary } from "@/lib/payments/recipient-bank-summary";
 import { paymentErrorMessage, paymentRequest } from "./payment-client";
@@ -47,7 +47,7 @@ function saveAttempt(ownerId: string, value: PendingAttempt | null) {
     // No account references, bank data, tokens or Stripe secrets are stored.
     try { if (value) sessionStorage.setItem(attemptKey(ownerId), JSON.stringify(value)); else sessionStorage.removeItem(attemptKey(ownerId)); } catch { /* The mounted component still retains its immutable request. */ }
 }
-export function RecipientPayoutSettings({ownerId,onUpdated,onManageBank}:{ownerId:string;onUpdated?:()=>void;onManageBank?:()=>void}) {
+export function RecipientPayoutSettings({ownerId,onUpdated,onManageBank,variant="standalone"}:{ownerId:string;onUpdated?:()=>void;onManageBank?:()=>void;variant?:"standalone"|"utility"}) {
     const {isCurrentOwner,ownerChanged}=usePaymentOwner(ownerId);
     const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[editing,setEditing]=useState(false),[paying,setPaying]=useState(false),[accepted,setAccepted]=useState(false),[day,setDay]=useState(1),[message,setMessage]=useState<string|null>(null),[attemptLocked,setAttemptLocked]=useState(false),[attemptAmount,setAttemptAmount]=useState<number|null>(null);
     const mounted=useRef(false), locked=useRef(false),generation=useRef(0),attempt=useRef<PendingAttempt|null>(null);
@@ -79,16 +79,18 @@ export function RecipientPayoutSettings({ownerId,onUpdated,onManageBank}:{ownerI
         catch(failure){if(current(ticket)){setError(paymentErrorMessage(failure));setAttemptLocked(!!attempt.current);}}
         finally{if(current(ticket)){locked.current=false;setBusy(false);}}
     }
-    if(ownerChanged)return <section className={styles.surface}><p role="alert" className={styles.error}>{PAYMENT_OWNER_CHANGED}</p></section>;
+    if(ownerChanged)return <section className={variant==="utility"?styles.utilitySection:styles.surface}><p role="alert" className={styles.error}>{PAYMENT_OWNER_CHANGED}</p></section>;
     return <RecipientPayoutSettingsView snapshot={snapshot} busy={busy} error={error} editing={editing} paying={paying} accepted={accepted} day={day} locked={attemptLocked} message={message} attemptAmount={attemptAmount}
-      onRefresh={()=>void load()} onEdit={()=>{setEditing(true);setPaying(false);setAccepted(false);setMessage(null);}} onPayout={()=>{setPaying(true);setEditing(false);setAccepted(false);setMessage(null);}} onCancel={()=>{setEditing(false);setPaying(false);setAccepted(false);}} onAccepted={setAccepted} onDay={setDay} onSubmit={submit} onManageBank={onManageBank}/>;
+      onRefresh={()=>void load()} onEdit={()=>{setEditing(true);setPaying(false);setAccepted(false);setMessage(null);}} onPayout={()=>{setPaying(true);setEditing(false);setAccepted(false);setMessage(null);}} onCancel={()=>{setEditing(false);setPaying(false);setAccepted(false);}} onAccepted={setAccepted} onDay={setDay} onSubmit={submit} onManageBank={onManageBank} variant={variant}/>;
 }
-export function RecipientPayoutSettingsView({snapshot,busy,error,editing,paying,accepted,day,locked,message,attemptAmount=null,onRefresh,onEdit,onPayout,onCancel,onAccepted,onDay,onSubmit,onManageBank}:{snapshot:Snapshot|null;busy:boolean;error:string|null;editing:boolean;paying:boolean;accepted:boolean;day:number;locked:boolean;message:string|null;attemptAmount?:number|null;onRefresh:()=>void;onEdit:()=>void;onPayout:()=>void;onCancel:()=>void;onAccepted:(value:boolean)=>void;onDay:(day:number)=>void;onSubmit:(action:"schedule"|"payout")=>void;onManageBank?:()=>void}) {
+export function RecipientPayoutSettingsView({snapshot,busy,error,editing,paying,accepted,day,locked,message,attemptAmount=null,onRefresh,onEdit,onPayout,onCancel,onAccepted,onDay,onSubmit,onManageBank,variant="standalone"}:{snapshot:Snapshot|null;busy:boolean;error:string|null;editing:boolean;paying:boolean;accepted:boolean;day:number;locked:boolean;message:string|null;attemptAmount?:number|null;onRefresh:()=>void;onEdit:()=>void;onPayout:()=>void;onCancel:()=>void;onAccepted:(value:boolean)=>void;onDay:(day:number)=>void;onSubmit:(action:"schedule"|"payout")=>void;onManageBank?:()=>void;variant?:"standalone"|"utility"}) {
     const consentId=useId();
+    const headingId="payout-settings-heading";
+    const utility=variant==="utility";
     const retry=snapshot?.operation&&!snapshot.operation.finished;
     const amount=attemptAmount??(retry?snapshot.operation?.amountCents??0:snapshot?.availableCents??0);
-    return <section className={styles.surface} aria-labelledby="payout-settings-heading" aria-busy={busy}>
-        <div className={styles.sectionHeading}><h2 id="payout-settings-heading">Auszahlungen</h2><button type="button" className={`app-glass-control ${styles.iconButton}`} aria-label="Auszahlungsstand aktualisieren" disabled={busy} onClick={onRefresh}><RefreshCw size={17}/></button></div>
+    const content=<>
+        {!utility&&<div className={styles.sectionHeading}><h2 id={headingId}>Auszahlungen</h2><button type="button" className={`app-glass-control ${styles.iconButton}`} aria-label="Auszahlungsstand aktualisieren" disabled={busy} onClick={onRefresh}><RefreshCw size={17}/></button></div>}
         {!snapshot&&busy?<p role="status" className={styles.loading}><Loader2 size={17} className={styles.spinner}/>Aktueller Stand wird geladen …</p>:snapshot?<>
           <div className={own.plan}><div><strong>{scheduleText(snapshot.schedule)}</strong><span>Automatische Bankauszahlung</span></div><button type="button" className={`app-glass-control ${styles.action}`} disabled={busy||locked||!!retry&&snapshot.operation?.kind!=="schedule"} onClick={onEdit}><CalendarDays size={16}/>Ändern</button></div>
           {!editing&&!paying&&<div className={own.actions}><button type="button" className={`app-glass-control ${styles.action}`} disabled={busy||!snapshot.canRequestPayout&&!retry} onClick={retry&&snapshot.operation?.kind==="schedule"?onEdit:onPayout}><ArrowDownToLine size={17}/>{retry?snapshot.operation?.kind==="schedule"?"Auszahlungstag prüfen":"Auszahlung prüfen":snapshot.canRequestPayout?`${money.format(snapshot.availableCents/100)} jetzt auszahlen`:"Jetzt auszahlen"}</button></div>}
@@ -97,9 +99,14 @@ export function RecipientPayoutSettingsView({snapshot,busy,error,editing,paying,
           {retry&&<p className={own.notice}>Der Vorgang wird noch abgeglichen. Ein erneuter Versuch verwendet denselben Auftrag.</p>}
           {snapshot.reasonCode==="balance_not_available"&&<p className={own.hint}>{snapshot.pendingCents>0?"Deine Zahlung wird noch verarbeitet. Erst verfügbare Beträge können an deine Bank überwiesen werden.":"Aktuell ist kein Betrag für eine Bankauszahlung verfügbar."}</p>}
           {snapshot.reasonCode==="multiple_payment_sources"&&<p className={own.hint}>Diese Beträge werden nach deinem automatischen Auszahlungsplan überwiesen.</p>}
-          {snapshot.bank&&<div className={own.bank}><div><span>Deine Bankverbindung</span><strong>{snapshot.bank.bankName??"Bankkonto"}</strong><small>{snapshot.bank.country} · •••• {snapshot.bank.last4}</small></div>{onManageBank&&<button type="button" className={`app-glass-control ${styles.action}`} disabled={busy||locked||!!retry} onClick={onManageBank}>Ändern</button>}</div>}
+          {snapshot.bank&&<div className={own.bank} role="group" aria-label="Deine Bankverbindung"><span className={`app-glass-control ${own.bankMark}`} aria-hidden="true"><Landmark size={21} strokeWidth={1.5}/></span><div className={own.bankCopy}><span>Deine Bankverbindung</span><strong>{snapshot.bank.bankName??"Bankkonto"}</strong><small>{snapshot.bank.country} · •••• {snapshot.bank.last4}</small></div>{onManageBank&&<button type="button" className={`app-glass-control ${styles.action} ${own.bankAction}`} aria-label="Bankverbindung ändern" disabled={busy||locked||!!retry} onClick={onManageBank}>Ändern</button>}</div>}
         </>:null}
         {error&&<div className={styles.error}><p role="alert">{error}</p><button type="button" className={styles.quietButton} disabled={busy} onClick={onRefresh}>Aktuellen Stand laden</button></div>}
         {message&&!error&&<p role="status" className={styles.feedback}><Check size={16}/>{message}</p>}
-    </section>;
+        {utility&&<div className={own.utilityTools}><button type="button" className={`app-glass-control ${styles.iconButton}`} aria-label="Auszahlungsstand aktualisieren" disabled={busy} onClick={onRefresh}><RefreshCw size={17}/></button></div>}
+    </>;
+    return utility?<details className={`${styles.utilitySection} ${own.utility}`} open={error||retry||locked||editing||paying?true:undefined} aria-busy={busy}>
+        <summary className={styles.settingsRow}><span className={`app-glass-control ${styles.rowIcon}`} aria-hidden="true"><ArrowDownToLine size={21} strokeWidth={1.5}/></span><span id={headingId}>Auszahlungen &amp; Bank</span><ChevronRight size={18} className={styles.rowArrow} aria-hidden="true"/></summary>
+        <div className={own.utilityBody} aria-labelledby={headingId}>{content}</div>
+    </details>:<section className={styles.surface} aria-labelledby={headingId} aria-busy={busy}>{content}</section>;
 }

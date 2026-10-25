@@ -58,7 +58,7 @@ describe("membership page content", () => {
         expect(html).toContain("Demnächst"); expect(html.match(/<span>Geplant<\/span>/g)).toHaveLength(3);
         expect(html).not.toMatch(/Jobvorlagen|Sammelübersichten|Gemeinsam organisieren/);
         expect(html).not.toMatch(/kostenlos testen|Premium|Plus/);
-        expect(html).toContain('aria-label="Workfare Pay mit Stripe"'); expect(html).toContain("Über Stripe");
+        expect(html).toContain('aria-label="Workfare Pay mit Stripe"'); expect(html).not.toContain("Über Stripe");
         expect(html).not.toContain("Sichere Abwicklung über Stripe");
     });
     it("does not expose an enabled purchase for an unavailable offer", () => {

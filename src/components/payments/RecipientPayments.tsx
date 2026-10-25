@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -14,7 +14,7 @@ import { RecipientNotifications } from "./RecipientNotifications";
 import { PaymentEmbedBoundary } from "./PaymentEmbedBoundary";
 import { RecipientHostedFallback } from "./RecipientHostedFallback";
 import { isStripeSurfaceKind, validStripeSurfaceSession } from "./PaymentEnvironment";
-import { RecipientOverview } from "./RecipientOverview";
+import { RecipientOverview, RecipientSummaryProvider, RecipientTransactionHistory } from "./RecipientOverview";
 import { StripeReloadButton, type StripeEmbedControls } from "./StripeEmbedControls";
 import { RecipientPayoutSettings } from "./RecipientPayoutSettings";
 import { MinorPayoutSetup } from "./MinorPayoutSetup";
@@ -34,7 +34,18 @@ export function recipientFinancialActionsEnabled(snapshot: RecipientSettingsSnap
     return Number.isFinite(checkedAt) && checkedAt <= now && checkedAt > now - 24 * 60 * 60_000;
 }
 
-export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned = false }: { initial: RecipientSettingsSnapshot | null; returnTo: string | null; ownerId?: string; hostedReturned?: boolean }) {
+type RecipientPaymentsProps={ initial: RecipientSettingsSnapshot | null; returnTo: string | null; ownerId?: string; hostedReturned?: boolean; renderUtilities?: (content:ReactNode)=>ReactNode };
+
+export function RecipientPayments(props:RecipientPaymentsProps) {
+    const content=<RecipientPaymentsContent {...props}/>;
+    // The settings page shares its resource with the utility group. Standalone
+    // consumers also need one read for both the overview and transaction history.
+    return !props.renderUtilities&&props.ownerId&&props.initial&&props.initial.kind!=="disabled"
+        ? <RecipientSummaryProvider key={`${props.ownerId}:${props.initial.kind}`} ownerId={props.ownerId} kind={props.initial.kind}>{content}</RecipientSummaryProvider>
+        : content;
+}
+
+function RecipientPaymentsContent({ initial, returnTo, ownerId, hostedReturned = false, renderUtilities }:RecipientPaymentsProps) {
     const router = useRouter();
     const initialKind = initial?.kind;
     const { isCurrentOwner, ownerChanged } = usePaymentOwner(ownerId);
@@ -201,11 +212,14 @@ export function RecipientPayments({ initial, returnTo, ownerId, hostedReturned =
         </section>;
     // Stable sibling keys preserve the overview when readiness changes while
     // keeping visual, keyboard and screen-reader order aligned.
-    const visibleSetupSlot = ready && !local && !session && !editing ? null : snapshot?.kind === "live" && snapshot.eligibility === "minor_review_required" && !session
+    const visibleSetupSlot = ready && !local && !session && !editing ? error && <p key="setup" role="alert" className={styles.error}>{error}</p> : snapshot?.kind === "live" && snapshot.eligibility === "minor_review_required" && !session
         ? <div key="setup" className={overviewStyles.setupSlot}><MinorPayoutSetup key={ownerId} ownerId={ownerId ?? ""} onUpdated={() => router.refresh()} /></div> : setupSlot;
-    return <div className={`${styles.stack} ${overviewStyles.recipientLayout}`} data-overview-first={ready}>
+    const payoutSettings=!session&&!editing&&canReadFinancials&&ownerId?<RecipientPayoutSettings key={`payout-settings:${ownerId}`} ownerId={ownerId} onUpdated={()=>router.refresh()} onManageBank={()=>void start("bank_management")} variant={renderUtilities?"utility":"standalone"}/>:null;
+    const history=!session&&!editing&&ownerId&&snapshot&&snapshot.kind!=="disabled"?<RecipientTransactionHistory key={`history:${ownerId}`} ownerId={ownerId} kind={snapshot.kind} onPayouts={canReadFinancials?()=>void start("payouts_list"):undefined} busy={busy||statusUnknown}/>:null;
+    return <><div className={`${styles.stack} ${overviewStyles.recipientLayout}`} data-overview-first={ready}>
         {ready ? [overviewSlot, visibleSetupSlot] : [visibleSetupSlot, overviewSlot]}
-        <div key="payout-settings" className={overviewStyles.notificationsSlot}>{!session && !editing && canReadFinancials && ownerId && <RecipientPayoutSettings key={ownerId} ownerId={ownerId} onUpdated={() => router.refresh()} onManageBank={() => void start("bank_management")} />}</div>
+        {!renderUtilities&&<div key="payout-settings" className={overviewStyles.notificationsSlot}>{payoutSettings}</div>}
         <div key="notifications" className={overviewStyles.notificationsSlot}>{!session && !editing && !statusUnknown && !busy && <RecipientNotifications snapshot={snapshot} ownerId={ownerId} onChanged={onNotificationChanged} />}</div>
-    </div>;
+        {!renderUtilities&&history&&<section className={`${styles.surface} ${styles.utilityGroup}`}>{history}</section>}
+    </div>{renderUtilities?.(<>{payoutSettings}{history}</>)}</>;
 }

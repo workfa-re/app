@@ -24,7 +24,21 @@ describe("recipient payout settings presentation", () => {
 
 describe("masked recipient bank card",()=>{
  it("shows the bank name and last digits with an owned management action",()=>{
-  const html=render({snapshot:snapshot({bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur"}}),onManageBank:vi.fn()});expect(html).toContain("Testbank");expect(html).toContain("•••• 6789");expect(html).not.toMatch(/IBAN|acct_|ba_/);
+  const html=render({snapshot:snapshot({bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur"}}),onManageBank:vi.fn()});expect(html).toContain("Testbank");expect(html).toContain("•••• 6789");expect(html).toContain('aria-label="Bankverbindung ändern"');expect(html).toContain('aria-label="Deine Bankverbindung"');expect(html).not.toMatch(/IBAN|acct_|ba_|<img|(?:src|href)="https?:\/\//);
  });
  it.each([{bankName:"Bank",last4:"12345678",country:"DE",currency:"eur"},{bankName:"Bank",last4:"6789",country:"DE",currency:"usd"},{bankName:"Bad\nBank",last4:"6789",country:"DE",currency:"eur"}])("does not render malformed bank summaries",bank=>{expect(validPayoutSettings({...snapshot(),bank},ownerId)).toBe(false);});
+});
+
+describe("payout utility disclosure",()=>{
+ it("starts collapsed with controls outside the summary",()=>{
+  const html=render({variant:"utility",snapshot:snapshot({bank:{bankName:"Testbank",last4:"6789",country:"DE",currency:"eur"}}),onManageBank:vi.fn()});
+  expect(html).toMatch(/^<details\b/);expect(html).not.toMatch(/^<details\b[^>]*\bopen=/);
+  const summary=html.match(/<summary\b[^>]*>[\s\S]*?<\/summary>/)?.[0];
+  expect(summary).toContain("Auszahlungen &amp; Bank");expect(summary).not.toMatch(/<button|<a /);
+  expect(html).toContain('aria-label="Bankverbindung ändern"');expect(html).not.toContain('>Auszahlungen</h2>');
+ });
+ it("opens a financial action or failed refresh so it cannot remain hidden",()=>{
+  expect(render({variant:"utility",paying:true})).toMatch(/^<details\b[^>]*\bopen=""/);
+  expect(render({variant:"utility",snapshot:null,error:"Bitte erneut laden."})).toMatch(/^<details\b[^>]*\bopen=""/);
+ });
 });

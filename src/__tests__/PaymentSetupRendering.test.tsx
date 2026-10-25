@@ -36,7 +36,7 @@ describe("truthful payment setup states",()=>{
     });
     it("renders live payment settings without a test banner and keeps payment identity honest",()=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} role="job_provider" returnTo={null} result={null}/>);
-        expect(html).toContain('aria-label="Workfare Pay mit Stripe"');expect(html).toContain("Über Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);
+        expect(html).toContain('aria-label="Workfare Pay mit Stripe"');expect(html).not.toContain("Über Stripe");expect(html).not.toMatch(/Stripe-Testbetrieb|Kein Echtgeld|Lokale Simulation/);
         const faq=renderToStaticMarkup(<PaymentQuestions recipient kind="live"/>);
         expect(faq).toContain("Erst verfügbare Beträge werden nach deinem Auszahlungstag");expect(faq).not.toMatch(/Testbetrieb|Simulation/);
         expect(renderToStaticMarkup(<PaymentQuestions recipient kind="sandbox"/>)).toContain("Im Testbetrieb wird kein echtes Geld bewegt");
@@ -51,7 +51,7 @@ describe("truthful payment setup states",()=>{
         expect(group).toContain("Wir arbeiten an einem eigenen Zahlungskonto mit Workfare Pay Karte.");
         expect(group).not.toContain("Dein nächster Schritt");
         expect(group.match(/<details[^>]*>/g)?.every(tag=>!tag.includes("open="))).toBe(true);
-        expect(html).toContain('href="https://stripe.com/de"');
+        expect(html).not.toContain('href="https://stripe.com/de"');
     });
     it.each(["job_seeker","guardian"]as const)("keeps account and help in the same ordered group for %s",role=>{
         const html=renderToStaticMarkup(<PaymentSettings snapshot={{...buyer,kind:"live"}} recipientSnapshot={{...recipient,kind:"live"}} role={role} returnTo={null} result={null}/>);
