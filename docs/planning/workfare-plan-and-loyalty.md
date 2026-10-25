@@ -28,7 +28,7 @@ Beide Prozentanteile werden je Job einzeln auf Cent gerundet. Dadurch kann die S
 | Sechs Jobs mit jeweils 17 € | 15,18 € | 14,96 € | Plan spart 0,22 € |
 | Vier Jobs mit jeweils 34 € | 18,28 € | 16,02 € | Plan spart 2,26 € |
 
-Die Tabelle vergleicht Gebühren einschließlich Monatsbeitrag; die Vergütung ist in beiden Varianten identisch. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt; die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Die Abo-Seite verwendet ein greifbares Beispiel: 34 € pro Job, entsprechend zwei Stunden zu 17 €. Ein einziger Slider bestimmt die Jobzahl im Monat. Die beiden angezeigten Monatsbeträge enthalten die gesamte Vergütung, alle Servicegebühren und beim Plan die 5,90 € Monatsbeitrag. Bei vier Jobs ergeben sich 154,28 € ohne Plan und 152,02 € mit Plan. Auch ein Mehrpreis bei geringer Nutzung bleibt sichtbar. Die Hauptfläche nennt unmittelbar 12 % beziehungsweise 6 % zuzüglich jeweils 0,49 € je neuem Job; separate, wiederholende Gebührenerklärungen entfallen.
+Die Tabelle ist eine interne Kalkulation; die Vergütung ist in beiden Varianten identisch. Rund 100 € monatliche Vergütung ist ein grober Orientierungspunkt, die genaue Schwelle hängt von den Cent-Rundungen je Job ab. Die Produktseite zeigt nur Monatsbeitrag sowie 12 % beziehungsweise 6 % zuzüglich jeweils 0,49 € je neuem Job. Ein Gebührenrechner wird dort vorerst nicht angeboten. Vereinbarte Preise und frühere Tarife bleiben unverändert.
 
 ## Wirtschaftlichkeit für Workfare
 
@@ -53,16 +53,16 @@ Folgerung: Keine unbegrenzten zusätzlichen Geldboni zum Start. Seltene kleine E
 
 | Reihenfolge | Funktion und konkreter Nutzen | Platz | Voraussetzung |
 | --- | --- | --- | --- |
-| 1 | **Mehrere Einsatzorte:** Eigene Aufträge an unterschiedlichen gespeicherten Orten übersichtlich verwalten | Neuer Job → Einsatzort; Einstellungen → Orte | Je Veröffentlichung den richtigen Ort bestätigen; genaue Privatadressen nur berechtigt freigeben |
-| 2 | **Haushaltsbudget:** Ein monatliches Planungsbudget festlegen und die tatsächlichen Ausgaben daran ablesen | Workfare Pay → Budget | Reine Ausgabenplanung, kein vorausbezahltes Guthaben oder Bankkonto; keine zusätzliche Zahlung ohne Zustimmung |
-| 3 | **Zahlungen aufteilen:** Die Kosten eines Haushaltsauftrags bewusst zwischen volljährigen Auftraggebern verteilen | Auftrag → Zahlung | Vorab PSP-Freigabe, klare Zahlungsverantwortung und Rückabwicklung; keine Kürzung der Vergütung oder automatische Belastung anderer Personen |
+| 1 | **Automatische Terminabstimmung:** Gemeinsame verfügbare Zeiten vorschlagen und Terminänderungen abstimmen | Auftrag → Termin; optionale Verfügbarkeiten | Beide Seiten bestätigen; keine unbeaufsichtigte Kalender- oder Zahlungsänderung |
+| 2 | **Freigaben im Haushalt:** Eigene Aufträge und Budgets mit weiteren Erwachsenen organisieren | Workfare Pay → Haushalt; Auftrag → Freigaben | Eigene Konten und explizite Rollen; keine pauschale Zahlungsfreigabe und kein gemeinsames Bankkonto |
+| 3 | **Ersatzsuche bei Absagen:** Einen frei gewordenen Job erneut passenden Jobsuchenden anbieten | Auftrag → Absage → Erneut anbieten | Keine Ersatzgarantie, keine automatische Beauftragung und kein bevorzugter Zugang zu Jugendlichen |
 | 4 | **Verständlicher Plan-Nutzen:** Tatsächlich bei bezahlten Jobs erlassene Workfare-Anteile zeigen | Mitgliedschaft → Übersicht | Nur belastbare, nicht erstattete Mitgliedstarif-Aufträge; keine hochgerechnete fiktive Ersparnis |
 | 5 | **Push und wichtige SMS:** Terminänderungen und konkreten Handlungsbedarf auf dem gewählten Kanal erhalten | Benachrichtigungseinstellungen | Bestätigte Geräte/Nummern, bewusste Zustimmung, Kostenlimit, Datenminimierung |
 | 6 | **Treuevorteile:** Kleine, finanzierte Vorteile für verlässliche langfristige Nutzung | Einstellungen → Vorteile | Stabiles Zahlungsmodell, Budget und Betrugsschutz; Details unten |
 | 7 | **Bewusste Empfehlungen:** Einen persönlichen Link teilen, freiwillige Teilnahme | Vorteile → Freunde einladen | Kein Kontaktbuch-Upload oder automatischer Werbeversand; qualifizierte erste Zahlung |
 | 8 | **Workfare Konto und Karte:** Verdienst nach tatsächlichem Eingang mit eigener Karte nutzen | Workfare Pay | Lizenziertes Jugendprogramm, Vertrags-/KYC-Freigabe, wirtschaftliches Angebot und operativer Pilot |
 
-Die ersten drei Punkte stehen knapp als „Demnächst“ auf der Plan-Seite. Die zuvor vorgeschlagenen Jobvorlagen, Sammelübersichten und die unspezifische gemeinsame Organisation werden dort nicht weiter beworben. Sie sind bis zum echten Start ausdrücklich nicht Teil des bezahlten Produkts. Kein schnellerer Zugang zu Jugendlichen, keine bezahlte Bevorzugung im Marktplatz und kein Sicherheitsvorteil nur für zahlende Anbieter.
+Die ersten drei Punkte stehen aufklappbar als „Demnächst“ auf der Plan-Seite und werden dort knapp erklärt. Die zuvor vorgeschlagenen Jobvorlagen, Sammelübersichten und die unspezifische gemeinsame Organisation werden dort nicht weiter beworben. Sie sind bis zum echten Start ausdrücklich nicht Teil des bezahlten Produkts. Kein schnellerer Zugang zu Jugendlichen, keine bezahlte Bevorzugung im Marktplatz und kein Sicherheitsvorteil nur für zahlende Anbieter.
 
 ## Nächste Umsetzung nach der UI-Abnahme
 
@@ -73,11 +73,11 @@ Die folgenden Punkte sind geplante Arbeit. Die bestehenden Unit-, Browser- und �
 | 1 | **Gemeinsame Abnahme des Geldflusses** | Anbieter → Termin → Preisbestätigung → Bezahlen → Workfare-Pay-Verlauf → tatsächlicher Bankeingang. Die Rollen- und Elternfreigabe separat prüfen; SCA, unterbrochene Zahlung und Erstattung in der Sandbox abnehmen. Echte Zahlungen nur mit vorher festgelegten Beteiligten und Beträgen. |
 | 2 | **Gebührenbelege vervollständigen** | Workfare Pay → Zahlungen und Belege. Aussteller- und Steuerangaben mit dem Live-Stand abgleichen und gegebenenfalls ergänzen; eigene Servicegebühren und Erstattungen vollständig nachvollziehbar verbuchen. Workfare-Gebührenrechnungen zusätzlich zu den Zahlungsbelegen berücksichtigen. |
 | 3 | **Vollständigen Verlauf erschließen** | Transaktionshistorie → Zeitraum, Status und weitere Seiten. Empfänger sehen heute bis zu zehn jüngste Bewegungen, Anbieter bis zu zwanzig je Bereich. Den begrenzten Ausschnitt klar vom Gesamtverdienst trennen. |
-| 4 | **Familienansicht abnehmen** | Familienbereich → mehrere Kinder, Jobs, Termine und erlaubte Zahlungseinblicke. Widerruf und Volljährigkeitswechsel prüfen; Elternfreigabe und Bankverbindung des Jugendlichen bleiben getrennt. |
+| 4 | **Familienansicht abnehmen** | Familienbereich → pro Kind Bild oder Initialen, aktive und abgeschlossene Jobs sowie die jeweiligen Auftraggeber. Ein aktueller, genau zugeordneter Minderjährigen-Consent erlaubt diese Jobmetadaten; freiwillige volljährige Verbindungen bleiben ohne zusätzliche Freigabe auf das Profil beschränkt. Keine Chattexte, Privatadressen oder Kontaktdaten. Widerruf und Volljährigkeitswechsel sperren neue Jobabfragen; Elternfreigabe und Auszahlung bleiben getrennt. |
 | 5 | **Benachrichtigungen zustellen** | Einstellungen → Benachrichtigungen. Bestehende In-App-/Chat-Ereignisse mit optionalem Push und gezielten wichtigen SMS verbinden; Einwilligung, bestätigtes Ziel, doppelte Zustellung und Kostenlimit berücksichtigen. |
 | 6 | **Tatsächlichen Plan-Nutzen zeigen** | Workfare Plan → bereits erlassene Gebühren aus bezahlten Jobs. Erstattungen und bestehende Preisstände einbeziehen; keine Prognose als erzielte Ersparnis ausgeben. |
 
-Danach folgen die konkret geplanten Einsatzorte, Haushaltsbudget und ein begrenztes Treueprogramm. Konto und Karte bleiben ein eigenes Partnerprojekt und erhalten erst nach bestätigtem Modell einen verbindlichen Starttermin.
+Danach folgen die oben konkretisierten Funktionen, mehrere Einsatzorte und ein begrenztes Treueprogramm. Konto und Karte bleiben ein eigenes Partnerprojekt und erhalten erst nach bestätigtem Modell einen verbindlichen Starttermin.
 
 ## Vorschlag für ein ruhiges Treueprogramm
 

@@ -7,11 +7,12 @@ import type { ReactNode } from "react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import styles from "./Guardian.module.css";
 
-export function GuardianShell({ children, title, description, eyebrow = "Für deine Familie" }: {
+export function GuardianShell({ children, title, description, eyebrow, wide = false }: {
     children: ReactNode;
     title: string;
     description?: string;
     eyebrow?: string;
+    wide?: boolean;
 }) {
     const { resolvedTheme, setTheme } = useTheme();
     const dark = resolvedTheme === "dark";
@@ -29,9 +30,9 @@ export function GuardianShell({ children, title, description, eyebrow = "Für de
                 {dark ? <Sun size={19} strokeWidth={1.6} aria-hidden="true" /> : <Moon size={19} strokeWidth={1.6} aria-hidden="true" />}
             </button>
         </header>
-        <main className={styles.main}>
+        <main className={`${styles.main}${wide ? ` ${styles.familyMain}` : ""}`}>
             <div className={styles.heading}>
-                <span className={styles.eyebrow}>{eyebrow}</span>
+                {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}
                 <h1>{title}</h1>
                 {description ? <p>{description}</p> : null}
             </div>

@@ -6,7 +6,7 @@ import { membershipExample, trustedMembershipUrl, validMembershipSnapshot } from
 
 vi.mock("@/components/payments/PaymentMotion", () => ({ PaymentMotion: () => <div aria-hidden="true" /> }));
 vi.mock("@/components/payments/usePaymentOwner", () => ({ PAYMENT_OWNER_CHANGED: "Bitte neu anmelden.", usePaymentOwner: () => ({ isCurrentOwner: () => true, ownerChanged: false }) }));
-import { MembershipCalculator, MembershipView } from "@/components/membership/MembershipPage";
+import { MembershipView } from "@/components/membership/MembershipPage";
 
 const ownerId = "11111111-1111-4111-8111-111111111111";
 const snapshot: MembershipSnapshot = { ownerId, kind: "live", offer: MEMBERSHIP_DEFAULT_OFFER, membership: { status: "none", entitled: false, currentPeriodEnd: null, cancelAtPeriodEnd: false, contractReference: null }, checkoutAvailable: true, manageAvailable: false };
@@ -49,13 +49,13 @@ describe("membership page content", () => {
         expect(html).toContain("5,90"); expect(html).toContain("Zahlungspflichtig abonnieren");
         expect(html).toContain("Monatlich kündbar, automatische Verlängerung");
         expect(html).not.toMatch(/Für Jobanbieter|Alle Jobs und Funktionen|Ein Beitrag\. Jeden Monat\.|Endpreis/);
-        expect(html).toContain("Servicegebühr je neuem Job"); expect(html).toContain("12 %"); expect(html).toContain("6 %"); expect(html).not.toMatch(/Prozentpunkte|Grundanteil|Gebühren erklärt|Lohnt sich der Plan/);
+        expect(html).toContain("Servicegebühr je neuem Job"); expect(html).toContain("12 %"); expect(html).toContain("6 %"); expect(html).not.toMatch(/Prozentpunkte|Grundanteil|Gebühren erklärt|Lohnt sich der Plan|Gebühren vergleichen|type="range"/);
         expect(html).toContain('href="/legal/workfare-plan"'); expect(html).toContain('href="/membership/cancel"'); expect(html).toContain('href="/membership/withdraw"');
         expect(html).toContain("14-tägiges Widerrufsrecht bleibt bestehen");
         expect(html).toMatch(/type="checkbox"/); expect(html).not.toMatch(/type="checkbox"[^>]*checked=""/);
         expect(html).toContain("Geplant. Noch nicht Bestandteil deines Abos");
-        expect(html).toContain("Mehrere Einsatzorte"); expect(html).toContain("Gemeinsames Haushaltsbudget"); expect(html).toContain("Zahlung aufteilen");
-        expect(html).toContain("Demnächst"); expect(html.match(/<span>Geplant<\/span>/g)).toHaveLength(3);
+        expect(html).toContain("Automatische Terminabstimmung"); expect(html).toContain("Freigaben im Haushalt"); expect(html).toContain("Ersatzsuche bei Absagen");
+        expect(html).toContain("Demnächst");
         expect(html).not.toMatch(/Jobvorlagen|Sammelübersichten|Gemeinsam organisieren/);
         expect(html).not.toMatch(/kostenlos testen|Premium|Plus/);
         expect(html).toContain('aria-label="Workfare Pay mit Stripe"'); expect(html).not.toContain("Über Stripe");
@@ -88,15 +88,5 @@ describe("membership page content", () => {
         expect(render(null, { loading: true })).toContain("Dein Plan wird geladen");
         const html = render(null, { error: "Stand nicht bestätigt" });
         expect(html).toContain('role="alert"'); expect(html).not.toContain("Dein Plan ist aktiv"); expect(html).not.toContain("Zahlungspflichtig abonnieren");
-    });
-    it("includes the monthly subscription cost in the example", () => {
-        const html = renderToStaticMarkup(<MembershipCalculator offer={MEMBERSHIP_DEFAULT_OFFER} />);
-        expect(html).toMatch(/^<details\b/); expect(html).not.toMatch(/^<details\b[^>]*\bopen=/);
-        expect(html).toContain('type="range"'); expect(html.match(/<input/g)).toHaveLength(1);
-        expect(html).toContain('min="0"'); expect(html).toContain('max="12"');
-        expect(html).toContain("34 € pro Job"); expect(html).toContain("Beispiel: 2 Stunden à 17 €"); expect(html).toContain("Jobs im Monat");
-        expect(html).toContain("Dein Gesamtbetrag im Monat"); expect(html).toContain("154,28"); expect(html).toContain("152,02");
-        expect(html).toContain("2,26"); expect(html).toContain("Monatsbeitrag von"); expect(html).toContain("günstiger mit Plan");
-        expect(html).not.toMatch(/Gebühren erklärt|Lohnt sich der Plan|50 € Vergütung|Grundanteil/);
     });
 });

@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Check, ChevronDown, Copy, FileText, House, LoaderCircle, MapPin, RefreshCw, Split } from "lucide-react";
-import type { MembershipOffer, MembershipSnapshot } from "@/lib/payments/subscription-types";
+import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarClock, CalendarDays, Check, ChevronDown, Copy, FileText, LoaderCircle, RefreshCw, Search, Users } from "lucide-react";
+import type { MembershipSnapshot } from "@/lib/payments/subscription-types";
 import { MEMBERSHIP_NAME } from "@/lib/payments/subscription-types";
 import { PaymentMotion } from "@/components/payments/PaymentMotion";
 import { PaymentProviderBrand } from "@/components/payments/PaymentProviderBrand";
 import { paymentRequest, PaymentRequestError } from "@/components/payments/payment-client";
 import { PAYMENT_OWNER_CHANGED, usePaymentOwner } from "@/components/payments/usePaymentOwner";
 import { followGlassPointer } from "@/lib/glass-pointer";
-import { membershipExample, trustedMembershipUrl, validMembershipSnapshot } from "./membership-display";
+import { trustedMembershipUrl, validMembershipSnapshot } from "./membership-display";
 import styles from "./Membership.module.css";
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -117,18 +117,17 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
     }, [confirmation]);
 
     return <div className={styles.page} onPointerMove={followGlassPointer}>
-        <Link href="/app-home/settings/payments" prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />Workfare Pay</Link>
-        <header className={styles.header}><h1>{offer?.name ?? MEMBERSHIP_NAME}</h1>
-            <button type="button" className={`app-glass-control ${styles.round}`} disabled={loading || !!busy || blocked} aria-label="Plan aktualisieren" onClick={onReload}><RefreshCw size={18} aria-hidden="true" /></button>
+        <nav className={styles.toolbar} aria-label="Seitennavigation">
+            <Link href="/app-home/settings/payments" prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />Workfare Pay</Link>
+            <button type="button" className={`app-glass-control ${styles.button} ${styles.refresh}`} disabled={loading || !!busy || blocked} aria-label="Plan aktualisieren" onClick={onReload}><RefreshCw size={16} aria-hidden="true" />Aktualisieren</button>
+        </nav>
+        <header className={styles.header}>
+            <div className={styles.heading}><h1>{offer?.name ?? MEMBERSHIP_NAME}</h1><h2>Weniger Gebühren.</h2></div>
+            <div className={styles.motionStage}><PaymentMotion /></div>
         </header>
 
         {message && <p className={styles.feedback} role="status">{message}</p>}
         {error && <div className={`${styles.surface} ${styles.failure}`}><p role="alert">{error}</p>{blocked ? <a className={`app-glass-control ${styles.button}`} href="/app-home/settings/membership">Nach Anmeldung neu öffnen<ArrowRight size={16} aria-hidden="true" /></a> : <button type="button" className={`app-glass-control ${styles.button}`} onClick={onReload} disabled={!!busy || loading}>Erneut laden<RefreshCw size={16} aria-hidden="true" /></button>}</div>}
-
-        <div className={styles.intro}>
-            <h2>Weniger Gebühren.</h2>
-            <div className={styles.motionStage}><PaymentMotion /></div>
-        </div>
         <div className={styles.surface}>
             <section className={styles.offer} aria-labelledby={offer && !loading ? title : undefined} aria-label={!offer || loading ? "Workfare Plan" : undefined} aria-busy={loading || !!busy}>
                 {loading ? <div className={styles.loading} role="status"><LoaderCircle size={20} className={styles.spinner} aria-hidden="true" />Dein Plan wird geladen …</div> : offer && membership ? <>
@@ -136,7 +135,6 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
                     <PriceTag id={!entitled ? title : undefined} className={styles.price}><strong>{money.format(offer.priceCents / 100)}</strong><span>/ Monat</span></PriceTag>
                     <p className={styles.rate}>Servicegebühr je neuem Job</p>
                     <dl className={styles.comparison}><div><dt>Ohne Plan</dt><dd>{percent(offer.standardRateBps)} %<span>+ {money.format(offer.fixedFeeCents / 100)} je Job</span></dd></div><div data-member="true"><dt>Mit Plan</dt><dd>{percent(offer.memberRateBps)} %<span>+ {money.format(offer.fixedFeeCents / 100)} je Job</span></dd></div></dl>
-                    {!blocked && <MembershipCalculator offer={offer} />}
                     {snapshot.kind !== "live" && <p className={styles.environment}>{snapshot.kind === "sandbox" ? "Stripe-Testbetrieb · Kein Echtgeld" : "Vorschau · Keine Buchung möglich"}</p>}
                     {entitled ? <>
                         {membership.currentPeriodEnd && <div className={styles.period}><CalendarDays size={18} aria-hidden="true" /><span>{membership.cancelAtPeriodEnd ? "Aktiv bis" : "Nächste Verlängerung am"} <strong><time dateTime={membership.currentPeriodEnd}>{date.format(new Date(membership.currentPeriodEnd))}</time></strong></span></div>}
@@ -159,26 +157,16 @@ export function MembershipView({ snapshot, loading, busy, error, message, confir
                     {membership.contractReference && snapshot.manageAvailable && <details className={styles.feeInfo}><summary>Vertrag & Bedingungen<ChevronDown size={15} aria-hidden="true" /></summary><div className={styles.contract}><span>Deine Vertragsreferenz</span><div><code>{membership.contractReference}</code><button type="button" className={`app-glass-control ${styles.round}`} aria-label="Vertragsreferenz kopieren" onClick={() => { if (!navigator.clipboard?.writeText) { setCopyResult("Bitte markiere und kopiere deine Vertragsreferenz."); return; } void navigator.clipboard.writeText(membership.contractReference!).then(() => setCopyResult("Vertragsreferenz kopiert."), () => setCopyResult("Bitte markiere und kopiere deine Vertragsreferenz.")); }}><Copy size={16} aria-hidden="true" /></button></div>{copyResult && <p role="status">{copyResult}</p>}<Link href="/legal/workfare-plan" prefetch={false}>Bedingungen und Widerruf<ArrowUpRight size={14} aria-hidden="true" /></Link><Link href={`/membership/withdraw${contractQuery}`} prefetch={false}>Vertrag widerrufen<ArrowRight size={14} aria-hidden="true" /></Link></div></details>}
                 </> : !error ? <p className={styles.unavailable}>Dein Angebot ist gerade nicht verfügbar.</p> : null}
             </section>
-            <details className={styles.future}><summary className={styles.disclosure}><span>Demnächst</span><ChevronDown size={16} aria-hidden="true" /></summary><ul><li><MapPin size={18} aria-hidden="true" /><strong>Mehrere Einsatzorte</strong><span>Geplant</span></li><li><House size={18} aria-hidden="true" /><strong>Gemeinsames Haushaltsbudget</strong><span>Geplant</span></li><li><Split size={18} aria-hidden="true" /><strong>Zahlung aufteilen</strong><span>Geplant</span></li></ul><p>Geplant. Noch nicht Bestandteil deines Abos.</p></details>
+            <details className={styles.future}>
+                <summary className={styles.disclosure}><span>Demnächst</span><ChevronDown size={16} aria-hidden="true" /></summary>
+                <ul>
+                    <li><span className={`app-glass-control ${styles.futureIcon}`} aria-hidden="true"><CalendarClock size={20} strokeWidth={1.5} /></span><div><strong>Automatische Terminabstimmung</strong><p>Gemeinsame Zeiten finden und Änderungen abstimmen.</p></div></li>
+                    <li><span className={`app-glass-control ${styles.futureIcon}`} aria-hidden="true"><Users size={20} strokeWidth={1.5} /></span><div><strong>Freigaben im Haushalt</strong><p>Aufträge und Budgets mit weiteren Erwachsenen verwalten.</p></div></li>
+                    <li><span className={`app-glass-control ${styles.futureIcon}`} aria-hidden="true"><Search size={20} strokeWidth={1.5} /></span><div><strong>Ersatzsuche bei Absagen</strong><p>Einen freien Job erneut passenden Jobsuchenden anbieten.</p></div></li>
+                </ul>
+                <p>Geplant. Noch nicht Bestandteil deines Abos.</p>
+            </details>
         </div>
         <footer className={styles.footer}><nav className={styles.contractLinks} aria-label="Vertrag verwalten"><Link href={`/membership/cancel${contractQuery}`} prefetch={false}>Verträge hier kündigen</Link><Link href={`/membership/withdraw${contractQuery}`} prefetch={false}>Vertrag widerrufen</Link></nav><PaymentProviderBrand kind={snapshot?.kind} /></footer>
     </div>;
-}
-
-export function MembershipCalculator({ offer }: { offer: MembershipOffer }) {
-    const id = useId();
-    const [jobs, setJobs] = useState(4);
-    const example = membershipExample(3400, jobs, offer)!;
-    return <details className={styles.calculator}>
-        <summary className={styles.disclosure}><span>Gebühren vergleichen</span><ChevronDown size={16} aria-hidden="true" /></summary>
-        <div className={styles.calculatorBody}>
-            <div className={styles.exampleAssumption}><strong>34 € pro Job</strong><span>Beispiel: 2 Stunden à 17 €</span></div>
-            <label className={styles.sliderLabel} htmlFor={`${id}-jobs`}><span>Jobs im Monat</span><output htmlFor={`${id}-jobs`}>{jobs}</output></label>
-            <input className={styles.slider} id={`${id}-jobs`} type="range" min="0" max="12" step="1" value={jobs} onChange={event => setJobs(Number(event.target.value))} aria-valuetext={`${jobs} ${jobs === 1 ? "Job" : "Jobs"} im Monat mit jeweils 34 Euro Vergütung`} />
-            <p className={styles.totalLabel}>Dein Gesamtbetrag im Monat</p>
-            <dl className={styles.exampleRows}><div><dt>Ohne Plan</dt><dd>{money.format((example.totalEarnings + example.without) / 100)}</dd></div><div><dt>Mit Plan</dt><dd>{money.format((example.totalEarnings + example.withPlan) / 100)}</dd></div></dl>
-            <p className={styles.saving} role="status" aria-live="polite"><strong>{money.format(Math.abs(example.netSaving) / 100)}<span> / Monat</span></strong><span>{example.netSaving > 0 ? "günstiger mit Plan" : example.netSaving < 0 ? "günstiger ohne Plan" : "Kein Preisunterschied"}</span></p>
-            <p className={styles.calculationNote}>Vergütung und Gebühren sind enthalten. Mit Plan auch der Monatsbeitrag von {money.format(offer.priceCents / 100)}. Vereinbarte Preise und frühere Tarife bleiben unverändert.</p>
-        </div>
-    </details>;
 }

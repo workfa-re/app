@@ -179,19 +179,19 @@ describe("purpose-bound guardian access and consent UI", () => {
         const html = renderToStaticMarkup(<GuardianConnections relationships={[{ ...connection, actorRole: "child" }, { ...connection, id: "revoked", name: "Revoked Private Name", status: "revoked" }]} busy={false} onApprove={noop} onRevoke={noop} />);
         expect(html).toContain("Zustimmung deines Elternteils ausstehend"); expect(html).not.toContain("Zustimmung prüfen"); expect(html).not.toContain("Revoked Private Name");
     });
-    it("keeps saved parental consent clear and payout troubleshooting behind an explicit disclosure", () => {
+    it("keeps the approved child overview quiet and payout controls behind an explicit disclosure", () => {
         const html=renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true}]} busy={false} onApprove={noop} onRevoke={noop}/>);
-        expect(text(html)).toContain("Elternfreigabe hinterlegt");
-        expect(text(html)).toContain("Bankverbindung und Auszahlungen verwaltet dein Kind.");
-        expect(text(html)).toContain("Workfare Pay ansehen");
+        expect(text(html)).not.toContain("Elternfreigabe hinterlegt");
+        expect(text(html)).not.toContain("Bankverbindung und Auszahlungen verwaltet dein Kind.");
+        expect(text(html)).toContain("Workfare Pay");
         expect(html).not.toMatch(/Stand prüfen|gesetzliche Vertretung konnte|Auszahlung einrichten|Stripe|<iframe|<input/);
         expect(html).not.toContain(' open=""');
     });
     it("reserves payout accompaniment for an adult with actual approval of a minor", () => {
         const render=(patch:Partial<GuardianConnection>)=>renderToStaticMarkup(<GuardianConnections relationships={[{...connection,status:"active",consented:true,...patch}]} busy={false} onApprove={noop} onRevoke={noop}/>);
-        expect(render({actorRole:"child"})).not.toContain("Workfare Pay ansehen");
-        expect(render({consentRequired:false})).not.toContain("Workfare Pay ansehen");
-        expect(render({consented:false})).not.toContain("Workfare Pay ansehen");
+        expect(render({actorRole:"child"})).not.toContain("Workfare Pay");
+        expect(render({consentRequired:false})).not.toContain("Workfare Pay");
+        expect(render({consented:false})).not.toContain("Workfare Pay");
     });
     it("lets the linked adult complete missing consent on an active legacy relationship without offering redundant approval", () => {
         const render = (patch: Partial<GuardianConnection>) => renderToStaticMarkup(<GuardianConnections relationships={[{ ...connection, status: "active", ...patch }]} busy={false} onApprove={noop} onRevoke={noop} />);
@@ -230,7 +230,7 @@ describe("purpose-bound guardian access and consent UI", () => {
     it("uses the same branded light/dark shell while loading without declaring an auth result", () => {
         const html = renderToStaticMarkup(<GuardianLoading />);
         expect(html).toContain("Workfare"); expect(html).toContain('aria-label="Helles Farbschema aktivieren"'); expect(html).toContain('role="status"');
-        expect(html).not.toMatch(/bg-\[#07090f\]|freigeschaltet|Konto verifiziert/);
+        expect(html).not.toMatch(/bg-\[#07090f\]|freigeschaltet|Konto verifiziert|Für deine Familie/);
     });
     it("prepares a private invitation only after an explicit action and encodes token parameters safely", () => {
         const html = renderToStaticMarkup(<FamilyInvitation existing />);

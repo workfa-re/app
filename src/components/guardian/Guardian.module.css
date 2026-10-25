@@ -208,3 +208,74 @@
 .financeHistory li > span { display: flex; flex-direction: column; gap: 3px; color: var(--guardian-ink); }
 .financeHistory small { color: var(--guardian-muted); font-size: 11px; }
 .financeHistory strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* The family workspace gives each child a complete, independent overview. */
+.familyMain { max-width: 760px; min-height: 0; justify-content: flex-start; padding-top: 42px; gap: 25px; }
+.familyWorkspace { gap: 22px; }
+.familyWorkspace > .account { margin-bottom: 0; padding: 0 3px; }
+.logout { color: var(--guardian-muted); }
+.familyWorkspace > .action { align-self: flex-start; }
+.familySettings { padding: 10px 24px; }
+.familySettings > .accountSettings { padding-top: 0; box-shadow: none; }
+.familyEmpty h2 { font-size: 19px; }
+.familyEmpty p { margin: 9px 0 0; color: var(--guardian-muted); font-size: 14px; line-height: 1.7; text-wrap: pretty; }
+.relationships { gap: 22px; }
+.relationships > .relationship + .relationship { padding-top: 28px; border-top: 1px solid transparent; }
+.childCard { gap: 20px; }
+.childHeading { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.childHeading h2 { min-width: 0; font-size: 25px; font-weight: 550; line-height: 1.3; letter-spacing: -.035em; overflow-wrap: anywhere; text-wrap: pretty; }
+.childHeading > div { min-width: 0; }
+.childHeading p { margin: 6px 0 0; color: var(--guardian-muted); font-size: 13px; line-height: 1.6; }
+.childAvatar { display: grid; place-items: center; flex: 0 0 70px; width: 70px; height: 70px; border-radius: 50%; color: var(--guardian-accent); font-size: 23px; font-weight: 500; overflow: hidden; }
+.childAvatar img, .partnerAvatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.childPrivacy { margin: 0; color: var(--guardian-muted); font-size: 13px; line-height: 1.7; }
+.childViews { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; padding: 5px; border-radius: 22px; }
+.childViews > button { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; min-height: 87px; padding: 14px 18px; border: 1px solid transparent; border-radius: 17px; color: var(--guardian-muted); background: transparent; cursor: pointer; }
+.childViews > button[aria-pressed="true"] { color: var(--guardian-accent); background: var(--guardian-field); box-shadow: var(--app-glass-shadow,var(--guardian-card-shadow)); }
+.childViews > button > strong { color: var(--guardian-ink); font-size: 28px; font-weight: 500; line-height: 1.1; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.childViews > button > span { font-size: 12px; line-height: 1.5; }
+.childViews > button:disabled { cursor: default; }
+.childJobs { min-width: 0; }
+.childJobs > ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.childJob { padding: 15px 17px; border-radius: 20px; background: var(--guardian-field); box-shadow: inset 0 1px 0 var(--guardian-rule); }
+.childJobHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.childJobHeading h3 { margin: 0; min-width: 0; color: var(--guardian-ink); font-size: 15px; font-weight: 500; line-height: 1.5; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.childJobStatus { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; color: var(--guardian-muted); font-size: 11px; line-height: 1.5; }
+.childPartner { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 11px; color: var(--guardian-muted); font-size: 12px; line-height: 1.6; }
+.childPartner > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.childPartner strong { color: var(--guardian-ink); font-weight: 450; }
+.partnerAvatar { display: grid; place-items: center; flex: 0 0 25px; width: 25px; height: 25px; border: 1px solid var(--guardian-rule); border-radius: 50%; background: var(--guardian-card); color: var(--guardian-muted); font-size: 9px; font-weight: 500; overflow: hidden; }
+.childJobDate { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--guardian-muted); font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.childJobDate > svg { flex-shrink: 0; }
+.childEmpty, .childLoading { margin: 0; min-height: 64px; display: flex; align-items: center; gap: 9px; color: var(--guardian-muted); font-size: 13px; line-height: 1.7; }
+.childFailure { color: var(--guardian-muted); font-size: 13px; line-height: 1.7; }
+.childFailure p { margin: 0; }
+.childMore { width: 100%; margin-top: 10px; }
+.childCard > .details { border-top: 1px solid var(--guardian-rule); padding-top: 4px; }
+.childCard > .details > summary { min-height: 48px; color: var(--guardian-ink); font-size: 13px; }
+.childCard > .details > summary > span { flex: 1; }
+@media (max-width: 540px) {
+    .familyMain { padding-top: 32px; gap: 22px; }
+    .familyWorkspace { gap: 19px; }
+    .familySettings { padding: 9px 20px; }
+    .relationships { gap: 18px; }
+    .relationships > .relationship + .relationship { padding-top: 23px; }
+    .childCard { gap: 18px; }
+    .childHeading { gap: 16px; }
+    .childHeading h2 { font-size: 22px; }
+    .childAvatar { flex-basis: 62px; width: 62px; height: 62px; font-size: 21px; }
+    .childViews > button { min-height: 82px; padding: 12px 14px; }
+    .childViews > button > strong { font-size: 26px; }
+    .childJob { padding: 14px; }
+    .childJobHeading { gap: 10px; }
+    .childJobHeading h3 { font-size: 14px; }
+    .childJobStatus { font-size: 10px; }
+}
+@media (max-width: 360px) {
+    .familyMain { padding-top: 28px; }
+    .childHeading { gap: 13px; }
+    .childHeading h2 { font-size: 20px; }
+    .childAvatar { width: 54px; height: 54px; flex-basis: 54px; font-size: 19px; }
+    .childViews > button { padding-inline: 11px; }
+    .childJobHeading { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
