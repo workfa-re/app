@@ -15,12 +15,10 @@
 .header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 36px); line-height: 1.2; font-weight: 600; letter-spacing: -.045em; text-wrap: balance; }
 .header > p { margin: 8px 0 0; color: var(--app-muted); font-size: 16px; line-height: 1.6; text-wrap: pretty; }
 .workspace { max-width: 1104px; }
-.workspace > .back { margin-bottom: 18px; }
-.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.8fr); align-items: center; gap: 20px; min-height: 196px; padding: 22px 30px; margin-bottom: 20px; }
-.hero.hero { background: var(--app-ground); }
+.workspace > .back { margin-bottom: 8px; }
+.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.65fr); align-items: center; gap: 20px; min-height: 156px; padding: 0 3px; margin-bottom: 18px; }
 .heroCopy { position: relative; z-index: 1; min-width: 0; pointer-events: none; }
-.hero h1 { font-size: clamp(36px, 3.8vw, 48px); line-height: 1.08; letter-spacing: -.045em; }
-.heroCopy > p { margin: 9px 0 0; font-size: 15px; line-height: 1.6; color: var(--app-muted); text-wrap: pretty; }
+.hero h1 { font-size: clamp(36px, 4.2vw, 48px); line-height: 1.08; letter-spacing: -.045em; }
 .hero .environment { margin-top: 9px; font-size: 10px; }
 .motion { position: relative; min-width: 0; width: 100%; max-width: 320px; height: 156px; justify-self: end; pointer-events: none; }
 .motionVisual { position: absolute; inset: 0; width: min(100%,208px); height: 156px; margin-inline: auto; pointer-events: none; mix-blend-mode: darken; mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); mask-composite: intersect; -webkit-mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent); -webkit-mask-composite: source-in; }
@@ -55,7 +53,8 @@
 .workspace:has([data-embedded="true"]) .hero { display: block; min-height: 0; padding: 0 0 6px; margin-bottom: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .workspace:has([data-embedded="true"]) .hero::before, .workspace:has([data-embedded="true"]) .hero::after { display: none; }
 .workspace:has([data-embedded="true"]) .heroCopy { max-width: 100%; }
-.workspace:has([data-embedded="true"]) .heroCopy > p, .workspace:has([data-embedded="true"]) .motion { display: none; }
+.workspace:has([data-embedded="true"]) .motion { display: none; }
+.workspace:has([data-embedded="true"]) :is(.planEntry,.outlook) { display: none; }
 .methodSurface .sectionHeading > h2 { color: var(--app-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; }
 /* Lift the isolated card with its menu above following glass surfaces. */
 .methodSurface[data-menu-open="true"] { z-index: 3; }
@@ -138,9 +137,17 @@
 .feedback > svg { color: var(--app-accent-ink); flex-shrink: 0; }
 .loading { margin: 12px 0; color: var(--app-muted); font-size: 13px; line-height: 1.6; }
 .provider { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; margin-top: 26px; color: var(--app-muted); font-size: 11px; line-height: 1.6; }
-.providerBrands { display: flex; align-items: center; justify-content: center; gap: 15px; color: var(--app-muted); font-size: 17px; line-height: 1.3; }
-.providerBrands > a { color: var(--app-ink); font-size: 19px; font-weight: 650; letter-spacing: -.04em; text-decoration: none; }
-.providerBrands > a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.planEntry { display: flex; align-items: center; gap: 17px; padding: 19px 24px; color: var(--app-ink); text-decoration: none; }
+.planIcon, .outlookIcon { display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; color: var(--app-muted); }
+.planCopy { display: grid; min-width: 0; gap: 5px; }
+.planCopy strong { font-size: 15px; font-weight: 550; letter-spacing: -.015em; }
+.planCopy > span { color: var(--app-muted); font-size: 13px; line-height: 1.5; }
+.outlook { display: flex; align-items: flex-start; gap: 18px; margin-top: 24px; padding: 22px 25px; }
+.outlookCopy { min-width: 0; }
+.outlookMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 7px; color: var(--app-muted); font-size: 11px; line-height: 1.5; }
+.outlookMeta > span:first-child { color: var(--app-accent-ink); }
+.outlook h2 { font-size: 17px; font-weight: 550; }
+.outlook p { max-width: 67ch; margin: 7px 0 0; color: var(--app-muted); font-size: 12px; line-height: 1.65; text-wrap: pretty; }
 .settingsRow { display: flex; align-items: center; gap: 15px; min-height: 66px; width: 100%; padding: 8px 4px; border: 0; border-radius: 15px; background: transparent; color: var(--app-ink); font-family: inherit; font-size: 15px; text-align: left; list-style: none; cursor: pointer; }
 .settingsRow::-webkit-details-marker { display: none; }
 .rowIcon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; color: var(--app-ink); }
@@ -159,7 +166,7 @@
 @media (max-width:850px) and (min-width:601px) {
     .emptyMethod { grid-template-columns: 48px minmax(0,1fr); gap: 16px; }
     .emptyMethod > .primaryAction { grid-column: 2; justify-self: start; }
-    .hero { min-height: 196px; }
+    .hero { min-height: 156px; }
     .hero h1 { font-size: 42px; }
 }
 @media (max-width:600px) {
@@ -167,14 +174,13 @@
     .back { margin-bottom: 17px; }
     .header { margin-bottom: 23px; }
     .header > p { font-size: 14px; }
-    .hero { grid-template-columns: minmax(0,1fr); gap: 0; min-height: 0; padding: 22px 22px 16px; margin-bottom: 16px; }
+    .hero { grid-template-columns: minmax(0,1fr) 96px; gap: 8px; min-height: 112px; padding: 0; margin-bottom: 12px; }
     .heroCopy { max-width: 100%; }
-    .hero h1 { font-size: clamp(32px, 9.2vw, 38px); }
-    .heroCopy > p { max-width: 100%; margin-top: 9px; font-size: 14px; }
+    .hero h1 { font-size: clamp(28px, 8vw, 36px); }
     .hero .environment { margin-top: 8px; font-size: 10px; }
-    .motion { height: 104px; max-width: none; margin-top: -2px; }
-    .motionVisual { width: 138.667px; height: 104px; }
-    .motionToggle { right: -6px; bottom: -2px; }
+    .motion { height: 112px; max-width: none; }
+    .motionVisual { width: 128px; height: 96px; top: 0; left: -16px; right: auto; }
+    .motionToggle { right: 0; bottom: -2px; }
     .surface { padding: 22px; border-radius: 28px; }
     .surface h2 { font-size: 18px; }
     .stack { gap: 16px; }
@@ -207,6 +213,13 @@
     .fundsBody { padding: 0 20px 21px; }
     .fundsAmounts { gap: 9px; }
     .fundsAmounts > div { padding: 13px 14px; border-radius: 18px; }
+    .planEntry { gap: 13px; padding: 17px 20px; }
+    .planIcon, .outlookIcon { width: 42px; height: 42px; flex-basis: 42px; }
+    .planCopy strong { font-size: 14px; }
+    .planCopy > span { font-size: 12px; }
+    .outlook { gap: 13px; margin-top: 20px; padding: 19px 20px; }
+    .outlookMeta { display: grid; gap: 2px; margin-bottom: 8px; font-size: 10px; }
+    .outlook h2 { font-size: 16px; }
 }
 @media (prefers-reduced-motion:reduce) { .page *,.page *::before,.page *::after { animation: none !important; transition: none !important; } }
 @media (prefers-contrast:more) { .surface { border-color: var(--app-muted); } .action,.iconButton { outline: 1px solid var(--app-muted); } .smallCopy,.consent,.identity > span { color: var(--app-ink); } }

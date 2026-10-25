@@ -287,8 +287,9 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
     const titleId = useId();
     const [savingBilling, setSavingBilling] = useState(false);
     const [editingBilling, setEditingBilling] = useState(false);
-    return <section className={`${styles.surface} ${account.utilities}`} aria-label="Rechnungsdaten und Hilfe">
-        <div className={account.historySection}><details className={account.billing} open={error ? true : undefined}>
+    const billingAvailable = !loading && !error && snapshot !== null;
+    return <section className={account.utilities} aria-label="Rechnungsdaten und Hilfe">
+        <div className={`${styles.surface} ${account.utilityCard} ${account.historySection}`}><details className={account.billing} open={error ? true : undefined}>
             <summary className={`${account.billingSummary} ${account.historySummary}`}><span className={account.billingLabel}><span className={`app-glass-control ${account.billingIcon}`}><FileText size={19} strokeWidth={1.5} aria-hidden="true" /></span><span>Zahlungen und Belege</span></span><ChevronRight className={account.billingChevron} size={17} aria-hidden="true" /></summary>
             <div className={account.billingBody} aria-labelledby={titleId} aria-busy={loading}>
             <h2 id={titleId} className={account.srOnly}>Zahlungen und Belege</h2>
@@ -297,8 +298,10 @@ export function BuyerAccountView({ snapshot, loading, error, onRetry, onBillingS
                     : snapshot && <History snapshot={snapshot} />}
             </div>
         </details><div className={account.historyTools}><button type="button" className={`app-glass-control ${account.refresh}`} disabled={loading || savingBilling || editingBilling} onClick={onRetry} aria-label="Zahlungsübersicht aktualisieren" title="Zahlungen aktualisieren"><RotateCw size={17} className={loading ? account.spinner : undefined} aria-hidden="true" /></button></div></div>
-        {!loading && !error && snapshot && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
-        {children}
+        {(billingAvailable || children) && <div className={`${styles.surface} ${account.utilityCard}`}>
+            {billingAvailable && <Billing snapshot={snapshot} onSaved={onBillingSaved} onSavingChange={setSavingBilling} onEditingChange={setEditingBilling} isOwnerCurrent={isOwnerCurrent} />}
+            {children && <div className={billingAvailable ? account.questionsSeparator : undefined}>{children}</div>}
+        </div>}
     </section>;
 }
 

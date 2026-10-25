@@ -42,7 +42,7 @@ export function getNotificationPresentation(item: NotificationItem): {
     const data = dataRecord(item.data);
     const event = item.event_type ?? "";
     let category: NotificationCategory = "system";
-    if (/^(payment|payout)_/.test(event)) category = "payment";
+    if (/^(payment|payout|membership)_/.test(event)) category = "payment";
     else if (item.category === "messages" || item.type === "message" || event === "message_received") category = "message";
     else if (item.category === "appointments" || data.appointment_id || data.appointment_request_id || event.startsWith("appointment_")) category = "appointment";
     else if (item.category === "account" || /^(account|security|guardian|verification)(_|$)/.test(event)) category = "account";
@@ -55,15 +55,15 @@ export function getNotificationPresentation(item: NotificationItem): {
         ? originalTitle : EVENT_TITLES[event] ?? (category === "account" ? "Hinweis zu deinem Konto" : "Neu bei Workfare");
     const fullBody = cleanText(item.body);
     const body = contextText(data) || fullBody;
-    const fallbackPriority = event === "security" || event === "appointment_request_pending" || event === "conversation_request_pending" ? 1
-        : category === "message" || category === "application" || category === "appointment" ? 2 : 3;
+    const fallbackPriority = event === "security" || event === "membership_payment_failed" || event === "appointment_request_pending" || event === "conversation_request_pending" ? 1
+        : category === "message" || category === "application" || category === "appointment" || event.startsWith("membership_") ? 2 : 3;
     return {
         title,
         body: body === title ? "" : body,
         fullBody,
         category,
         actionLabel: category === "message" ? "Nachricht öffnen"
-            : category === "payment" ? event.startsWith("payout_") ? "Auszahlung ansehen" : "Zahlung ansehen"
+            : category === "payment" ? event.startsWith("membership_") ? "Workfare Plan öffnen" : event.startsWith("payout_") ? "Auszahlung ansehen" : "Zahlung ansehen"
             : category === "appointment" ? "Termin ansehen"
                 : category === "application" ? "Zusammenarbeit öffnen"
                     : category === "job" ? "Job ansehen"

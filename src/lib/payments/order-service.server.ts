@@ -7,7 +7,7 @@ import { createPaymentOrderStripeAdapter } from "./order-stripe.server";
 import * as repository from "./order-repository.server";
 import type { PaymentOrder, PaymentOrderAction, PrivatePaymentOrder, VerifiedOrderState } from "./order-types";
 import type Stripe from "stripe";
-import type { PaymentFeePolicy } from "./tariff";
+import { isPaymentFeePolicy, type PaymentFeePolicy } from "./tariff";
 import { stripePublishableKey } from "./stripe-mode.server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,7 +31,7 @@ export async function proposeAppointmentPayment(input: { appointmentId: unknown;
     if (typeof input.appointmentVersion !== "string" || input.appointmentVersion.length > 50 || !Number.isFinite(Date.parse(input.appointmentVersion))) throw new PaymentFlowError("invalid_appointment_version");
     if (input.plannedMinutes !== undefined && input.plannedMinutes !== null
         && (typeof input.plannedMinutes !== "number" || !Number.isSafeInteger(input.plannedMinutes) || input.plannedMinutes < 1 || input.plannedMinutes > 480)) throw new PaymentFlowError("invalid_planned_minutes");
-    if (typeof input.quoteFeePolicy !== "string" || !["local-zero-fee-v1", "test-service-5-v1", "workfare-service-5-v1"].includes(input.quoteFeePolicy)) throw new PaymentFlowError("invalid_quote_fee_policy");
+    if (!isPaymentFeePolicy(input.quoteFeePolicy)) throw new PaymentFlowError("invalid_quote_fee_policy");
     if (input.operationId) uuid(input.operationId, "invalid_operation_id");
     return { order: await repository.createPaymentOrder(userId, input.operationId ?? randomUUID(), input.appointmentId, input.appointmentVersion, (input.plannedMinutes ?? null) as number | null, input.quoteFeePolicy as PaymentFeePolicy) };
 }

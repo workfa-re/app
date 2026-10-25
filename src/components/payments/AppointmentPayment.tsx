@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import Link from "next/link";
 import { ArrowRight, Check, ChevronDown, CreditCard, LoaderCircle, RefreshCw, WalletCards, X } from "lucide-react";
 import type { PaymentOrder, PaymentOrderAction } from "@/lib/payments/order-types";
-import { LIVE_SERVICE_FEE_POLICY, quoteLiveServiceFee, quoteTestServiceFee, TEST_SERVICE_FEE_POLICY, validPaymentOrderFee, type PaymentFeePolicy } from "@/lib/payments/tariff";
+import { LIVE_SERVICE_FEE_POLICY, quoteServiceFee, isPaymentFeePolicy, isPublishedFeePolicy, validFeePolicyForMode, REGULAR_SERVICE_FEE_POLICY, MEMBER_SERVICE_FEE_POLICY, TEST_SERVICE_FEE_POLICY, validPaymentOrderFee, type PaymentFeePolicy } from "@/lib/payments/tariff";
 import { getPaymentConversationReturnPath, getPaymentSettingsHref } from "@/lib/payments/return-path";
 import type { ChatAppointment } from "@/components/activity/chat-details";
 import styles from "./AppointmentPayment.module.css";
@@ -120,7 +120,7 @@ function validOrder(value: unknown, scope: AppointmentPaymentContext): value is 
         && typeof row.earningsCents === "number" && Number.isSafeInteger(row.earningsCents) && row.earningsCents >= 50 && row.earningsCents <= 99_999_999
         && typeof row.mode === "string" && ["sandbox", "local_simulation", "live"].includes(row.mode)
         && validPaymentOrderFee(row)
-        && (row.feePolicy === LIVE_SERVICE_FEE_POLICY) === (row.mode === "live")
+        && validFeePolicyForMode(row.feePolicy, row.mode)
         && row.livePaymentsEnabled === (row.mode === "live") && row.bankPayoutConfirmed === false;
 }
 class PaymentRequestError extends Error { constructor(readonly code: string) { super("Zahlungsstand nicht bestätigt"); } }
@@ -196,7 +196,7 @@ function ScopedAppointmentPaymentsProvider({ context, children }: { context: App
             if (ticket !== generation.current) return;
             if (!Array.isArray(result.orders) || !result.orders.every(order => validOrder(order, scope))
                 || typeof result.quoteFeePolicy !== "string"
-                || !["local-zero-fee-v1", TEST_SERVICE_FEE_POLICY, LIVE_SERVICE_FEE_POLICY].includes(result.quoteFeePolicy)) throw new PaymentRequestError("payment_unavailable");
+                || !isPaymentFeePolicy(result.quoteFeePolicy)) throw new PaymentRequestError("payment_unavailable");
             setResource({ orders: result.orders, quoteFeePolicy: result.quoteFeePolicy as PaymentFeePolicy, loading: false, available: true, error: null });
         } catch (error) {
             if (ticket !== generation.current) return;
@@ -269,14 +269,18 @@ export function AppointmentCompletionReview({ appointments, job, pending, error,
 }
 
 export function AppointmentPaymentAmounts({ earnings, fee = 0, provider, feePolicy = TEST_SERVICE_FEE_POLICY }: { earnings: number; fee?: number; provider: boolean; feePolicy?: PaymentFeePolicy }) {
+    const bundle = feePolicy === REGULAR_SERVICE_FEE_POLICY || feePolicy === MEMBER_SERVICE_FEE_POLICY ? quoteServiceFee(earnings, feePolicy) : null;
     return <div className={styles.amounts}>
         <dl className={styles.amountLine}><dt>Vergütung</dt><dd>{formatAppointmentMoney(earnings)}</dd></dl>
         {provider && <>
             <details className={styles.feeDetails}>
                 <summary><span>Gebühren</span><span>{formatAppointmentMoney(fee)}<ChevronDown size={14} aria-hidden="true" /></span></summary>
                 <div className={styles.feeBreakdown}>
-                    <dl className={styles.amountLine}><dt>Workfare-Servicegebühr{feePolicy === LIVE_SERVICE_FEE_POLICY ? <span> · 5 %</span> : <span> (Testtarif)</span>}</dt><dd>{formatAppointmentMoney(fee)}</dd></dl>
-                    <p>Die Zahlungsabwicklung ist in dieser Gebühr enthalten.</p>
+                    {bundle && "baseCents" in bundle ? <>
+                        <dl className={styles.amountLine}><dt>Abwicklung & Betrieb<span> · 6 % + 0,49 €</span></dt><dd>{formatAppointmentMoney(bundle.baseCents)}</dd></dl>
+                        <dl className={styles.amountLine}><dt>Workfare-Anteil<span>{feePolicy === MEMBER_SERVICE_FEE_POLICY ? " · entfällt mit Workfare Plan" : " · 6 %"}</span></dt><dd>{formatAppointmentMoney(bundle.workfareCents)}</dd></dl>
+                        <p>Allgemeine Servicegebühr, unabhängig vom gewählten Zahlungsmittel.</p>
+                    </> : <><dl className={styles.amountLine}><dt>Workfare-Servicegebühr{feePolicy === LIVE_SERVICE_FEE_POLICY ? <span> · 5 %</span> : <span> (Testtarif)</span>}</dt><dd>{formatAppointmentMoney(fee)}</dd></dl><p>Die Zahlungsabwicklung ist in dieser Gebühr enthalten.</p></>}
                 </div>
             </details>
             <dl className={`${styles.amountLine} ${styles.total}`}><dt>Gesamt</dt><dd>{formatAppointmentMoney(earnings + fee)}</dd></dl>
@@ -286,7 +290,7 @@ export function AppointmentPaymentAmounts({ earnings, fee = 0, provider, feePoli
 
 function estimatedFee(earnings: number | null, policy: PaymentFeePolicy | null) {
     if (earnings === null || policy === null) return null;
-    try { return policy === "local-zero-fee-v1" ? 0 : policy === LIVE_SERVICE_FEE_POLICY ? quoteLiveServiceFee(earnings).grossCents : quoteTestServiceFee(earnings).grossCents; } catch { return null; }
+    try { return policy === "local-zero-fee-v1" ? 0 : quoteServiceFee(earnings, policy).grossCents; } catch { return null; }
 }
 
 function PaymentTerm({ appointment, job, shared, completion = false, onBusyChange, focusedOrderId }: { appointment: ChatAppointment; job: { wage_hourly?: number | null; payment_type?: string | null }; shared: Shared;
@@ -294,7 +298,7 @@ function PaymentTerm({ appointment, job, shared, completion = false, onBusyChang
     const latest = latestAppointmentPaymentOrder(shared.orders, appointment.id);
     const order = focusedOrderId ? shared.orders.find(item => item.id === focusedOrderId && item.appointmentId === appointment.id) : latest;
     const historical = Boolean(focusedOrderId && focusedOrderId !== latest?.id);
-    const live = order ? order.mode === "live" : shared.quoteFeePolicy === LIVE_SERVICE_FEE_POLICY;
+    const live = order ? order.mode === "live" : isPublishedFeePolicy(shared.quoteFeePolicy);
     const refundLabel = live ? "Erstattung" : "Test-Erstattung";
     const [editor, setEditor] = useState(false);
     const [intent, setIntent] = useState<PaymentUiAction | null>(null);

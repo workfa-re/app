@@ -17,9 +17,9 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Public legal pages keep their existing session-refresh exemption.
+  // Public legal/cancellation access must remain independent of an auth session.
   const path = request.nextUrl.pathname;
-  if (path.startsWith("/legal")) {
+  if (path.startsWith("/legal") || path === "/membership/cancel" || path === "/membership/withdraw" || path === "/api/payments/membership/cancellation") {
     return response;
   }
 

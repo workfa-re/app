@@ -1,0 +1,38 @@
+.page { min-height: 100dvh; }
+.layout { width: min(calc(100% - 40px),760px); margin: 0 auto; padding: 28px 0 64px; }
+.main { width: min(100%,600px); margin: 48px auto 0; }
+.heading { margin: 0 0 28px; }
+.heading h1, .card h1 { color: var(--legal-ink); font-size: clamp(30px,4.2vw,40px); font-weight: 550; line-height: 1.2; letter-spacing: -.045em; margin: 0; text-wrap: balance; }
+.heading p, .intro { margin: 12px 0 0; color: var(--legal-copy); font-size: 15px; line-height: 1.7; text-wrap: pretty; }
+.card { position: relative; isolation: isolate; padding: 30px; border: 1px solid transparent; border-radius: 30px; background: var(--legal-glass); box-shadow: var(--legal-glass-shadow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.fields { display: grid; gap: 22px; min-width: 0; padding: 0; margin: 0; border: 0; }
+.fields:disabled { opacity: .65; }
+.fields label { display: block; min-width: 0; color: var(--legal-ink); font-size: 14px; font-weight: 500; line-height: 1.5; }
+.fields label > span { margin-left: 5px; font-size: 12px; font-weight: 400; color: var(--legal-muted); }
+.fields label > .fieldLabel { margin: 0; color: var(--legal-ink); font-size: 14px; font-weight: 500; }
+.fields :is(input,select,textarea) { display: block; min-width: 0; width: 100%; min-height: 48px; margin: 8px 0 0; padding: 12px 14px; border: 1px solid var(--legal-rule); border-radius: 15px; background: color-mix(in srgb,var(--legal-bg) 72%,transparent); color: var(--legal-ink); font: inherit; font-size: 16px; font-weight: 400; line-height: 1.5; }
+.fields textarea { resize: vertical; min-height: 110px; }
+.fields select { cursor: pointer; }
+.fields small { display: block; margin-top: 8px; color: var(--legal-muted); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.fields :is(input,select,textarea):focus-visible { outline: 2px solid var(--legal-focus); outline-offset: 3px; }
+.primary { display: inline-flex; align-items: center; justify-content: center; width: 100%; gap: 9px; min-height: 50px; padding: 12px 18px; border: 1px solid var(--legal-rule); border-radius: 999px; color: var(--legal-ink); background: var(--legal-glass); box-shadow: var(--legal-glass-shadow); font: inherit; font-size: 15px; font-weight: 550; cursor: pointer; }
+.primary:disabled { cursor: default; }
+.primary:active { transform: none; }
+.error { margin: 20px 0 0; padding: 13px 15px; border: 1px solid var(--legal-rule); border-radius: 15px; color: var(--legal-ink); font-size: 13px; line-height: 1.6; outline: none; }
+.receivedIcon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 24px; border-radius: 50%; background: var(--legal-glass); color: var(--legal-ink); box-shadow: var(--legal-glass-shadow); }
+.card h1 { font-size: clamp(27px,4vw,34px); outline: none; scroll-margin-top: 24px; }
+.receipt { margin: 28px 0; display: grid; gap: 19px; }
+.receipt > div { min-width: 0; }
+.receipt dt { color: var(--legal-muted); font-size: 12px; line-height: 1.6; }
+.receipt dd { margin: 4px 0 0; color: var(--legal-ink); font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.reason { white-space: pre-wrap; }
+.note { margin: 0 0 24px; color: var(--legal-copy); font-size: 12px; line-height: 1.75; text-wrap: pretty; }
+.footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 24px; margin-top: 25px; }
+.footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--legal-muted); font-size: 12px; text-decoration: none; }
+.footer a:hover { color: var(--legal-ink); }
+.spinner { animation: turn 800ms linear infinite; }
+@keyframes turn { to { rotate: 360deg; } }
+@media(max-width:600px) { .layout { padding-top:20px; } .main { margin-top:38px; } .card { padding:22px; border-radius:27px; } .heading { margin-bottom:22px; } .fields { gap:20px; } }
+@media(prefers-reduced-transparency:reduce) { .card { background:var(--legal-bg); backdrop-filter:none; -webkit-backdrop-filter:none; } }
+@media(prefers-reduced-motion:reduce) { .spinner { animation:none; } }
+@media print { .page { background:white; color:black; } .layout { width:100%; padding:0; } .main { width:100%; margin:0; } .layout > header,.footer,.primary { display:none; } .card { padding:0; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; background:none; } .card :is(h1,p,dt,dd) { color:black; } }

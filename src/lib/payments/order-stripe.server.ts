@@ -7,7 +7,7 @@ import { createRecipientStripeAdapter } from "./recipient-stripe.server";
 import type { PaymentsEnvironment } from "./config";
 import type { PrivatePaymentOrder, VerifiedOrderState } from "./order-types";
 import { SEPA_UNAVAILABLE_REASON } from "./method-capabilities";
-import { LIVE_SERVICE_FEE_POLICY, validPaymentOrderFee } from "./tariff";
+import { validFeePolicyForMode, validPaymentOrderFee } from "./tariff";
 
 const ref = (value: string | { id: string } | null | undefined) => typeof value === "string" ? value : value?.id ?? null;
 function mismatch(): never { throw new PaymentFlowError("payment_order_object_mismatch", 409); }
@@ -53,7 +53,7 @@ export function createPaymentOrderStripeAdapter(environment: PaymentsEnvironment
     const sdk = paymentStripeSdk(environment);
     async function customer(order: PrivatePaymentOrder) {
         if (order.mode !== mode || !order.customerRef || !order.methodRef || !order.accountRef || !validPaymentOrderFee(order)
-            || (mode === "live" ? order.feePolicy !== LIVE_SERVICE_FEE_POLICY : order.feePolicy === LIVE_SERVICE_FEE_POLICY)) mismatch();
+            || !validFeePolicyForMode(order.feePolicy, mode)) mismatch();
         const stripe = await sdk();
         const found = await stripe.customers.retrieve(order.customerRef);
         assertStripeModeObject(found, mode);
@@ -177,7 +177,7 @@ export function createPaymentOrderStripeAdapter(environment: PaymentsEnvironment
                 application_fee_amount: order.serviceFeeCents, transfer_data: { destination: order.accountRef! },
                 metadata: { workfare_pay_order: order.id, workfare_pay_provider: order.providerId, workfare_pay_recipient: order.recipientId, workfare_pay_terms: order.termsVersion,
                     ...(order.serviceFeeCents > 0 ? { workfare_pay_fee_policy: order.feePolicy, workfare_pay_fee_gross_cents: String(order.serviceFeeCents),
-                        ...(order.mode !== "live" ? { workfare_pay_tax_assumption: order.feeTariff!.tax!.determinationReference } : {}) } : {}) },
+                        ...(order.feeTariff?.tax ? { workfare_pay_tax_assumption: order.feeTariff.tax.determinationReference } : {}) } : {}) },
             }, { idempotencyKey: `workfare-pay:order:${order.id}:authorize:${operationId}` });
             ownedIntent(intent, order);
             return { intentRef: intent.id, clientSecret: intentSecret(intent) };

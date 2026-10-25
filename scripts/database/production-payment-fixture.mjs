@@ -7,6 +7,7 @@ import {spawn} from 'node:child_process';
 import {dockerConnection,nameOf,sql,verifyProject} from '../demo/common.mjs';
 export async function createProductionPaymentFixture(prefix='workfare_pay_events',{excludeMigrationSuffix=null}={}) {
  assert.match(prefix,/^[a-z][a-z_]{1,40}$/);
+ const excludedSuffixes=Array.isArray(excludeMigrationSuffix)?excludeMigrationSuffix:excludeMigrationSuffix?[excludeMigrationSuffix]:[];
  const docker=await dockerConnection(); await verifyProject(docker);
  const database=`${prefix}_${randomUUID().replaceAll('-','')}`;
  await sql(docker,`CREATE DATABASE ${database};`);
@@ -26,7 +27,7 @@ export async function createProductionPaymentFixture(prefix='workfare_pay_events
    GRANT USAGE ON SCHEMA auth TO anon,authenticated,service_role;GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO anon,authenticated,service_role;`);
   await execute(await readFile(new URL('../../infrastructure/demo/schema/platform.sql',import.meta.url),'utf8'));
   const directory=new URL('../../infrastructure/database/migrations/',import.meta.url);
-  const names=['20261022181830_appointment_requests.sql','20261022224929_exclusive_job_reservations.sql','20261023215242_notification_delivery_foundation.sql','20261023215919_index_notification_delivery_foreign_keys.sql','20261023230227_scoped_activity_reports.sql',...(await readdir(directory)).filter(name=>/^\d{14}_[a-z0-9_]+\.sql$/.test(name)&&name>='20261024000000'&&(!excludeMigrationSuffix||!name.endsWith(excludeMigrationSuffix))).sort()];
+  const names=['20261022181830_appointment_requests.sql','20261022224929_exclusive_job_reservations.sql','20261023215242_notification_delivery_foundation.sql','20261023215919_index_notification_delivery_foreign_keys.sql','20261023230227_scoped_activity_reports.sql',...(await readdir(directory)).filter(name=>/^\d{14}_[a-z0-9_]+\.sql$/.test(name)&&name>='20261024000000'&&!excludedSuffixes.some(suffix=>name.endsWith(suffix))).sort()];
   for(const name of names) await execute(await readFile(new URL(name,directory),'utf8'));
   assert.equal(await json("SELECT to_json(to_regnamespace('demo_private') IS NULL)"),true);
   return {database,execute,json,dispose};

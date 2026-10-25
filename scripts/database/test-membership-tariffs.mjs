@@ -1,0 +1,61 @@
+// Actual financial-quote/RLS checks in a disposable release-shaped local DB.
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {readFile,readdir} from 'node:fs/promises';
+import {createProductionPaymentFixture} from './production-payment-fixture.mjs';
+import {args,quote,asRole} from './payment-fixture.mjs';
+const dir=new URL('../../infrastructure/database/migrations/',import.meta.url),files=await readdir(dir);
+const tariffPath=process.env.WORKFARE_MEMBERSHIP_TARIFF_SQL??new URL(files.find(x=>x.endsWith('_membership_fee_tariffs.sql'))??'missing.sql',dir);
+const membershipPath=process.env.WORKFARE_MEMBERSHIP_SQL??new URL(files.find(x=>x.endsWith('_provider_memberships.sql'))??'missing.sql',dir);
+const migration=await readFile(tariffPath,'utf8');
+const f=await createProductionPaymentFixture('workfare_member_tariff',{excludeMigrationSuffix:'_membership_fee_tariffs.sql'}),{execute,json,dispose}=f;
+const id=()=>randomUUID(),owner=id(),seeker=id(),other=id();let checks=0;
+const check=(a,b,label)=>{assert.deepEqual(a,b,label);checks++;};
+const call=(name,values)=>json(asRole('service_role',null,`SELECT public.${name}(${args(values)})`));
+async function term(){const t={id:id(),job:id(),app:id(),engagement:id(),operation:id()};
+ await execute(`INSERT INTO public.jobs(id,title,posted_by,status,filled_by,payment_type,wage_hourly,description,job_kind)VALUES(${args([t.job,'Gartenpflege',owner,'filled',seeker,'fixed',17,'Einmalige Pflege','one_time'])});
+ INSERT INTO public.applications(id,job_id,user_id,status,is_primary,queue_position,last_activity_at)VALUES(${args([t.app,t.job,seeker,'accepted',true,1])},now());
+ INSERT INTO public.job_engagements(id,application_id,job_id,provider_id,seeker_id,status,engagement_type)VALUES(${args([t.engagement,t.app,t.job,owner,seeker,'active','one_time'])});
+ INSERT INTO public.job_appointments(id,engagement_id,starts_at,ends_at)VALUES(${args([t.id,t.engagement,new Date(Date.now()+3600000).toISOString(),new Date(Date.now()+7200000).toISOString()])});`);
+ t.version=await json(`SELECT to_json(updated_at)FROM public.job_appointments WHERE id=${quote(t.id)}`);return t;
+}
+const propose=(t,policy)=>call('pay_order_create_for_tariff',[owner,'live',t.operation,t.id,t.version,null,policy]);
+try{
+ if(await json("SELECT to_json(to_regclass('payment_private.memberships')IS NULL)"))await execute(await readFile(membershipPath,'utf8'));
+ await execute(`UPDATE payment_private.configuration SET mode='live';UPDATE payment_private.live_configuration SET enabled=true,buyer_setup_enabled=true,recipient_setup_enabled=true,adult_model_approved=true,orders_enabled=true;
+ UPDATE payment_private.order_configuration SET enabled=true,fee_policy='workfare-service-5-v1';
+ INSERT INTO auth.users(id,email,email_confirmed_at)VALUES(${args([owner,'provider@tariff-fixture.invalid'])},now()),(${args([seeker,'seeker@tariff-fixture.invalid'])},now()),(${args([other,'other@tariff-fixture.invalid'])},now());
+ INSERT INTO public.profiles(id,full_name,account_type,birthdate,country)VALUES(${args([owner,'Anbieter','job_provider','1980-01-01','DE'])}),(${args([seeker,'Jobsuchender','job_seeker','2006-01-01','DE'])}),(${args([other,'Dritter','job_provider','1980-01-01','DE'])})ON CONFLICT(id)DO UPDATE SET full_name=EXCLUDED.full_name,account_type=EXCLUDED.account_type,birthdate=EXCLUDED.birthdate,country=EXCLUDED.country;`);
+ await execute(`UPDATE public.profiles SET full_name='Anbieter',country='DE',birthdate='1980-01-01',account_type='job_provider',street='Musterstraße',house_number='1',city='Rheinbach',zip='53359',lat=50.625,lng=6.949 WHERE id=${quote(owner)}`);
+ const legacyUnpriced=await term(),legacyTerm=await term(),legacy=await propose(legacyTerm,'workfare-service-5-v1');check(legacy.serviceFeeCents,85,'legacy contract exists before rollout');
+ await execute(`BEGIN;${migration.replace(/^BEGIN;\s*/,'').replace(/COMMIT;\s*$/,'')}ROLLBACK;`);
+ check(await json("SELECT to_json(to_regprocedure('payment_private.current_order_fee_policy(uuid,text)')IS NULL)"),true,'fee migration is atomic');
+ await execute(migration);check((await propose(legacyTerm,'workfare-service-5-v1')).serviceFeeCents,85,'installation does not reprice legacy contracts');
+ await execute("UPDATE payment_private.order_configuration SET fee_policy='workfare-service-regular-v2',bundle_started_at=statement_timestamp()");
+ check((await propose(legacyTerm,'workfare-service-5-v1')).serviceFeeCents,85,'activation still preserves legacy operation replay');
+ check((await propose(legacyUnpriced,'workfare-service-5-v1')).serviceFeeCents,85,'existing unpriced job is not subject to an unannounced fee increase');
+ const regularTerm=await term(),regular=await propose(regularTerm,'workfare-service-regular-v2');check([regular.serviceFeeCents,regular.totalCents,regular.feeTariff.workfareCents],[253,1953,102],'new nonmember receives exact rounded regular quote');
+ const staleTerm=await term();await assert.rejects(propose(staleTerm,'workfare-service-member-v1'),/TARIFF_CHANGED/);checks++;
+ await execute(`INSERT INTO payment_private.customers(user_id,mode,customer_ref,claim_operation,livemode)VALUES(${args([owner,'live','cus_tariffMember',id(),true])});
+ UPDATE payment_private.membership_configuration SET enabled=true,tax_treatment='small_business',product_ref='prod_tariffFixture',price_ref='price_tariffFixture'WHERE mode='live';
+ INSERT INTO payment_private.memberships(user_id,mode,customer_id,subscription_ref,status,paid_until,period_end,invoice_ref)SELECT ${args([owner,'live'])},id,'sub_tariffFixture','active',now()+interval'1 day',now()+interval'1 day','in_tariffFixture'FROM payment_private.customers WHERE user_id=${quote(owner)}AND mode='live';`);
+ const memberTerm=await term();await assert.rejects(propose(memberTerm,'workfare-service-regular-v2'),/TARIFF_CHANGED/);checks++;
+ const member=await propose(memberTerm,'workfare-service-member-v1');check([member.serviceFeeCents,member.totalCents,member.feeTariff.workfareCents],[151,1851,0],'paid member waives only Workfare share');
+ check((await call('pay_order_overview',[seeker,memberTerm.app])).quoteFeePolicy,'workfare-service-member-v1','recipient sees provider policy rather than own membership');
+ await execute(`UPDATE payment_private.memberships SET cancel_at_period_end=true WHERE user_id=${quote(owner)}`);
+ check((await call('pay_order_overview',[owner,memberTerm.app])).quoteFeePolicy,'workfare-service-member-v1','cancellation retains already paid period');
+ await execute(`UPDATE payment_private.memberships SET paid_until=now()-interval'1 second' WHERE user_id=${quote(owner)}`);
+ check((await call('pay_order_overview',[owner,memberTerm.app])).quoteFeePolicy,'workfare-service-regular-v2','expired paid period stops new discounts');
+ check((await propose(memberTerm,'workfare-service-member-v1')).serviceFeeCents,151,'expired subscription cannot reprice an existing member contract');
+ await execute(`UPDATE payment_private.memberships SET paid_until=now()+interval'1 day',review_required=true WHERE user_id=${quote(owner)}`);
+ check((await call('pay_order_overview',[owner,memberTerm.app])).quoteFeePolicy,'workfare-service-regular-v2','reviewed payment evidence cannot grant benefit');
+ await execute(`UPDATE payment_private.memberships SET review_required=false,status='trialing' WHERE user_id=${quote(owner)}`);
+ check((await call('pay_order_overview',[owner,memberTerm.app])).quoteFeePolicy,'workfare-service-regular-v2','unpaid trial cannot grant benefit');
+ const before=await call('pay_order_get',[owner,regular.id,false]);check(before.serviceFeeCents,253,'old regular quote stays regular after subscription purchase');
+ await assert.rejects(execute(asRole('authenticated',owner,`SELECT payment_private.current_order_fee_policy(${args([owner,'live'])})`)),/permission denied/);checks++;
+ await assert.rejects(execute(asRole('authenticated',other,`SELECT public.pay_order_overview(${args([other,memberTerm.app])})`)),/permission denied/);checks++;
+ check(await json("SELECT to_json(count(*))FROM payment_private.orders WHERE earnings_cents<>1700"),0,'all wages remain exactly agreed');
+ const rows=await json("SELECT jsonb_agg(jsonb_build_object('wages',v,'regular',payment_private.order_fee_tariff(v,'workfare-service-regular-v2'),'member',payment_private.order_fee_tariff(v,'workfare-service-member-v1')))FROM unnest(ARRAY[50,95,125,1675,1700,9999,10000])v");
+ for(const row of rows){check(row.regular.grossCents-row.member.grossCents,row.regular.workfareCents,'component savings survive SQL cent boundaries');check(row.regular.baseCents,row.member.baseCents,'general service component unchanged');}
+ console.log(JSON.stringify({ok:true,checks,hostedWrites:0,stripeRequests:0,moneyMoved:0}));
+}finally{await dispose();}

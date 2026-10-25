@@ -39,6 +39,16 @@ describe("notification payloads and presentation", () => {
             .toMatchObject({ category: "account", priority: 1 });
     });
 
+    it.each([
+        ["membership_active", 2],
+        ["membership_renewal_changed", 2],
+        ["membership_payment_failed", 1],
+    ] as const)("opens %s in membership management with a clear payment action", (event, priority) => {
+        expect(getNotificationPresentation({ ...item, type: event, event_type: event,
+            data: { route: "/app-home/settings/membership" } }))
+            .toMatchObject({ category: "payment", priority, actionLabel: "Workfare Plan öffnen", route: "/app-home/settings/membership" });
+    });
+
     it("keeps existing useful individual titles and validates destinations", () => {
         expect(getNotificationPresentation({ ...item, title: "Dein Konto ist bereit", type: "info", data: { route: "https://evil.example" } }))
             .toMatchObject({ title: "Dein Konto ist bereit", route: null, priority: 3 });

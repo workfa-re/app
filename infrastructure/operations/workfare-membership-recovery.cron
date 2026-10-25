@@ -1,0 +1,3 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root /usr/bin/flock -n /run/lock/workfare-membership-recovery.lock /usr/bin/timeout 270 /usr/local/sbin/workfare-membership-recovery >> /var/log/workfare-membership-recovery.log 2>&1

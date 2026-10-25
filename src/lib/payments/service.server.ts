@@ -211,6 +211,12 @@ export async function handlePaymentWebhook(payload: string, signature: string) {
     const runtime = requirePaymentRuntime();
     if (runtime.mode === "local_simulation") throw new PaymentFlowError("sandbox_required", 503);
     const event = await createStripeSandboxAdapter().verifyWebhook(payload, signature);
+    if (event.type.startsWith("customer.subscription.") || event.type.startsWith("invoice.") || event.type.startsWith("payment_intent.")
+        || ["charge.refunded", "charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"].includes(event.type)
+        || ((event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded" || event.type === "checkout.session.expired") && event.data.object.mode === "subscription")) {
+        await (await import("./subscription-service.server")).handleMembershipEvent(event as import("stripe").default.Event);
+        return { received: true as const };
+    }
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
         const session = event.data.object;
         const setupId = session.metadata?.workfare_pay_setup;

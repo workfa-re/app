@@ -1,7 +1,7 @@
 import "server-only";
 import { PaymentFlowError } from "./runtime.server";
 import { MAX_QUOTE_CENTS } from "./quote";
-import { validPaymentOrderFee } from "./tariff";
+import { validPaymentOrderFee, validFeePolicyForMode, isPaymentFeePolicy } from "./tariff";
 import type { PaymentOrder, PaymentOrderOperation, PaymentOrderOverview, PrivatePaymentOrder } from "./order-types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,7 +27,7 @@ export function parsePaymentOrder(value: unknown): PaymentOrder {
         || row.currency !== "eur" || !validPaymentOrderFee(row) || row.termsVersion !== "appointment-price-v1"
         || typeof row.state !== "string" || !STATES.has(row.state) || ![0, row.totalCents].includes(row.refundedCents as number)
         || typeof row.termsCurrent !== "boolean" || row.livePaymentsEnabled !== (row.mode === "live") || row.bankPayoutConfirmed !== false
-        || (row.mode === "live" ? row.feePolicy !== "workfare-service-5-v1" : row.feePolicy === "workfare-service-5-v1")) invalid();
+        || !validFeePolicyForMode(row.feePolicy, row.mode)) invalid();
     const earnings = row.paymentType === "fixed" ? row.rateCents : Number((BigInt(row.rateCents) * BigInt(row.plannedMinutes as number) + BigInt(30)) / BigInt(60));
     if (row.earningsCents !== earnings) invalid();
     return { ...Object.fromEntries(PUBLIC_FIELDS.map(key => [key, row[key]])), feeTariff: row.feeTariff ?? null } as PaymentOrder;
@@ -37,7 +37,7 @@ export function parsePaymentOrder(value: unknown): PaymentOrder {
 export function parsePaymentOrderOverview(value: unknown): PaymentOrderOverview {
     if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
     const row = value as Record<string, unknown>;
-    if (!Array.isArray(row.orders) || row.orders.length > 50 || typeof row.quoteFeePolicy !== "string" || !["local-zero-fee-v1", "test-service-5-v1", "workfare-service-5-v1"].includes(row.quoteFeePolicy)) invalid();
+    if (!Array.isArray(row.orders) || row.orders.length > 50 || !isPaymentFeePolicy(row.quoteFeePolicy)) invalid();
     return { orders: row.orders.map(parsePaymentOrder), quoteFeePolicy: row.quoteFeePolicy as PaymentOrderOverview["quoteFeePolicy"] };
 }
 

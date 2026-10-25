@@ -50,6 +50,8 @@ const schemaNames = [
   "../../database/migrations/20261025105410_guardian_contact_and_finance_visibility.sql",
   "../../database/migrations/20261025114040_payment_lifecycle_notifications.sql",
   "../../database/migrations/20261025114413_payout_status_ordering.sql",
+  "../../database/migrations/20261025125848_provider_memberships.sql",
+  "../../database/migrations/20261025125908_membership_fee_tariffs.sql",
   "cleanup-schedule.sql",
 ];
 const config = `project_id = "${PROJECT}"

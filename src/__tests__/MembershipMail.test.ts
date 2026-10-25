@@ -1,0 +1,15 @@
+import{afterEach,beforeEach,describe,expect,it,vi}from"vitest";
+vi.mock("server-only",()=>({}));
+const m=vi.hoisted(()=>({create:vi.fn(),send:vi.fn(),close:vi.fn()}));
+vi.mock("nodemailer",()=>({default:{createTransport:m.create}}));
+import{sendMembershipCancellationReceipt}from"@/lib/payments/subscription-mail.server";
+const details={kind:"ordinary",reason:null,requestedEnd:null,name:"Fixture Provider",confirmedUntil:null,reviewRequired:false,phase:"received"as const};
+beforeEach(()=>{vi.resetAllMocks();vi.stubEnv("WORKFARE_GUARDIAN_SMTP_URL","smtp://fixture-user:fixture-only-password@smtp.example.invalid:587");vi.stubEnv("WORKFARE_GUARDIAN_MAIL_FROM","Workfare <noreply@example.invalid>");m.create.mockReturnValue({sendMail:m.send,close:m.close});m.send.mockResolvedValue({});});
+describe("membership cancellation text-form receipts",()=>{
+ it("requires TLS and disables tracking and attachment/URL access",async()=>{await sendMembershipCancellationReceipt("provider@example.invalid","receipt-fixture","2026-10-25T12:00:00Z","contract-fixture",details);expect(m.create.mock.calls[0][0]).toMatchObject({requireTLS:true,tls:{minVersion:"TLSv1.2"}});expect(m.send.mock.calls[0][0]).toMatchObject({disableFileAccess:true,disableUrlAccess:true,headers:{"X-Mailgun-Track":"no"}});expect(m.close).toHaveBeenCalledOnce();});
+ it("gives initial receipt and final termination distinct stable message identities",async()=>{await sendMembershipCancellationReceipt("provider@example.invalid","receipt-fixture","2026-10-25T12:00:00Z","contract-fixture",details);await sendMembershipCancellationReceipt("provider@example.invalid","receipt-fixture","2026-10-25T12:00:00Z","contract-fixture",{...details,phase:"processed",confirmedUntil:"2026-11-25T12:00:00Z"});const a=m.send.mock.calls[0][0],b=m.send.mock.calls[1][0];expect(a.messageId).not.toBe(b.messageId);expect(a.messageId).toContain("-received@");expect(b.messageId).toContain("-processed@");expect(b.subject).toContain("Kündigungsbestätigung");expect(b.text).toContain("25. November 2026");expect(b.text).toContain("Danach verlängert er sich nicht mehr");});
+ it("labels withdrawals honestly and does not promise an automatic refund",async()=>{await sendMembershipCancellationReceipt("provider@example.invalid","receipt-fixture","2026-10-25T12:00:00Z","contract-fixture",{...details,kind:"withdrawal",phase:"processed",reviewRequired:true,confirmedUntil:"2026-11-25T12:00:00Z"});const message=m.send.mock.calls[0][0];expect(message.subject).toContain("Widerruf");expect(message.text).toContain("Widerrufserklärung");expect(message.text).toContain("prüfen wir");expect(message.text).not.toContain("wurde erstattet");expect(message.text).not.toContain("Dein Workfare Plan endet am");});
+ it("refuses a malformed mail configuration before creating a transport",async()=>{vi.stubEnv("WORKFARE_GUARDIAN_SMTP_URL","http://example.invalid");await expect(sendMembershipCancellationReceipt("provider@example.invalid","receipt-fixture","2026-10-25T12:00:00Z","contract-fixture",details)).rejects.toThrow();expect(m.create).not.toHaveBeenCalled();});
+});
+
+afterEach(()=>vi.unstubAllEnvs());

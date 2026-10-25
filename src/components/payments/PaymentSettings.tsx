@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, CalendarRange, Users, WalletCards } from "lucide-react";
 import type { PaymentSettingsSnapshot } from "@/lib/payments/repository.server";
 import type { RecipientSettingsSnapshot } from "@/lib/payments/recipient-types";
 import { sanitizePaymentReturnPath } from "@/lib/payments/return-path";
@@ -70,17 +70,26 @@ export function PaymentSettings({ snapshot, recipientSnapshot, role, returnTo, r
 
     return <div className={`${styles.page} ${styles.workspace}`} onPointerMove={followGlassPointer}>
         <Link href={returnTo || "/app-home/settings"} prefetch={false} className={`app-glass-control ${styles.back}`}><ArrowLeft size={18} aria-hidden="true" />{returnTo ? "Zum Job" : "Einstellungen"}</Link>
-        <header className={`${styles.header} ${styles.surface} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><p>{provider ? "Deine Jobs. Deine Zahlungen." : role === "guardian" ? "Zahlungen in deiner Familie." : "Deine Arbeit. Deine Vergütung."}</p><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
+        <header className={`${styles.header} ${styles.hero}`}><div className={styles.heroCopy}><h1><PayWordmark /></h1><PaymentEnvironment kind={kind} className={styles.environment} /></div><PaymentMotion /></header>
         <div className={styles.stack} key={kind}>
             {result === "canceled" && <p role="status" className={styles.feedback}>Einrichtung abgebrochen. Dein bisheriger Stand bleibt erhalten.</p>}
             {result === "unconfirmed" && <p role="status" className={styles.notice}>Die Einrichtung ist noch nicht bestätigt. Prüfe den aktuellen Stand, bevor du fortfährst.</p>}
             {provider ? <>
                 <BuyerPaymentMethod key={ownerId} ownerId={ownerId} initial={snapshot} returnTo={returnTo} resumeSetupId={resumeSetupId} onChanged={methodChanged} />
                 {snapshot.featureEnabled || snapshot.setupEnabled === true ? <BuyerAccountPanel ownerId={ownerId} kind={snapshot.kind} version={accountVersion}>{questions}</BuyerAccountPanel> : <section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>}
+                <Link href="/app-home/settings/membership" prefetch={false} className={`${styles.surface} ${styles.planEntry}`}>
+                    <span className={`app-glass-control ${styles.planIcon}`} aria-hidden="true"><CalendarRange size={22} strokeWidth={1.5} /></span>
+                    <span className={styles.planCopy}><strong>Gebühren &amp; Abo</strong><span>Der passende Plan für deine Jobs.</span></span>
+                    <ChevronRight size={19} className={styles.rowArrow} aria-hidden="true" />
+                </Link>
             </> : role === "job_seeker" ? <><RecipientPayments initial={recipientSnapshot ?? null} returnTo={returnTo} ownerId={ownerId} hostedReturned={recipientHostedReturned} /><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section></> : <>
                 <section className={styles.surface}><div className={styles.familyRow}><span className={`app-glass-control ${styles.familyIcon}`}><Users size={24} aria-hidden="true" /></span><div className={styles.identity}><strong>Freigaben und Auszahlungen</strong><span>Verwalte die Freigaben und die Auszahlungseinrichtung deiner Kinder im Familienbereich.</span></div><Link href="/guardian/access" className={`app-glass-control ${styles.action}`}>Familienbereich öffnen<ArrowRight size={17} /></Link></div></section><section className={`${styles.surface} ${styles.compactSurface}`}>{questions}</section>
             </>}
         </div>
-        <footer className={styles.provider}>{kind === "local" ? "Lokaler Test ohne Verbindung zu Stripe" : kind === "disabled" ? <PayWordmark /> : <><div className={styles.providerBrands}><a href="https://stripe.com/de" target="_blank" rel="noopener noreferrer">Stripe</a><X size={13} strokeWidth={1.4} aria-hidden="true" /><PayWordmark /></div><span>Zahlungsabwicklung durch Stripe</span></>}</footer>
+        <section className={`${styles.surface} ${styles.outlook}`} aria-labelledby="pay-account-outlook-title">
+            <span className={`app-glass-control ${styles.outlookIcon}`} aria-hidden="true"><WalletCards size={23} strokeWidth={1.5} /></span>
+            <div className={styles.outlookCopy}><div className={styles.outlookMeta}><span>In Planung</span><span>Ziel: Januar 2027</span></div><h2 id="pay-account-outlook-title">Konto &amp; Karte</h2><p>Wir planen ein eigenes Zahlungskonto mit Workfare Pay Karte. Der Start hängt von einer Partnerfreigabe ab.</p></div>
+        </section>
+        <footer className={styles.provider}>{kind === "local" ? "Lokaler Test ohne Verbindung zu Stripe" : kind === "disabled" ? <PayWordmark /> : <span>Zahlungsabwicklung durch Stripe</span>}</footer>
     </div>;
 }

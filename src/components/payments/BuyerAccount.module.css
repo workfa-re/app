@@ -3,7 +3,7 @@
 .heading h2 { margin: 0; font-size: 17px; font-weight: 550; line-height: 1.4; letter-spacing: -.025em; }
 .historySection { position: relative; }
 .billingSummary.historySummary { padding-right: 66px; }
-.historyTools { position: absolute; right: 14px; top: 16px; }
+.historyTools { position: absolute; right: 14px; top: 22px; }
 .refresh { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; color: var(--app-muted); }
 .empty p { margin: 0 0 4px; font-size: 14px; line-height: 1.5; }
 .empty > span, .limited, .unavailable, .billingNote { color: var(--app-muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
@@ -25,8 +25,10 @@
 .documentLink { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 3px; margin: -4px 0; gap: 3px; color: var(--app-accent-ink); font-size: 12px; text-decoration: none; white-space: nowrap; }
 .documentLink:hover { text-decoration: underline; text-underline-offset: 3px; }
 .limited { margin: 0; font-size: 12px; }
-.utilities { padding: 6px 10px; }
-.utilities > details + details { box-shadow: 0 -1px 0 color-mix(in srgb,var(--app-ink) 5%,transparent); }
+.utilities { display: grid; gap: 14px; min-width: 0; }
+.utilityCard.utilityCard { padding: 6px 10px; }
+.questionsSeparator { box-shadow: 0 -1px 0 var(--app-panel-rule); margin: 0 14px; padding-top: 4px; }
+.questionsSeparator > details { margin-inline: -14px; }
 .billing { padding: 0; border-radius: inherit; }
 .billingSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 12px 14px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 500; letter-spacing: -.015em; border-radius: 22px; }
 .billingSummary::-webkit-details-marker { display: none; }
@@ -85,6 +87,9 @@
     .billingRead .address { flex-basis: 100%; }
     .addressRow { gap: 12px; }
     .form input { font-size: 16px; }
+    .utilityCard.utilityCard { padding: 6px 8px; }
+    .questionsSeparator { margin-inline: 10px; }
+    .questionsSeparator > details { margin-inline: -10px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .spinner { animation: none; }

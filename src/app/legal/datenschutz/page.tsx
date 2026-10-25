@@ -82,6 +82,12 @@ export default function DatenschutzPage() {
         </ul>
       </LegalPanel>
 
+      <LegalSection title="Workfare Plan und Vertragserklärungen">
+        <p>Für die freiwillige Mitgliedschaft verarbeiten wir deine Kontozuordnung, die Vertragsreferenz, den bestätigten Zahlungs- und Mitgliedschaftsstatus sowie die akzeptierte Fassung der Bedingungen und den Zeitpunkt eines gewünschten sofortigen Leistungsbeginns. Stripe verarbeitet die für Abrechnung und Zahlung erforderlichen Daten; vollständige Kartenangaben werden nicht in unserer normalen Plattformdatenbank gespeichert.</p>
+        <p>Bei einer Kündigung oder einem Widerruf verarbeiten wir Name, Konto-E-Mail, Vertragsreferenz, Inhalt und Eingangszeitpunkt der Erklärung sowie gegebenenfalls den gewünschten Beendigungszeitpunkt und eine freiwillige Begründung. Diese Angaben dienen der Vertragsabwicklung und dem Nachweis deiner Erklärung. Für den Missbrauchsschutz werden begrenzte technische Prüfdaten verwendet. Die Verarbeitung erfolgt zur Vertragsdurchführung, zur Erfüllung gesetzlicher Pflichten und zum berechtigten Schutz vor Missbrauch nach Art. 6 Abs. 1 Buchstaben b, c und f DSGVO.</p>
+        <p>Bestätigungen versenden wir über die bestehende Mailgun-Anbindung. Angaben werden so lange aufbewahrt, wie sie für die Bearbeitung, gesetzliche Aufbewahrungspflichten und die Klärung vertraglicher Ansprüche erforderlich sind; anschließend werden sie gelöscht oder anonymisiert. Eine Kündigung aktiviert keine Werbung. Private Chatnachrichten werden nicht an Stripe übertragen.</p>
+      </LegalSection>
+
       <LegalSection title="Deine Rechte">
         <p>Du hast jederzeit das Recht auf:</p>
         <ul>
@@ -101,7 +107,7 @@ export default function DatenschutzPage() {
         </p>
       </LegalSection>
 
-      <LegalStamp>Stand: April 2026</LegalStamp>
+      <LegalStamp>Stand: 25. Oktober 2026</LegalStamp>
     </>
   );
 }

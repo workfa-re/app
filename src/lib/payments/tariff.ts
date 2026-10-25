@@ -2,7 +2,48 @@ import { grossFeeForRate, MAX_QUOTE_CENTS, PaymentQuoteError, taxIncludedInGross
 
 export const TEST_SERVICE_FEE_POLICY = "test-service-5-v1";
 export const LIVE_SERVICE_FEE_POLICY = "workfare-service-5-v1";
-export type PaymentFeePolicy = "local-zero-fee-v1" | typeof TEST_SERVICE_FEE_POLICY | typeof LIVE_SERVICE_FEE_POLICY;
+export const REGULAR_SERVICE_FEE_POLICY = "workfare-service-regular-v2";
+export const MEMBER_SERVICE_FEE_POLICY = "workfare-service-member-v1";
+export const PAYMENT_FEE_POLICIES = ["local-zero-fee-v1", TEST_SERVICE_FEE_POLICY, LIVE_SERVICE_FEE_POLICY, REGULAR_SERVICE_FEE_POLICY, MEMBER_SERVICE_FEE_POLICY] as const;
+export type PaymentFeePolicy = typeof PAYMENT_FEE_POLICIES[number];
+export type BundleFeeTariffSnapshot = Readonly<{
+    version: typeof REGULAR_SERVICE_FEE_POLICY | typeof MEMBER_SERVICE_FEE_POLICY;
+    scope: "platform";
+    rateBasisPoints: 600 | 1200;
+    fixedCents: 49;
+    baseCents: number;
+    workfareCents: number;
+    grossCents: number;
+    netCents: null;
+    taxCents: null;
+    tax: null;
+}>;
+
+export function isPaymentFeePolicy(value: unknown): value is PaymentFeePolicy {
+    return typeof value === "string" && PAYMENT_FEE_POLICIES.includes(value as PaymentFeePolicy);
+}
+export function isPublishedFeePolicy(value: unknown): boolean {
+    return value === LIVE_SERVICE_FEE_POLICY || value === REGULAR_SERVICE_FEE_POLICY || value === MEMBER_SERVICE_FEE_POLICY;
+}
+export function validFeePolicyForMode(value: unknown, mode: unknown): boolean {
+    if (!isPaymentFeePolicy(value)) return false;
+    return mode === "live" ? isPublishedFeePolicy(value)
+        : ["sandbox", "local_simulation"].includes(String(mode)) && value !== LIVE_SERVICE_FEE_POLICY;
+}
+/** One price for every payment method. Components are rounded separately in cents. */
+export function quoteBundleServiceFee(earningsCents: number, member = false): BundleFeeTariffSnapshot {
+    const baseCents = grossFeeForRate(earningsCents, 600) + 49;
+    const workfareCents = member ? 0 : grossFeeForRate(earningsCents, 600);
+    const grossCents = baseCents + workfareCents;
+    if (earningsCents + grossCents > MAX_QUOTE_CENTS) throw new PaymentQuoteError("amount_limit");
+    return Object.freeze({version: member ? MEMBER_SERVICE_FEE_POLICY : REGULAR_SERVICE_FEE_POLICY,
+        scope: "platform", rateBasisPoints: member ? 600 : 1200, fixedCents: 49, baseCents, workfareCents,
+        grossCents, netCents: null, taxCents: null, tax: null});
+}
+export function quoteServiceFee(earningsCents: number, policy: Exclude<PaymentFeePolicy, "local-zero-fee-v1">): PaymentFeeTariffSnapshot {
+    if (policy === REGULAR_SERVICE_FEE_POLICY || policy === MEMBER_SERVICE_FEE_POLICY) return quoteBundleServiceFee(earningsCents, policy === MEMBER_SERVICE_FEE_POLICY);
+    return policy === LIVE_SERVICE_FEE_POLICY ? quoteLiveServiceFee(earningsCents) : quoteTestServiceFee(earningsCents);
+}
 export type LiveFeeTariffSnapshot = Readonly<{
     version: typeof LIVE_SERVICE_FEE_POLICY;
     scope: "live";
@@ -26,7 +67,7 @@ export type TestFeeTariffSnapshot = Readonly<{
         determinationReference: "sandbox-de-vat19-assumption-v1";
     }>;
 }>;
-export type PaymentFeeTariffSnapshot = TestFeeTariffSnapshot | LiveFeeTariffSnapshot;
+export type PaymentFeeTariffSnapshot = TestFeeTariffSnapshot | LiveFeeTariffSnapshot | BundleFeeTariffSnapshot;
 
 /** Agreed gross platform price. This is not a tax assessment or an invoice. */
 export function quoteLiveServiceFee(earningsCents: number): LiveFeeTariffSnapshot {
@@ -62,9 +103,9 @@ export function validPaymentOrderFee(value: unknown): boolean {
     const earnings = row.earningsCents;
     if (typeof earnings !== "number" || !Number.isSafeInteger(earnings) || earnings < 50 || earnings > MAX_QUOTE_CENTS) return false;
     if (row.feePolicy === "local-zero-fee-v1") return row.serviceFeeCents === 0 && row.totalCents === earnings && row.feeTariff == null;
-    if (row.feePolicy !== TEST_SERVICE_FEE_POLICY && row.feePolicy !== LIVE_SERVICE_FEE_POLICY) return false;
+    if (!isPaymentFeePolicy(row.feePolicy)) return false;
     try {
-        const expected = row.feePolicy === LIVE_SERVICE_FEE_POLICY ? quoteLiveServiceFee(earnings) : quoteTestServiceFee(earnings);
+        const expected = quoteServiceFee(earnings, row.feePolicy as Exclude<PaymentFeePolicy, "local-zero-fee-v1">);
         return row.serviceFeeCents === expected.grossCents && row.totalCents === earnings + expected.grossCents && sameSnapshot(row.feeTariff, expected);
     } catch { return false; }
 }
